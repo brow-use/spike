@@ -8,16 +8,6 @@ export const getAccessibilityTree: Tool = {
     properties: {},
   },
   async execute(_input, ctx: ToolContext): Promise<string> {
-    const tree = await ctx.page.evaluate(() => {
-      function nodeToObj(node: Element): unknown {
-        return {
-          role: node.getAttribute('role') ?? node.tagName.toLowerCase(),
-          name: (node as HTMLElement).innerText?.slice(0, 100) ?? node.getAttribute('aria-label') ?? '',
-          children: Array.from(node.children).map(nodeToObj),
-        }
-      }
-      return nodeToObj(document.body)
-    })
-    return JSON.stringify(tree, null, 2)
+    return ctx.page.locator('body').ariaSnapshot()
   },
 }
