@@ -8,9 +8,8 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "jsx": "react-jsx"
+    "resolveJsonModule": true
   },
-  "include": ["server/**/*", "agent/**/*", "repl/**/*", "domain/**/*", "repository/**/*"],
-  "exclude": ["extension/**/*", "node_modules", "dist"]
+  "include": ["mcp/**/*", "tool/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
