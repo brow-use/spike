@@ -73,6 +73,7 @@ function createModelProvider(): ModelProvider {
 export type AgentEvent =
   | { type: 'text'; text: string }
   | { type: 'tool'; name: string; input: unknown }
+  | { type: 'tool_result'; name: string; result: string }
   | { type: 'tool_error'; message: string }
 
 export class Agent {
@@ -182,6 +183,12 @@ export class Agent {
         let result: string | ContentBlock[]
         try {
           result = await tool.execute(block.input, ctx)
+          if (onEvent) {
+            const summary = typeof result === 'string'
+              ? result.slice(0, 300)
+              : result.map(b => b.type === 'text' ? b.text?.slice(0, 300) : `[${b.type}]`).join(' ')
+            onEvent({ type: 'tool_result', name: block.name, result: summary })
+          }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
           if (onEvent) onEvent({ type: 'tool_error', message: msg })

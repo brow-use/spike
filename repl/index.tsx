@@ -1,10 +1,13 @@
 import 'dotenv/config'
-import React, { useState, useEffect, useCallback } from 'react'
+import { PassThrough } from 'stream'
+import { EventEmitter } from 'events'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { render, Box, Text, Static, useInput, useApp } from 'ink'
 import { Agent, type AgentEvent } from '../agent/index.js'
 import { ExtensionWsServer } from '../server/ws-server.js'
 import { BrowserBridge } from '../server/browser-bridge.js'
 import { AppRepository } from '../repository/app-repository.js'
+import { HistoryRepository } from '../repository/history-repository.js'
 import type { App } from '../domain/app.js'
 
 const WS_PORT = parseInt(process.env.WS_PORT ?? '3456', 10)
@@ -35,15 +38,30 @@ const newEntry = (type: MessageEntry['type'], text: string): MessageEntry => ({ 
 function prevWordBoundary(text: string, pos: number): number {
   let i = pos
   while (i > 0 && text[i - 1] === ' ') i--
-  while (i > 0 && text[i - 1] !== ' ') i--
+  while (i > 0 && text[i - 1] !== ' ' && text[i - 1] !== '\n') i--
   return i
 }
 
 function nextWordBoundary(text: string, pos: number): number {
   let i = pos
-  while (i < text.length && text[i] !== ' ') i++
-  while (i < text.length && text[i] === ' ') i++
+  while (i < text.length && text[i] !== ' ' && text[i] !== '\n') i++
+  while (i < text.length && (text[i] === ' ' || text[i] === '\n')) i++
   return i
+}
+
+function getCursorCoords(text: string, pos: number): { lineIndex: number; col: number } {
+  const before = text.slice(0, pos)
+  const lines = before.split('\n')
+  return { lineIndex: lines.length - 1, col: lines[lines.length - 1].length }
+}
+
+function moveCursorVertical(text: string, pos: number, dir: 'up' | 'down'): number {
+  const lines = text.split('\n')
+  const { lineIndex, col } = getCursorCoords(text, pos)
+  const targetLine = dir === 'up' ? lineIndex - 1 : lineIndex + 1
+  if (targetLine < 0 || targetLine >= lines.length) return pos
+  const targetLineStart = lines.slice(0, targetLine).reduce((acc, l) => acc + l.length + 1, 0)
+  return targetLineStart + Math.min(col, lines[targetLine].length)
 }
 
 function MessageLine({ entry }: { entry: MessageEntry }) {
@@ -96,27 +114,34 @@ function FormPrompt({ form, input, cursorPos }: { form: NonNullable<FormMode>; i
   )
 }
 
-function InputLine({ value, cursorPos, isRunning }: { value: string; cursorPos: number; isRunning: boolean }) {
-  const before = value.slice(0, cursorPos)
-  const at = value[cursorPos] ?? ' '
-  const after = value.slice(cursorPos + 1)
+function InputPrompt({ value, cursorPos, isRunning }: { value: string; cursorPos: number; isRunning: boolean }) {
+  const lines = value.split('\n')
+  const { lineIndex: cursorLine, col: cursorCol } = getCursorCoords(value, cursorPos)
+  const isMultiline = lines.length > 1
   return (
-    <Box marginTop={1}>
-      <Text color="cyan">{isRunning ? '... ' : '> '}</Text>
-      {isRunning ? (
-        <Text>{value}</Text>
-      ) : (
-        <>
-          <Text>{before}</Text>
-          <Text inverse>{at}</Text>
-          <Text>{after}</Text>
-        </>
+    <Box flexDirection="column" marginTop={1}>
+      {lines.map((line, i) => (
+        <Box key={i}>
+          <Text color="cyan">{i === 0 ? (isRunning ? '... ' : '> ') : '  | '}</Text>
+          {isRunning || i !== cursorLine ? (
+            <Text>{line}</Text>
+          ) : (
+            <>
+              <Text>{line.slice(0, cursorCol)}</Text>
+              <Text inverse>{line[cursorCol] ?? ' '}</Text>
+              <Text>{line.slice(cursorCol + 1)}</Text>
+            </>
+          )}
+        </Box>
+      ))}
+      {!isRunning && isMultiline && (
+        <Text dimColor>  Alt+Enter for new line  Enter to submit</Text>
       )}
     </Box>
   )
 }
 
-function AppComponent({ agent, wsServer, appRepo }: { agent: Agent; wsServer: ExtensionWsServer; appRepo: AppRepository }) {
+function AppComponent({ agent, wsServer, appRepo, historyRepo, pasteEvents }: { agent: Agent; wsServer: ExtensionWsServer; appRepo: AppRepository; historyRepo: HistoryRepository; pasteEvents: EventEmitter }) {
   const { exit } = useApp()
   const [messages, setMessages] = useState<MessageEntry[]>([
     newEntry('system', 'brow-use — browser automation agent'),
@@ -129,10 +154,16 @@ function AppComponent({ agent, wsServer, appRepo }: { agent: Agent; wsServer: Ex
   const [selectMode, setSelectMode] = useState<SelectMode>(null)
   const [formMode, setFormMode] = useState<FormMode>(null)
   const [currentApp, setCurrentApp] = useState<App | null>(() => appRepo.getCurrentApp())
-  const [history, setHistory] = useState<string[]>([])
+  const [history, setHistory] = useState<string[]>(() => historyRepo.load())
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [savedInput, setSavedInput] = useState('')
   const [savedCursor, setSavedCursor] = useState(0)
+
+  const lastRunLog = useRef<AgentEvent[]>([])
+  const stateRef = useRef({ input, cursorPos, isRunning, inForm: formMode !== null })
+  useEffect(() => {
+    stateRef.current = { input, cursorPos, isRunning, inForm: formMode !== null }
+  })
 
   const addMessage = useCallback((type: MessageEntry['type'], text: string) => {
     setMessages(prev => [...prev, newEntry(type, text)])
@@ -152,6 +183,16 @@ function AppComponent({ agent, wsServer, appRepo }: { agent: Agent; wsServer: Ex
     setLine(initial[fields[0].key] ?? '')
     setFormMode({ title, fields, index: 0, values: initial, onComplete })
   }, [setLine])
+
+  useEffect(() => {
+    const handlePaste = (text: string) => {
+      const { input, cursorPos, isRunning, inForm } = stateRef.current
+      if (isRunning || inForm) return
+      setLine(input.slice(0, cursorPos) + text + input.slice(cursorPos), cursorPos + text.length)
+    }
+    pasteEvents.on('paste', handlePaste)
+    return () => { pasteEvents.off('paste', handlePaste) }
+  }, [pasteEvents, setLine])
 
   useEffect(() => {
     wsServer.on('extension:connected', () => {
@@ -183,17 +224,19 @@ function AppComponent({ agent, wsServer, appRepo }: { agent: Agent; wsServer: Ex
           '  /current-app   Show the currently selected app',
           '  /list-app      List apps and select one',
           '  /status        Show connection and session status',
+          '  /log           Replay the tool log from the last run',
           '  /reset         Reset conversation session',
           '',
           'Shortcuts:',
-          '  ←→          Move cursor',
-          '  ↑↓          Command history',
-          '  Ctrl+A/E    Beginning / end of line',
-          '  Ctrl+←/→    Jump word',
-          '  Ctrl+W      Delete word back',
-          '  Ctrl+K      Kill to end of line',
-          '  Ctrl+U      Kill to beginning of line',
-          '  Ctrl+C      Exit',
+          '  ←→            Move cursor',
+          '  ↑↓            Command history / move between lines',
+          '  Alt+Enter      Insert new line',
+          '  Ctrl+A/E       Beginning / end of line',
+          '  Ctrl+←/→       Jump word',
+          '  Ctrl+W         Delete word back',
+          '  Ctrl+K         Kill to end of line',
+          '  Ctrl+U         Kill to beginning of line',
+          '  Ctrl+C         Exit',
         ].join('\n'))
         break
 
@@ -251,6 +294,21 @@ function AppComponent({ agent, wsServer, appRepo }: { agent: Agent; wsServer: Ex
         ].join('\n'))
         break
 
+      case '/log': {
+        const log = lastRunLog.current
+        if (log.length === 0) {
+          addMessage('system', 'No run log yet.')
+          break
+        }
+        for (const event of log) {
+          if (event.type === 'text') addMessage('agent', event.text)
+          else if (event.type === 'tool') addMessage('tool', `${event.name}(${JSON.stringify(event.input)})`)
+          else if (event.type === 'tool_result') addMessage('system', `↳ ${event.name}: ${event.result}`)
+          else if (event.type === 'tool_error') addMessage('error', event.message)
+        }
+        break
+      }
+
       case '/reset':
         agent.resetSession()
         addMessage('system', 'Session reset. Browser state preserved.')
@@ -264,7 +322,8 @@ function AppComponent({ agent, wsServer, appRepo }: { agent: Agent; wsServer: Ex
   const handleSubmit = useCallback(async (line: string) => {
     const trimmed = line.trim()
     if (!trimmed) return
-    setHistory(prev => [trimmed, ...prev])
+    historyRepo.append(trimmed)
+    setHistory(historyRepo.load())
     setHistoryIndex(-1)
     setSavedInput('')
     setSavedCursor(0)
@@ -274,8 +333,10 @@ function AppComponent({ agent, wsServer, appRepo }: { agent: Agent; wsServer: Ex
       return
     }
     setIsRunning(true)
+    lastRunLog.current = []
     try {
       await agent.run(trimmed, (event: AgentEvent) => {
+        lastRunLog.current.push(event)
         if (event.type === 'text') addMessage('agent', event.text)
         else if (event.type === 'tool') addMessage('tool', `${event.name}(${JSON.stringify(event.input)})`)
         else if (event.type === 'tool_error') addMessage('error', event.message)
@@ -289,7 +350,12 @@ function AppComponent({ agent, wsServer, appRepo }: { agent: Agent; wsServer: Ex
 
   useInput((char, key) => {
     if (key.ctrl && char === 'c') {
-      agent.close().then(() => { wsServer.close(); exit() })
+      const forceExit = setTimeout(() => process.exit(0), 3000)
+      agent.close().catch(() => {}).finally(() => {
+        clearTimeout(forceExit)
+        wsServer.close()
+        exit()
+      })
       return
     }
 
@@ -338,6 +404,12 @@ function AppComponent({ agent, wsServer, appRepo }: { agent: Agent; wsServer: Ex
 
     if (!formMode && isRunning) return
 
+    // Alt+Enter: insert newline
+    if (!formMode && key.return && key.meta) {
+      setLine(input.slice(0, cursorPos) + '\n' + input.slice(cursorPos), cursorPos + 1)
+      return
+    }
+
     if (!formMode && key.return) {
       const line = input
       setLine('')
@@ -346,17 +418,27 @@ function AppComponent({ agent, wsServer, appRepo }: { agent: Agent; wsServer: Ex
     }
 
     if (!formMode) {
+      const lines = input.split('\n')
+      const { lineIndex } = getCursorCoords(input, cursorPos)
+
       if (key.upArrow) {
-        const nextIndex = historyIndex + 1
-        if (nextIndex < history.length) {
-          if (historyIndex === -1) { setSavedInput(input); setSavedCursor(cursorPos) }
-          setHistoryIndex(nextIndex)
-          setLine(history[nextIndex])
+        if (lines.length > 1 && lineIndex > 0) {
+          setCursorPos(moveCursorVertical(input, cursorPos, 'up'))
+        } else {
+          const nextIndex = historyIndex + 1
+          if (nextIndex < history.length) {
+            if (historyIndex === -1) { setSavedInput(input); setSavedCursor(cursorPos) }
+            setHistoryIndex(nextIndex)
+            setLine(history[nextIndex])
+          }
         }
         return
       }
+
       if (key.downArrow) {
-        if (historyIndex > 0) {
+        if (lines.length > 1 && lineIndex < lines.length - 1) {
+          setCursorPos(moveCursorVertical(input, cursorPos, 'down'))
+        } else if (historyIndex > 0) {
           const nextIndex = historyIndex - 1
           setHistoryIndex(nextIndex)
           setLine(history[nextIndex])
@@ -397,8 +479,9 @@ function AppComponent({ agent, wsServer, appRepo }: { agent: Agent; wsServer: Ex
       return
     }
 
+    // Regular character or pasted text (char may be multiple characters including \n)
     if (char && !key.ctrl && !key.meta) {
-      setLine(input.slice(0, cursorPos) + char + input.slice(cursorPos), cursorPos + 1)
+      setLine(input.slice(0, cursorPos) + char + input.slice(cursorPos), cursorPos + char.length)
     }
   })
 
@@ -412,7 +495,7 @@ function AppComponent({ agent, wsServer, appRepo }: { agent: Agent; wsServer: Ex
       ) : formMode ? (
         <FormPrompt form={formMode} input={input} cursorPos={cursorPos} />
       ) : (
-        <InputLine value={input} cursorPos={cursorPos} isRunning={isRunning} />
+        <InputPrompt value={input} cursorPos={cursorPos} isRunning={isRunning} />
       )}
       <Box>
         <Text dimColor>
@@ -424,13 +507,81 @@ function AppComponent({ agent, wsServer, appRepo }: { agent: Agent; wsServer: Ex
   )
 }
 
+function createStdin(): { inkStdin: PassThrough; pasteEvents: EventEmitter; restoreTerminal: () => void } {
+  process.stdin.setRawMode(true)
+  process.stdout.write('\x1b[?2004h')
+
+  const restoreTerminal = () => {
+    process.stdout.write('\x1b[?2004l')
+    try { process.stdin.setRawMode(false) } catch {}
+  }
+
+  const inkStdin = new PassThrough()
+  ;(inkStdin as any).isTTY = true
+  ;(inkStdin as any).setRawMode = () => {}
+  ;(inkStdin as any).ref = () => process.stdin.ref()
+  ;(inkStdin as any).unref = () => process.stdin.unref()
+
+  const pasteEvents = new EventEmitter()
+  let pasteBuf = ''
+  let inPaste = false
+
+  process.stdin.on('data', (raw: Buffer) => {
+    let s = raw.toString('utf8')
+    while (s.length > 0) {
+      if (!inPaste) {
+        const i = s.indexOf('\x1b[200~')
+        if (i !== -1) {
+          if (i > 0) inkStdin.write(s.slice(0, i))
+          s = s.slice(i + 6)
+          inPaste = true
+          pasteBuf = ''
+        } else {
+          inkStdin.write(s)
+          break
+        }
+      } else {
+        const i = s.indexOf('\x1b[201~')
+        if (i !== -1) {
+          pasteBuf += s.slice(0, i)
+          s = s.slice(i + 6)
+          inPaste = false
+          pasteEvents.emit('paste', pasteBuf)
+          pasteBuf = ''
+        } else {
+          pasteBuf += s
+          break
+        }
+      }
+    }
+  })
+
+  process.on('exit', restoreTerminal)
+  return { inkStdin, pasteEvents, restoreTerminal }
+}
+
 async function main() {
+  const { inkStdin, pasteEvents, restoreTerminal } = createStdin()
   const wsServer = new ExtensionWsServer(WS_PORT)
   const bridge = new BrowserBridge(wsServer)
   const appRepo = new AppRepository()
+  const historyRepo = new HistoryRepository()
   const agent = new Agent(bridge, appRepo.getCurrentApp())
   await agent.init()
-  render(<AppComponent agent={agent} wsServer={wsServer} appRepo={appRepo} />)
+
+  process.on('SIGTERM', () => {
+    restoreTerminal()
+    setTimeout(() => process.exit(0), 3000)
+    agent.close().catch(() => {}).finally(() => {
+      wsServer.close()
+      process.exit(0)
+    })
+  })
+
+  render(
+    <AppComponent agent={agent} wsServer={wsServer} appRepo={appRepo} historyRepo={historyRepo} pasteEvents={pasteEvents} />,
+    { stdin: inkStdin as unknown as NodeJS.ReadStream },
+  )
 }
 
 main().catch(err => {
