@@ -10,6 +10,6 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["mcp/**/*", "tool/**/*"],
+  "include": ["mcp/**/*", "tool/**/*", "domain/**/*", "repository/**/*"],
   "exclude": ["node_modules", "dist"]
 }
