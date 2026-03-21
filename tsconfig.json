@@ -8,8 +8,9 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "jsx": "react-jsx"
   },
-  "include": ["server/**/*", "agent/**/*", "repl/**/*"],
+  "include": ["server/**/*", "agent/**/*", "repl/**/*", "domain/**/*", "repository/**/*"],
   "exclude": ["extension/**/*", "node_modules", "dist"]
 }

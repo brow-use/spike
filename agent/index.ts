@@ -20,6 +20,7 @@ import { writeWorkflow } from './tool/write-workflow.js'
 import { writeTest } from './tool/write-test.js'
 import { sendToExtension } from './tool/send-to-extension.js'
 import type { BrowserBridge } from '../server/browser-bridge.js'
+import type { App } from '../domain/app.js'
 
 const OUTPUT_DIR = path.resolve(process.cwd(), 'output')
 
@@ -29,16 +30,13 @@ function ensureOutputDirs(): void {
   }
 }
 
-function loadAppConfig(): { url: string; description: string } {
-  const configPath = path.resolve(process.cwd(), 'config', 'app.json')
-  return JSON.parse(fs.readFileSync(configPath, 'utf-8')) as { url: string; description: string }
-}
-
-function buildSystemPrompt(appConfig: { url: string; description: string }): string {
+function buildSystemPrompt(app: App | null): string {
+  const appInfo = app
+    ? `Application: ${app.name}\nURL: ${app.url}\nDescription: ${app.description}`
+    : 'No application selected. Ask the user to create and select an app using /create-app and /list-app.'
   return `You are a browser automation agent helping users automate tasks in a web application.
 
-Application URL: ${appConfig.url}
-Application description: ${appConfig.description}
+${appInfo}
 
 You have tools to navigate, interact with, and record workflows in the browser.
 
@@ -53,19 +51,29 @@ Guidelines:
 }
 
 function createModelProvider(): ModelProvider {
-  const provider = process.env.MODEL_PROVIDER ?? 'claude'
-  const modelName = process.env.MODEL_NAME ?? 'claude-sonnet-4-6'
+  const anthropicKey = process.env.ANTHROPIC_API_KEY
+  const openaiKey = process.env.OPENAI_API_KEY
 
-  if (provider === 'openai') {
-    const apiKey = process.env.OPENAI_API_KEY
-    if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
-    return new OpenAIProvider(apiKey, modelName)
+  if (!anthropicKey && !openaiKey) {
+    throw new Error('At least one of ANTHROPIC_API_KEY or OPENAI_API_KEY must be set')
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  return new ClaudeProvider(apiKey, modelName)
+  const provider = process.env.MODEL_PROVIDER ?? (anthropicKey ? 'claude' : 'openai')
+  const modelName = process.env.MODEL_NAME ?? (provider === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-6')
+
+  if (provider === 'openai') {
+    if (!openaiKey) throw new Error('MODEL_PROVIDER is set to openai but OPENAI_API_KEY is not set')
+    return new OpenAIProvider(openaiKey, modelName)
+  }
+
+  if (!anthropicKey) throw new Error('MODEL_PROVIDER is set to claude but ANTHROPIC_API_KEY is not set')
+  return new ClaudeProvider(anthropicKey, modelName)
 }
+
+export type AgentEvent =
+  | { type: 'text'; text: string }
+  | { type: 'tool'; name: string; input: unknown }
+  | { type: 'tool_error'; message: string }
 
 export class Agent {
   private model: ModelProvider
@@ -77,7 +85,7 @@ export class Agent {
   private bridge: BrowserBridge | null = null
   private systemPrompt: string
 
-  constructor(bridge?: BrowserBridge) {
+  constructor(bridge?: BrowserBridge, app?: App | null) {
     ensureOutputDirs()
     this.model = createModelProvider()
     this.session = new Session()
@@ -87,7 +95,12 @@ export class Agent {
       startTrace, stopTrace, writePageObject, writeWorkflow, writeTest,
       sendToExtension,
     ]
-    this.systemPrompt = buildSystemPrompt(loadAppConfig())
+    this.systemPrompt = buildSystemPrompt(app ?? null)
+  }
+
+  updateApp(app: App | null): void {
+    this.systemPrompt = buildSystemPrompt(app)
+    this.session.reset()
   }
 
   async init(): Promise<void> {
@@ -113,7 +126,7 @@ export class Agent {
     return this.bridge?.isExtensionConnected() ?? false
   }
 
-  async run(userMessage: string): Promise<void> {
+  async run(userMessage: string, onEvent?: (event: AgentEvent) => void): Promise<void> {
     const ctx: ToolContext = {
       page: this.page!,
       context: this.browserContext!,
@@ -140,7 +153,8 @@ export class Agent {
 
       for (const block of response.content) {
         if (block.type === 'text' && block.text) {
-          process.stdout.write('\n' + block.text + '\n')
+          if (onEvent) onEvent({ type: 'text', text: block.text })
+          else process.stdout.write('\n' + block.text + '\n')
         }
       }
 
@@ -162,14 +176,16 @@ export class Agent {
           continue
         }
 
-        process.stdout.write(`[tool] ${block.name}(${JSON.stringify(block.input)})\n`)
+        if (onEvent) onEvent({ type: 'tool', name: block.name, input: block.input })
+        else process.stdout.write(`[tool] ${block.name}(${JSON.stringify(block.input)})\n`)
 
         let result: string | ContentBlock[]
         try {
           result = await tool.execute(block.input, ctx)
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
-          process.stdout.write(`[tool error] ${msg}\n`)
+          if (onEvent) onEvent({ type: 'tool_error', message: msg })
+          else process.stdout.write(`[tool error] ${msg}\n`)
           result = `Error: ${msg}`
         }
 

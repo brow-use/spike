@@ -6,7 +6,7 @@
     "build": "tsc -p tsconfig.json",
     "build:ext": "tsc -p extension/tsconfig.json",
     "dev:server": "tsx watch server/index.ts",
-    "dev:repl": "tsx repl/index.ts",
+    "dev:repl": "tsx repl/index.tsx",
     "start:server": "node dist/server/index.js",
     "start:repl": "node dist/repl/index.js"
   },
@@ -14,13 +14,16 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "better-sqlite3": "^11.0.0",
     "dotenv": "^16.4.0",
+    "ink": "^6.8.0",
     "openai": "^4.85.0",
     "playwright": "^1.50.0",
+    "react": "^19.2.4",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^22.0.0",
+    "@types/react": "^19.2.14",
     "@types/ws": "^8.5.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
