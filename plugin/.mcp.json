@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "brow-use": {
+      "command": "node",
+      "args": ["/Users/viveksingh/projects/brow-use/spike/dist/mcp/index.js"]
+    }
+  }
+}

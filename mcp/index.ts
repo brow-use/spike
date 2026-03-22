@@ -89,8 +89,10 @@ let browserContext: BrowserContext | null = null
 let page: Page | null = null
 
 async function ensureBrowser(): Promise<ToolContext> {
-  if (!browser) {
-    for (const dir of ['page', 'workflow', 'test', 'trace']) {
+  if (!page || page.isClosed()) {
+    await browserContext?.close().catch(() => {})
+    await browser?.close().catch(() => {})
+    for (const dir of ['page', 'workflow', 'trace']) {
       fs.mkdirSync(path.join(OUTPUT_DIR, dir), { recursive: true })
     }
     browser = await chromium.launch({ headless: false })

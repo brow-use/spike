@@ -1,0 +1,13 @@
+{
+  "name": "brow-use",
+  "owner": {
+    "name": "brow-use"
+  },
+  "plugins": [
+    {
+      "name": "brow-use",
+      "description": "Browser automation plugin — record page objects, workflows, and run them",
+      "source": "./plugin"
+    }
+  ]
+}

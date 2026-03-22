@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "brow-use": {
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/mcp/index.js"]
-    }
-  }
-}
