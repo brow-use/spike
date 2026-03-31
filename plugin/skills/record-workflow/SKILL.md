@@ -1,10 +1,10 @@
 ---
 description: Record a reusable workflow function for the current app. Performs the steps live in the browser with tracing, then writes a TypeScript async function.
-allowed-tools: MCP(brow-use/get_accessibility_tree), MCP(brow-use/snapshot), MCP(brow-use/navigate), MCP(brow-use/click), MCP(brow-use/type), MCP(brow-use/start_trace), MCP(brow-use/stop_trace), MCP(brow-use/write_workflow)
+allowed-tools: MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/write_workflow)
 ---
 
 Read the `apps://current` resource to get the active app's URL and description.
-If no app is set, tell the user to run `/brow-use:create-app` and `/brow-use:set-current-app` first.
+If no app is set, tell the user to run `/bu:create-app` and `/bu:set-current-app` first.
 
 Ask the user what workflow they want to record before doing anything else.
 

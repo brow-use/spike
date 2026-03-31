@@ -7,11 +7,11 @@ build:
 
 install: build
 	claude plugin marketplace add $(PLUGIN_DIR)
-	claude plugin install brow-use
+	claude plugin install bu
 
 reinstall: build
-	claude plugin uninstall brow-use
-	claude plugin install brow-use
+	claude plugin uninstall bu
+	claude plugin install bu
 
 list:
 	claude plugin list

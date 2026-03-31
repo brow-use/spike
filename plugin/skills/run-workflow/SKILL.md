@@ -1,10 +1,10 @@
 ---
 description: Run an existing workflow for the current app without recording. Executes the steps live in the browser.
-allowed-tools: MCP(brow-use/get_accessibility_tree), MCP(brow-use/snapshot), MCP(brow-use/navigate), MCP(brow-use/click), MCP(brow-use/type)
+allowed-tools: MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type)
 ---
 
 Read the `apps://current` resource to get the active app's URL and description.
-If no app is set, tell the user to run `/brow-use:create-app` and `/brow-use:set-current-app` first.
+If no app is set, tell the user to run `/bu:create-app` and `/bu:set-current-app` first.
 
 List available workflows from `output/workflow/` and ask the user which one to run.
 

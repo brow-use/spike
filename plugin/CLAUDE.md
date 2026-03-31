@@ -5,4 +5,4 @@ Always read the `apps://current` resource first. It contains the active app's na
 - Understand what the app does and how it is structured
 - Inform decisions about element identification and workflow steps
 
-If no app is set (resource returns null), ask the user to run `/brow-use:create-app` and `/brow-use:set-current-app` first.
+If no app is set (resource returns null), ask the user to run `/bu:create-app` and `/bu:set-current-app` first.

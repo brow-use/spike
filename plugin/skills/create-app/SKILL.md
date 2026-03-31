@@ -1,6 +1,6 @@
 ---
 description: Create a new app entry with a name, description, and URL. Use when the user wants to register a new web application.
-allowed-tools: MCP(brow-use/create_app)
+allowed-tools: MCP(bu/create_app)
 ---
 
 Ask the user for the app name, URL, and description before doing anything else.

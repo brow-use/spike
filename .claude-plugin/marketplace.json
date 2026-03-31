@@ -5,7 +5,7 @@
   },
   "plugins": [
     {
-      "name": "brow-use",
+      "name": "bu",
       "description": "Browser automation plugin — record page objects, workflows, and run them",
       "source": "./plugin"
     }
