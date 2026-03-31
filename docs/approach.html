@@ -22,6 +22,12 @@
     .flow-step .name { font-size: 0.95rem; color: #e6edf3; font-weight: 600; }
     .flow-step .detail { font-size: 0.78rem; color: #8b949e; margin-top: 4px; }
     .arrow { display: flex; align-items: center; padding: 0 6px; color: #30363d; font-size: 1.2rem; }
+    .tool-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+    .chip { font-family: ui-monospace, monospace; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; border: 1px solid; }
+    .chip-perception { background: #1f3a5f; border-color: #388bfd; color: #79c0ff; }
+    .chip-action { background: #1a2e1a; border-color: #3fb950; color: #56d364; }
+    .chip-output { background: #2d1f4e; border-color: #8957e5; color: #d2a8ff; }
+    .chip-group-label { font-size: 0.65rem; color: #8b949e; margin-top: 8px; margin-bottom: 2px; width: 100%; }
     .pass { border: 1px solid #21262d; border-radius: 8px; padding: 18px 22px; margin: 16px 0; }
     .pass-1 { border-left: 3px solid #388bfd; }
     .pass-2 { border-left: 3px solid #3fb950; }
@@ -69,6 +75,16 @@
       <div class="label">3</div>
       <div class="name">Agent loop</div>
       <div class="detail">Claude reads the browser state and calls tools iteratively</div>
+      <div class="tool-chips">
+        <span class="chip-group-label">perception</span>
+        <span class="chip chip-perception">get_accessibility_tree</span>
+        <span class="chip-group-label">action</span>
+        <span class="chip chip-action">navigate</span>
+        <span class="chip chip-action">click</span>
+        <span class="chip chip-action">type</span>
+        <span class="chip-group-label">output</span>
+        <span class="chip chip-output">write_page_object</span>
+      </div>
     </div>
     <div class="arrow">→</div>
     <div class="flow-step">
@@ -82,16 +98,16 @@
 
   <h2>The MCP server</h2>
   <p>
-    The plugin runs a Node.js MCP server (<code>mcp/index.ts</code>) that Chromium via
-    Playwright. Claude Code connects to it over stdio and calls its tools like function calls.
-    The server keeps a single browser, context, and page alive across all tool calls within a session.
+    The MCP server is the bridge between the agent and the browser. The agent cannot touch the browser directly —
+    every perception and action goes through the server. It owns the live browser session for the duration of a
+    skill run, so the browser stays open and in the same state between tool calls. This is what makes the agent
+    loop possible: each step picks up exactly where the last one left off.
   </p>
-  <div class="mcp-box">
-    <div class="row"><span class="row-label">Transport</span><span class="row-val">stdio — Claude Code spawns the server process and communicates via stdin/stdout</span></div>
-    <div class="row"><span class="row-label">Browser</span><span class="row-val">Chromium launched with <code>headless: false</code> — user can watch automation happen live</span></div>
-    <div class="row"><span class="row-label">State</span><span class="row-val">A single <code>Browser</code> → <code>BrowserContext</code> → <code>Page</code> is reused across all tool calls</span></div>
-    <div class="row"><span class="row-label">Resources</span><span class="row-val"><code>apps://current</code> and <code>apps://list</code> expose registered app config to Claude</span></div>
-  </div>
+  <p>
+    It also holds the registered app catalogue and exposes the currently active app to the agent.
+    When a skill starts, the agent reads this to know which application it is working with — its URL,
+    name, and description — before it touches the browser.
+  </p>
 
   <hr class="section-divider">
 
@@ -160,14 +176,6 @@ continue until the full scenario is complete</code></pre>
     <p>If a file already exists, Claude reads it first and merges only missing elements before overwriting.
     This makes the skill <strong>idempotent</strong>: running it again over the same scenario extends
     existing page objects without destroying them.</p>
-    <p>Each generated class follows these conventions:</p>
-    <ul>
-      <li>Constructor accepts <code>Page</code> from <code>@playwright/test</code></li>
-      <li>One <code>readonly</code> locator per interactive element — accessible selectors over CSS</li>
-      <li>One <code>async</code> method per distinct user action</li>
-      <li>Navigation methods return the correct next page object type (resolved from the name map)</li>
-      <li>All referenced page classes are imported by their file names from the same directory</li>
-    </ul>
   </div>
 
   <hr class="section-divider">
