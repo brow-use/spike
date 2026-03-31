@@ -3,7 +3,7 @@ description: Create a Playwright test using existing page objects in the project
 allowed-tools: Read, Write, Bash
 ---
 
-Read the `apps://current` resource to get the active app's name and description.
+Read the `apps://current` resource from MCP server `plugin:bu:bu` to get the active app's name and description.
 If no app is set, tell the user to run `/bu:create-app` and `/bu:set-current-app` first.
 
 Ask the user to describe the test scenario they want to create.

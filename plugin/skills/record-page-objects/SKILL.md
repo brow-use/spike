@@ -3,7 +3,7 @@ description: Walk through a scenario across multiple pages and record or update 
 allowed-tools: MCP(bu/get_accessibility_tree), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/write_page_object)
 ---
 
-Read the `apps://current` resource to get the active app's URL and description.
+Read the `apps://current` resource from MCP server `plugin:bu:bu` to get the active app's URL and description.
 If no app is set, tell the user to run `/bu:create-app` and `/bu:set-current-app` first.
 
 Ask the user to describe the scenario they want to walk through before doing anything else.
