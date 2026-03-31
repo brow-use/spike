@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>brow-use docs</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 24px 60px; line-height: 1.7; background: #0d1117; color: #c9d1d9; }
+    h1 { font-size: 1.6rem; border-bottom: 1px solid #21262d; padding-bottom: 14px; margin-bottom: 8px; color: #e6edf3; }
+    h2 { font-size: 0.8rem; margin-top: 44px; margin-bottom: 10px; color: #e6edf3; text-transform: uppercase; letter-spacing: 0.06em; }
+    p { margin: 10px 0; color: #8b949e; font-size: 0.95rem; }
+    .subtitle { color: #8b949e; font-size: 0.95rem; margin-top: 4px; }
+    .section-divider { border: none; border-top: 1px solid #21262d; margin: 40px 0; }
+    .card-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 18px 22px; text-decoration: none; color: inherit; display: block; transition: border-color 0.15s; }
+    .card:hover { border-color: #58a6ff; }
+    .card-title { font-size: 1rem; font-weight: 600; color: #e6edf3; font-family: ui-monospace, monospace; }
+    .card-desc { font-size: 0.85rem; color: #8b949e; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+  <h1>brow-use</h1>
+  <p class="subtitle">Browser automation plugin for Claude Code — record page objects, workflows, and run them.</p>
+
+  <hr class="section-divider">
+
+  <h2>Skills</h2>
+  <div class="card-list">
+    <a class="card" href="record-page-objects.html">
+      <div class="card-title">/bu:record-page-objects</div>
+      <div class="card-desc">Walk a scenario in the browser and generate typed Page Object Model classes for every page encountered.</div>
+    </a>
+    <a class="card" href="record-workflow.html">
+      <div class="card-title">/bu:record-workflow</div>
+      <div class="card-desc">Record a sequence of browser interactions and write it as a reusable TypeScript async function.</div>
+    </a>
+  </div>
+
+</body>
+</html>
