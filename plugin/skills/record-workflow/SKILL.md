@@ -18,6 +18,8 @@ Ask the user what workflow they want to record before doing anything else.
    - First parameter: `page: Page` from `@playwright/test`
    - Additional parameters for any variable inputs used during recording (e.g. credentials, item names)
    - Import and use Page Object classes from `../page/` for any pages involved
+   - Only use methods that exist on the imported page objects — list all files in `output/page/` and read each one before writing
+   - If a required action has no matching method on the relevant page object, ask the user how to proceed before writing the function
    - The function should be self-contained and replayable
 
 After writing, confirm the file path and summarise the steps recorded.
