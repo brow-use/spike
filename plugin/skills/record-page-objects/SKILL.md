@@ -1,10 +1,12 @@
 ---
 description: Walk through a scenario across multiple pages and record or update Page Object Model classes for every page encountered.
-allowed-tools: MCP(bu/get_accessibility_tree), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/write_page_object)
+allowed-tools: MCP(bu/get_accessibility_tree), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/write_page_object), MCP(bu/clear_session)
 ---
 
 Read the `apps://current` resource from MCP server `plugin:bu:bu` to get the active app's URL and description.
 If no app is set, tell the user to run `/bu:create-app` and `/bu:set-current-app` first.
+
+Ask the user if they want to clear the browser session (cookies, localStorage, sessionStorage) before starting. If yes, call `clear_session`.
 
 Ask the user to describe the scenario they want to walk through before doing anything else.
 
@@ -24,10 +26,17 @@ Do not call `write_page_object` during this pass.
 
 ## Pass 2 — Generation (write all files with full name map available)
 
+Before writing anything, list all files in `output/page/`. For each file found, read it to understand what page it covers (class name, URL, elements).
+
 With the complete name map from Pass 1, generate each page object. For every page in the map:
-1. Check if a file already exists in `output/page/` for this page:
-   - If it does not exist, create it using `write_page_object`
-   - If it exists, read it and add only elements not already present, then overwrite using `write_page_object`
+1. Determine whether an existing file covers the same page:
+   - Exact match: a file named `<file-name>.ts` already exists
+   - Likely match: a file with a different name appears to cover the same page based on its class name, URL, or elements — ask the user to confirm before treating it as a match
+   - No match: no existing file is related — create a new one
+2. On confirmed match (exact or user-confirmed):
+   - Merge — add only elements not already present, then overwrite using `write_page_object`
+3. On no match:
+   - Create it using `write_page_object`
 2. Page object conventions:
    - Constructor accepts `Page` from `@playwright/test`
    - One `readonly` locator property per meaningful interactive element, using accessible selectors (role, label, placeholder) over CSS

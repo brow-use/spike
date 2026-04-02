@@ -21,13 +21,14 @@ import { stopTrace } from '../tool/stop-trace.js'
 import { writePageObject } from '../tool/write-page-object.js'
 import { writeWorkflow } from '../tool/write-workflow.js'
 import { writeTest } from '../tool/write-test.js'
+import { clearSession } from '../tool/clear-session.js'
 import { AppRepository } from '../repository/app-repository.js'
 
 const OUTPUT_DIR = path.resolve(process.cwd(), 'output')
 
 const browserTools: Tool[] = [
   navigate, click, typeTool, snapshot, getAccessibilityTree,
-  startTrace, stopTrace, writePageObject, writeWorkflow, writeTest,
+  startTrace, stopTrace, writePageObject, writeWorkflow, writeTest, clearSession,
 ]
 
 const appTools = [
