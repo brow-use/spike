@@ -65,6 +65,32 @@
     and workflows define the sentences.
   </p>
 
+  <h2>When to use this skill vs writing the function directly</h2>
+  <p>
+    Once page objects are in place, a workflow is largely a sequence of method calls. Claude Code can
+    write that function from a plain description without running the browser — and for straightforward,
+    well-understood flows that is often the faster path.
+  </p>
+  <p>
+    This skill earns its place in two situations:
+  </p>
+  <ul>
+    <li>
+      <strong>The flow is not fully understood.</strong> Live execution discovers things a description
+      won't capture — redirects, intermediate loading states, unexpected modals, conditional UI.
+      The skill writes what actually happens in the browser, not what you think happens.
+    </li>
+    <li>
+      <strong>You want a reference trace.</strong> The trace produced during recording is a snapshot of
+      a known-good run. When a test fails later, you can compare the failure against the original trace
+      to see exactly where the behaviour diverged. Writing the function by hand produces no such artefact.
+    </li>
+  </ul>
+  <p>
+    If the flow is simple, the page objects cover it fully, and debugging traceability is not a concern —
+    asking Claude Code to write the function directly is the right call.
+  </p>
+
   <hr class="section-divider">
 
   <h2>Tracing</h2>

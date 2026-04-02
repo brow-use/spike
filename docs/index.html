@@ -21,12 +21,22 @@
 <body>
 
   <h1>brow-use</h1>
-  <p class="subtitle">Browser automation plugin for Claude Code — record page objects, workflows, and run them.</p>
+  <p class="subtitle">Browser automation plugin for Claude Code</p>
+
+  <hr class="section-divider">
+
+  <h2>What it solves</h2>
+  <p>Writing Playwright tests requires Page Object Model classes — one per page, with locators and action methods for every interactive element. Writing these by hand means opening the app, inspecting the DOM, copying selectors, and structuring the class yourself. It is mechanical work that takes time and produces results that vary in quality.</p>
+  <p>This plugin replaces that process. You describe a scenario, the agent walks through it in a real browser, reads the accessibility tree at every step, and generates the page object classes for you — with stable accessible selectors, typed navigation between pages, and idempotent updates when you run it again.</p>
 
   <hr class="section-divider">
 
   <h2>Skills</h2>
   <div class="card-list">
+    <a class="card" href="app-management.html">
+      <div class="card-title">App management</div>
+      <div class="card-desc">Register applications, switch the active app, and manage the app catalogue.</div>
+    </a>
     <a class="card" href="record-page-objects.html">
       <div class="card-title">/bu:record-page-objects</div>
       <div class="card-desc">Walk a scenario in the browser and generate typed Page Object Model classes for every page encountered.</div>

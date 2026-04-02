@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>App management</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 24px 60px; line-height: 1.7; background: #0d1117; color: #c9d1d9; }
+    h1 { font-size: 1.6rem; border-bottom: 1px solid #21262d; padding-bottom: 14px; margin-bottom: 8px; color: #e6edf3; }
+    h2 { font-size: 0.8rem; margin-top: 44px; margin-bottom: 10px; color: #e6edf3; text-transform: uppercase; letter-spacing: 0.06em; }
+    p { margin: 10px 0; }
+    code { font-family: ui-monospace, monospace; font-size: 0.875em; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 6px; color: #d2a8ff; }
+    .subtitle { color: #8b949e; font-size: 0.95rem; margin-top: 4px; }
+    .section-divider { border: none; border-top: 1px solid #21262d; margin: 40px 0; }
+    nav { margin-bottom: 32px; font-size: 0.85rem; color: #8b949e; }
+    nav a { color: #58a6ff; text-decoration: none; }
+    .skill-list { display: flex; flex-direction: column; gap: 1px; margin-top: 16px; border: 1px solid #21262d; border-radius: 8px; overflow: hidden; }
+    .skill { background: #161b22; padding: 16px 20px; }
+    .skill:hover { background: #1c2128; }
+    .skill-header { display: flex; align-items: baseline; gap: 16px; }
+    .skill-name { font-family: ui-monospace, monospace; font-size: 0.9rem; font-weight: 600; color: #e6edf3; }
+    .skill-desc { font-size: 0.85rem; color: #8b949e; margin-top: 6px; }
+    .skill-detail { font-size: 0.82rem; color: #6e7681; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+  <nav><a href="index.html">← docs</a></nav>
+
+  <h1>App management</h1>
+  <p class="subtitle">Register and switch between web applications before recording</p>
+
+  <hr class="section-divider">
+
+  <h2>Overview</h2>
+  <p>
+    All recording skills — <code>record-page-objects</code> and <code>record-workflow</code> — start by
+    reading the currently active app to know which URL to work with and what the app does.
+    The app management skills are how you register applications and set which one is active.
+  </p>
+  <p>
+    Apps are persisted locally. You register an app once and switch between them as needed —
+    you do not need to re-register every session.
+  </p>
+
+  <hr class="section-divider">
+
+  <h2>Skills</h2>
+  <div class="skill-list">
+
+    <div class="skill">
+      <div class="skill-header">
+        <span class="skill-name">/bu:create-app</span>
+      </div>
+      <div class="skill-desc">Register a new application. Asks for a name, URL, and description, then saves it.</div>
+      <div class="skill-detail">The description is used by recording skills to understand the app's purpose — write something meaningful, not just the app name.</div>
+    </div>
+
+    <div class="skill">
+      <div class="skill-header">
+        <span class="skill-name">/bu:set-current-app</span>
+      </div>
+      <div class="skill-desc">Switch to a registered app and navigate the browser to its URL.</div>
+      <div class="skill-detail">Run this before any recording skill. It sets the active app context and opens the browser at the right starting point.</div>
+    </div>
+
+    <div class="skill">
+      <div class="skill-header">
+        <span class="skill-name">/bu:list-app</span>
+      </div>
+      <div class="skill-desc">Show all registered apps as a table with id, name, URL, and description.</div>
+    </div>
+
+    <div class="skill">
+      <div class="skill-header">
+        <span class="skill-name">/bu:delete-app</span>
+      </div>
+      <div class="skill-desc">Remove a registered app. Shows the app list, asks which to delete, and asks for confirmation before removing.</div>
+    </div>
+
+  </div>
+
+  <hr class="section-divider">
+
+  <h2>Typical setup sequence</h2>
+  <p>For a new application:</p>
+  <pre style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:18px 20px;overflow-x:auto;margin:14px 0;"><code style="font-family:ui-monospace,monospace;font-size:0.85em;color:#c9d1d9;">/bu:create-app       ← register the app once
+/bu:set-current-app  ← activate it and open the browser
+/bu:record-page-objects</code></pre>
+  <p>In subsequent sessions, only <code>/bu:set-current-app</code> is needed — the app is already registered.</p>
+
+</body>
+</html>
