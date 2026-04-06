@@ -1,3 +1,6 @@
+import { crx } from 'playwright-crx'
+import type { BrowserContext, Page } from 'playwright-crx'
+
 interface BrowserCommand {
   id: string
   type: string
@@ -11,17 +14,95 @@ interface CommandResult {
   error?: string
 }
 
-interface ContentResponse {
-  id: string
-  success: boolean
-  data?: unknown
-  error?: string
-}
-
 const WS_URL = 'ws://localhost:3456'
 const RECONNECT_DELAY_MS = 3000
 
 let ws: WebSocket | null = null
+let crxApp: Awaited<ReturnType<typeof crx.start>> | null = null
+let tracingContext: BrowserContext | null = null
+
+async function ensureCrxApp() {
+  if (!crxApp) {
+    crxApp = await crx.start()
+  }
+  return crxApp
+}
+
+async function getActivePage(): Promise<Page> {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+  const tab = tabs[0]
+  if (!tab?.id) throw new Error('No active tab found')
+  const app = await ensureCrxApp()
+  return app.attach(tab.id)
+}
+
+function toBase64(data: Uint8Array): string {
+  let binary = ''
+  for (let i = 0; i < data.byteLength; i++) {
+    binary += String.fromCharCode(data[i])
+  }
+  return btoa(binary)
+}
+
+async function handleCommand(cmd: BrowserCommand): Promise<unknown> {
+  const { type, payload } = cmd
+  const page = await getActivePage()
+  const context = page.context()
+
+  switch (type) {
+    case 'navigate': {
+      await page.goto(payload.url as string, { waitUntil: 'domcontentloaded' })
+      return { title: await page.title(), url: page.url() }
+    }
+    case 'click': {
+      await page.click(payload.selector as string)
+      return null
+    }
+    case 'type': {
+      await page.fill(payload.selector as string, payload.text as string)
+      return null
+    }
+    case 'get_accessibility_tree': {
+      return page.locator('body').ariaSnapshot()
+    }
+    case 'snapshot': {
+      const data = await page.screenshot({ type: 'png' })
+      return toBase64(data as unknown as Uint8Array)
+    }
+    case 'start_trace': {
+      await context.tracing.start({ screenshots: true, snapshots: true, sources: true })
+      tracingContext = context
+      return null
+    }
+    case 'stop_trace': {
+      const ctx = tracingContext ?? context
+      await ctx.tracing.stop({ path: 'trace.zip' })
+      tracingContext = null
+      const root = await navigator.storage.getDirectory()
+      const fileHandle = await root.getFileHandle('trace.zip')
+      const file = await fileHandle.getFile()
+      const buffer = await file.arrayBuffer()
+      await root.removeEntry('trace.zip').catch(() => {})
+      return toBase64(new Uint8Array(buffer))
+    }
+    case 'clear_session': {
+      await context.clearCookies()
+      await page.evaluate(() => {
+        localStorage.clear()
+        sessionStorage.clear()
+      })
+      return null
+    }
+    default:
+      throw new Error(`Unknown command type: ${type}`)
+  }
+}
+
+function sendResult(result: CommandResult): void {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(result))
+  }
+}
 
 function connect(): void {
   ws = new WebSocket(WS_URL)
@@ -32,23 +113,9 @@ function connect(): void {
 
   ws.onmessage = async (event: MessageEvent) => {
     const cmd = JSON.parse(event.data as string) as BrowserCommand
-
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
-    const tab = tabs[0]
-
-    if (!tab?.id) {
-      sendResult({ id: cmd.id, success: false, error: 'No active tab found' })
-      return
-    }
-
     try {
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: dispatchCommand,
-        args: [cmd],
-      })
-      const result = results[0]?.result as ContentResponse | undefined
-      sendResult(result ?? { id: cmd.id, success: false, error: 'No result from content script' })
+      const data = await handleCommand(cmd)
+      sendResult({ id: cmd.id, success: true, data })
     } catch (err) {
       sendResult({ id: cmd.id, success: false, error: String(err) })
     }
@@ -62,59 +129,6 @@ function connect(): void {
 
   ws.onerror = () => {
     ws?.close()
-  }
-}
-
-function sendResult(result: CommandResult): void {
-  if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(result))
-  }
-}
-
-function dispatchCommand(cmd: BrowserCommand): ContentResponse {
-  const { id, type, payload } = cmd
-
-  try {
-    if (type === 'click') {
-      const el = document.querySelector(payload.selector as string) as HTMLElement | null
-      if (!el) return { id, success: false, error: `Element not found: ${payload.selector}` }
-      el.click()
-      return { id, success: true }
-    }
-
-    if (type === 'type') {
-      const el = document.querySelector(payload.selector as string) as HTMLInputElement | null
-      if (!el) return { id, success: false, error: `Element not found: ${payload.selector}` }
-      el.focus()
-      el.value = payload.text as string
-      el.dispatchEvent(new Event('input', { bubbles: true }))
-      el.dispatchEvent(new Event('change', { bubbles: true }))
-      return { id, success: true }
-    }
-
-    if (type === 'scroll') {
-      window.scrollBy(payload.x as number ?? 0, payload.y as number ?? 0)
-      return { id, success: true }
-    }
-
-    if (type === 'read_dom') {
-      const selector = payload.selector as string | undefined
-      const el = selector ? document.querySelector(selector) : document.body
-      return { id, success: true, data: el?.innerHTML ?? '' }
-    }
-
-    if (type === 'highlight') {
-      const el = document.querySelector(payload.selector as string) as HTMLElement | null
-      if (!el) return { id, success: false, error: `Element not found: ${payload.selector}` }
-      const prev = el.style.outline
-      el.style.outline = '3px solid red'
-      setTimeout(() => { el.style.outline = prev }, 2000)
-      return { id, success: true }
-    }
-
-    return { id, success: false, error: `Unknown command type: ${type}` }
-  } catch (err) {
-    return { id, success: false, error: String(err) }
   }
 }
 

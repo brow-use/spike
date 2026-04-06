@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { chromium } from 'playwright'
 import type { Browser, BrowserContext, Page } from 'playwright'
+import { WebSocketServer } from 'ws'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
@@ -11,6 +12,7 @@ import {
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import type { Tool, ToolContext } from '../tool/tool.js'
+import { CrxClient } from './crx-client.js'
 import { navigate } from '../tool/navigate.js'
 import { click } from '../tool/click.js'
 import { type as typeTool } from '../tool/type.js'
@@ -81,9 +83,28 @@ const appTools = [
       required: ['id'],
     },
   },
+  {
+    name: 'set_mode',
+    description: 'Switch execution mode. Use "playwright" for a fresh Chromium instance (default), or "crx" to automate the user\'s real Chrome session via the brow-use extension.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        mode: { type: 'string', enum: ['playwright', 'crx'], description: 'Execution mode' },
+      },
+      required: ['mode'],
+    },
+  },
 ]
 
 const appRepo = new AppRepository()
+const crxClient = new CrxClient(OUTPUT_DIR)
+
+const wss = new WebSocketServer({ port: 3456 })
+wss.on('connection', (socket) => {
+  crxClient.attachSocket(socket)
+})
+
+let executionMode: 'playwright' | 'crx' = 'playwright'
 
 let browser: Browser | null = null
 let browserContext: BrowserContext | null = null
@@ -174,6 +195,10 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         await ctx.page.goto(app.url, { waitUntil: 'domcontentloaded' })
         return { content: [{ type: 'text', text: `Switched to "${app.name}" and navigated to ${app.url}` }] }
       }
+      if (name === 'set_mode') {
+        executionMode = args.mode as 'playwright' | 'crx'
+        return { content: [{ type: 'text', text: `Execution mode set to: ${executionMode}` }] }
+      }
     } catch (err) {
       return { content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true }
     }
@@ -184,9 +209,16 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }
   }
 
-  const ctx = await ensureBrowser()
+  const fileOnlyTools = new Set(['write_page_object', 'write_workflow', 'write_test'])
+
   try {
-    const result = await browserTool.execute(args, ctx)
+    let result: string | import('../tool/tool.js').ToolResultContent[]
+    if (executionMode === 'crx' && !fileOnlyTools.has(name)) {
+      result = await crxClient.execute(name, args)
+    } else {
+      const ctx = await ensureBrowser()
+      result = await browserTool.execute(args, ctx)
+    }
     if (typeof result === 'string') {
       return { content: [{ type: 'text', text: result }] }
     }
@@ -207,6 +239,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 })
 
 process.on('SIGTERM', async () => {
+  wss.close()
   await browserContext?.close()
   await browser?.close()
   process.exit(0)

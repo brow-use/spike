@@ -10,7 +10,7 @@ Ask the user what workflow they want to record before doing anything else.
 
 1. Call `start_trace` to begin recording
 2. Navigate to the starting page of the workflow
-3. Perform each step using `click`, `type`, and `navigate` — call `get_accessibility_tree` before each interaction to get fresh selectors, and `snapshot` after significant state changes
+3. Perform each step using `click`, `type`, and `navigate` — call `get_accessibility_tree` before each interaction to get fresh selectors. If `get_accessibility_tree` does not provide enough information to proceed, ask the user whether to fall back to `snapshot` (screenshot) before calling it
 4. Call `stop_trace` with the workflow name when all steps are complete
 5. Write a TypeScript workflow function using `write_workflow`:
    - File name: kebab-case of the workflow name (e.g. `checkout-workflow`)
