@@ -20,6 +20,7 @@ const RECONNECT_DELAY_MS = 3000
 let ws: WebSocket | null = null
 let crxApp: Awaited<ReturnType<typeof crx.start>> | null = null
 let tracingContext: BrowserContext | null = null
+let selectedTabId: number | null = null
 
 async function ensureCrxApp() {
   if (!crxApp) {
@@ -29,11 +30,17 @@ async function ensureCrxApp() {
 }
 
 async function getActivePage(): Promise<Page> {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
-  const tab = tabs[0]
-  if (!tab?.id) throw new Error('No active tab found')
+  let tabId: number
+  if (selectedTabId !== null) {
+    tabId = selectedTabId
+  } else {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+    const tab = tabs[0]
+    if (!tab?.id) throw new Error('No active tab found')
+    tabId = tab.id
+  }
   const app = await ensureCrxApp()
-  return app.attach(tab.id)
+  return app.attach(tabId)
 }
 
 function toBase64(data: Uint8Array): string {
@@ -46,6 +53,16 @@ function toBase64(data: Uint8Array): string {
 
 async function handleCommand(cmd: BrowserCommand): Promise<unknown> {
   const { type, payload } = cmd
+
+  if (type === 'list_tabs') {
+    const tabs = await chrome.tabs.query({})
+    return tabs.map(t => ({ id: t.id, title: t.title, url: t.url, active: t.active }))
+  }
+  if (type === 'select_tab') {
+    selectedTabId = payload.tabId as number
+    return { tabId: selectedTabId }
+  }
+
   const page = await getActivePage()
   const context = page.context()
 

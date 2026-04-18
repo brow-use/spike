@@ -94,6 +94,26 @@ const appTools = [
       required: ['mode'],
     },
   },
+  {
+    name: 'list_tabs',
+    description: 'List all open Chrome tabs (session mode only). Returns id, title, url, and active flag for each tab.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: 'select_tab',
+    description: 'Pin session-mode automation to a specific tab by its id. Call list_tabs first to find the id.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        tabId: { type: 'number', description: 'Tab id from list_tabs' },
+      },
+      required: ['tabId'],
+    },
+  },
 ]
 
 const appRepo = new AppRepository()
@@ -198,6 +218,15 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       if (name === 'set_mode') {
         executionMode = args.mode as 'playwright' | 'crx'
         return { content: [{ type: 'text', text: `Execution mode set to: ${executionMode}` }] }
+      }
+      if (name === 'list_tabs' || name === 'select_tab') {
+        const result = await crxClient.execute(name, args)
+        if (typeof result === 'string') {
+          return { content: [{ type: 'text', text: result }] }
+        }
+        return { content: result.map(block => block.type === 'image'
+          ? { type: 'image' as const, data: block.source.data, mimeType: block.source.media_type }
+          : { type: 'text' as const, text: block.text }) }
       }
     } catch (err) {
       return { content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true }
