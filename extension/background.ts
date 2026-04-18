@@ -17,10 +17,32 @@ interface CommandResult {
 const WS_URL = 'ws://localhost:3456'
 const RECONNECT_DELAY_MS = 3000
 
+export interface CommandEvent {
+  kind: 'brow_use_command'
+  tabId: number | null
+  command: string
+  status: 'start' | 'done' | 'error'
+  payload?: Record<string, unknown>
+  error?: string
+  timestamp: number
+}
+
 let ws: WebSocket | null = null
 let crxApp: Awaited<ReturnType<typeof crx.start>> | null = null
 let tracingContext: BrowserContext | null = null
 let selectedTabId: number | null = null
+
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {})
+
+async function getCurrentTabId(): Promise<number | null> {
+  if (selectedTabId !== null) return selectedTabId
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+  return tabs[0]?.id ?? null
+}
+
+function broadcast(event: CommandEvent): void {
+  chrome.runtime.sendMessage(event).catch(() => {})
+}
 
 async function ensureCrxApp() {
   if (!crxApp) {
@@ -130,10 +152,14 @@ function connect(): void {
 
   ws.onmessage = async (event: MessageEvent) => {
     const cmd = JSON.parse(event.data as string) as BrowserCommand
+    const tabId = await getCurrentTabId()
+    broadcast({ kind: 'brow_use_command', tabId, command: cmd.type, status: 'start', payload: cmd.payload, timestamp: Date.now() })
     try {
       const data = await handleCommand(cmd)
+      broadcast({ kind: 'brow_use_command', tabId, command: cmd.type, status: 'done', timestamp: Date.now() })
       sendResult({ id: cmd.id, success: true, data })
     } catch (err) {
+      broadcast({ kind: 'brow_use_command', tabId, command: cmd.type, status: 'error', error: String(err), timestamp: Date.now() })
       sendResult({ id: cmd.id, success: false, error: String(err) })
     }
   }

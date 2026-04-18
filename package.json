@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && npm run build:extension",
     "build:extension": "vite build --config extension.vite.config.ts && tsc -p extension/tsconfig.json && npm run copy:extension",
-    "copy:extension": "cp extension/manifest.json extension/popup.html dist/extension/ && cp -r extension/icons dist/extension/",
+    "copy:extension": "cp extension/manifest.json extension/popup.html extension/sidepanel.html dist/extension/ && cp -r extension/icons dist/extension/",
     "dev:extension": "tsx scripts/watch-extension.ts",
     "chrome": "open -a 'Google Chrome' --args --remote-debugging-port=9222"
   },

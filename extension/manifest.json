@@ -3,7 +3,7 @@
   "name": "brow-use",
   "version": "0.1.0",
   "description": "Browser automation proxy for brow-use",
-  "permissions": ["activeTab", "scripting", "tabs", "debugger"],
+  "permissions": ["activeTab", "scripting", "tabs", "debugger", "sidePanel"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js",
@@ -21,6 +21,9 @@
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "action": {
     "default_title": "brow-use",
