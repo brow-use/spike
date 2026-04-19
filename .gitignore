@@ -4,3 +4,4 @@ output/
 .brow-use/
 .env
 .DS_Store
+.claude/

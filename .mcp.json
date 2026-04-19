@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "bu": {
+      "command": "npx",
+      "args": ["tsx", "mcp/index.ts"],
+      "cwd": "/Users/viveksingh/projects/brow-use/spike"
+    }
+  }
+}
