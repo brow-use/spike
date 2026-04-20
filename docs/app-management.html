@@ -34,48 +34,26 @@
 
   <h2>Overview</h2>
   <p>
-    All recording skills — <code>record-page-objects</code> and <code>record-workflow</code> — start by
+    All recording commands — <code>record-page-objects</code> and <code>record-workflow</code> — start by
     reading the currently active app to know which URL to work with and what the app does.
-    The app management skills are how you register applications and set which one is active.
+    Use <code>/bu:apps</code> to register applications and set which one is active.
   </p>
   <p>
-    Apps are persisted locally. You register an app once and switch between them as needed —
-    you do not need to re-register every session.
+    Apps are persisted locally in <code>.brow-use/apps.json</code>. You register an app once and switch
+    between them as needed — you do not need to re-register every session.
   </p>
 
   <hr class="section-divider">
 
-  <h2>Skills</h2>
+  <h2>Command</h2>
   <div class="skill-list">
 
     <div class="skill">
       <div class="skill-header">
-        <span class="skill-name">/bu:create-app</span>
+        <span class="skill-name">/bu:apps</span>
       </div>
-      <div class="skill-desc">Register a new application. Asks for a name, URL, and description, then saves it.</div>
-      <div class="skill-detail">The description is used by recording skills to understand the app's purpose — write something meaningful, not just the app name.</div>
-    </div>
-
-    <div class="skill">
-      <div class="skill-header">
-        <span class="skill-name">/bu:set-current-app</span>
-      </div>
-      <div class="skill-desc">Switch to a registered app and navigate the browser to its URL.</div>
-      <div class="skill-detail">Run this before any recording skill. It sets the active app context and opens the browser at the right starting point.</div>
-    </div>
-
-    <div class="skill">
-      <div class="skill-header">
-        <span class="skill-name">/bu:list-app</span>
-      </div>
-      <div class="skill-desc">Show all registered apps as a table with id, name, URL, and description.</div>
-    </div>
-
-    <div class="skill">
-      <div class="skill-header">
-        <span class="skill-name">/bu:delete-app</span>
-      </div>
-      <div class="skill-desc">Remove a registered app. Shows the app list, asks which to delete, and asks for confirmation before removing.</div>
+      <div class="skill-desc">Manage all saved apps in one conversational command. Supports list, create, delete, and set current.</div>
+      <div class="skill-detail">Run this and describe what you want to do — Claude will ask for any missing details and update <code>.brow-use/apps.json</code> directly. Setting the current app only updates the active app record; it does not open a browser.</div>
     </div>
 
   </div>
@@ -84,10 +62,9 @@
 
   <h2>Typical setup sequence</h2>
   <p>For a new application:</p>
-  <pre style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:18px 20px;overflow-x:auto;margin:14px 0;"><code style="font-family:ui-monospace,monospace;font-size:0.85em;color:#c9d1d9;">/bu:create-app       ← register the app once
-/bu:set-current-app  ← activate it and open the browser
+  <pre style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:18px 20px;overflow-x:auto;margin:14px 0;"><code style="font-family:ui-monospace,monospace;font-size:0.85em;color:#c9d1d9;">/bu:apps  ← register the app and set it as current
 /bu:record-page-objects</code></pre>
-  <p>In subsequent sessions, only <code>/bu:set-current-app</code> is needed — the app is already registered.</p>
+  <p>In subsequent sessions, run <code>/bu:apps</code> again to set the current app — it is already registered.</p>
 
 </body>
 </html>

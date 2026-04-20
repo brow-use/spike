@@ -71,8 +71,8 @@
     <div class="arrow">→</div>
     <div class="flow-step">
       <div class="label">2</div>
-      <div class="name">Skill loaded</div>
-      <div class="detail">SKILL.md becomes the agent's instruction set for this task</div>
+      <div class="name">Command loaded</div>
+      <div class="detail">The command file becomes the agent's instruction set for this task</div>
     </div>
     <div class="arrow">→</div>
     <div class="flow-step">
@@ -108,9 +108,8 @@
     loop possible: each step picks up exactly where the last one left off.
   </p>
   <p>
-    It also holds the registered app catalogue and exposes the currently active app to the agent.
-    When a skill starts, the agent reads this to know which application it is working with — its URL,
-    name, and description — before it touches the browser.
+    When a command starts, the agent reads <code>.brow-use/apps.json</code> directly to get the currently
+    active app — its URL, name, and description — before it touches the browser.
   </p>
 
   <hr class="section-divider">

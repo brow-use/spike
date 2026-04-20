@@ -1,15 +1,24 @@
 ---
 disable-model-invocation: true
 description: Switch to extension mode for automating the user's logged-in Chrome session using playwright-crx.
-allowed-tools: MCP(bu/set_mode)
+allowed-tools: MCP(bu/set_mode), MCP(bu/list_tabs), MCP(bu/select_tab)
 ---
 
 Call `set_mode` with `mode: "crx"`.
 
-Then confirm to the user:
+Confirm to the user:
 - Mode 2 (extension) is now active
 - Automation will run in their real Chrome browser with their logged-in session
 - The brow-use extension must be loaded in Chrome (`chrome://extensions` → Load unpacked → `dist/extension/`)
 - The yellow "DevTools is debugging this browser" banner is expected and normal
+
+Ask the user which tab they would like to automate.
+
+Call `list_tabs` to get all open tabs.
+
+Match the user's input against tab titles and URLs:
+- If one tab clearly matches, call `select_tab` with its id and confirm the selection.
+- If multiple tabs are plausible matches, show only those tabs and ask the user to pick one.
+- If no tabs match, show the full list and ask the user to pick one.
 
 To switch back to a fresh Chromium session, call `set_mode` with `mode: "playwright"`.
