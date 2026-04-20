@@ -101,6 +101,14 @@ export class CrxClient {
         await this.send('clear_session')
         return 'Session cleared (extension mode)'
       }
+      case 'list_tabs': {
+        const tabs = await this.send('list_tabs') as Array<{ id: number; title: string; url: string; active: boolean }>
+        return JSON.stringify(tabs, null, 2)
+      }
+      case 'select_tab': {
+        const result = await this.send('select_tab', { tabId: args.tabId }) as { tabId: number }
+        return `Tab ${result.tabId} selected`
+      }
       default:
         throw new Error(`Tool "${toolName}" is not supported in extension mode`)
     }

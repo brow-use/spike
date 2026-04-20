@@ -1,6 +1,6 @@
 PLUGIN_DIR := /Users/viveksingh/projects/brow-use/spike
 
-.PHONY: build install reinstall list
+.PHONY: build install reinstall list dev-mcp
 
 build:
 	npm run build
@@ -16,3 +16,6 @@ reinstall: build
 list:
 	claude plugin list
 	claude plugin marketplace list
+
+dev-mcp:
+	npx tsx mcp/index.ts

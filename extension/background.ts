@@ -143,11 +143,15 @@ function sendResult(result: CommandResult): void {
   }
 }
 
+let reconnectCount = 0
+
 function connect(): void {
+  console.log(`[brow-use] Connecting to ${WS_URL}${reconnectCount > 0 ? ` (attempt ${reconnectCount + 1})` : ''}`)
   ws = new WebSocket(WS_URL)
 
   ws.onopen = () => {
     console.log('[brow-use] Connected to server')
+    reconnectCount = 0
   }
 
   ws.onmessage = async (event: MessageEvent) => {
@@ -165,12 +169,14 @@ function connect(): void {
   }
 
   ws.onclose = () => {
-    console.log('[brow-use] Disconnected. Reconnecting...')
+    reconnectCount++
+    console.log(`[brow-use] Disconnected. Retrying in ${RECONNECT_DELAY_MS}ms...`)
     ws = null
     setTimeout(connect, RECONNECT_DELAY_MS)
   }
 
-  ws.onerror = () => {
+  ws.onerror = (err) => {
+    console.log('[brow-use] WebSocket error:', err)
     ws?.close()
   }
 }
