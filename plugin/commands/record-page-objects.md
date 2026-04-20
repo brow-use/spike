@@ -1,11 +1,11 @@
 ---
 disable-model-invocation: true
 description: Walk through a scenario across multiple pages and record or update Page Object Model classes for every page encountered.
-allowed-tools: MCP(bu/get_accessibility_tree), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/write_page_object), MCP(bu/clear_session)
+allowed-tools: Read, MCP(bu/get_accessibility_tree), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/write_page_object), MCP(bu/clear_session)
 ---
 
-Read the `apps://current` resource from MCP server `plugin:bu:bu` to get the active app's URL and description.
-If no app is set, tell the user to run `/bu:create-app` and `/bu:set-current-app` first.
+Read `.brow-use/apps.json` and find the app whose id matches `currentAppId` to get the active app's URL and description.
+If the file does not exist or `currentAppId` is null, tell the user to run `/bu:apps` first.
 
 Ask the user if they want to clear the browser session (cookies, localStorage, sessionStorage) before starting. If yes, call `clear_session`.
 

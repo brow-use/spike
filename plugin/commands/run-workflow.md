@@ -1,11 +1,11 @@
 ---
 disable-model-invocation: true
 description: Run an existing workflow for the current app without recording. Executes the steps live in the browser.
-allowed-tools: MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type)
+allowed-tools: Read, MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type)
 ---
 
-Read the `apps://current` resource from MCP server `plugin:bu:bu` to get the active app's URL and description.
-If no app is set, tell the user to run `/bu:create-app` and `/bu:set-current-app` first.
+Read `.brow-use/apps.json` and find the app whose id matches `currentAppId` to get the active app's URL and description.
+If the file does not exist or `currentAppId` is null, tell the user to run `/bu:apps` first.
 
 List available workflows from `output/workflow/` and ask the user which one to run.
 

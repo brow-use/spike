@@ -1,11 +1,11 @@
 ---
 disable-model-invocation: true
 description: Record a reusable workflow function for the current app. Performs the steps live in the browser with tracing, then writes a TypeScript async function.
-allowed-tools: MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/write_workflow)
+allowed-tools: Read, MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/write_workflow)
 ---
 
-Read the `apps://current` resource from MCP server `plugin:bu:bu` to get the active app's URL and description.
-If no app is set, tell the user to run `/bu:create-app` and `/bu:set-current-app` first.
+Read `.brow-use/apps.json` and find the app whose id matches `currentAppId` to get the active app's URL and description.
+If the file does not exist or `currentAppId` is null, tell the user to run `/bu:apps` first.
 
 Ask the user what workflow they want to record before doing anything else.
 
