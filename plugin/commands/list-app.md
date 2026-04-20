@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: List all saved apps. Use when the user wants to see what apps are registered.
 allowed-tools: MCP(bu/list_apps)
 ---

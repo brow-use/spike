@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Record a reusable workflow function for the current app. Performs the steps live in the browser with tracing, then writes a TypeScript async function.
 allowed-tools: MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/write_workflow)
 ---

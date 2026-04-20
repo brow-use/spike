@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Create a new app entry with a name, description, and URL. Use when the user wants to register a new web application.
 allowed-tools: MCP(bu/create_app)
 ---

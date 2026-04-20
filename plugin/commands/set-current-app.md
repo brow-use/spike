@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Switch to an app and navigate the browser to its URL. Use when the user wants to select or switch the active app.
 allowed-tools: MCP(bu/set_current_app)
 ---

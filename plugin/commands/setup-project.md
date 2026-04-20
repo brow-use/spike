@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Set up or complete a Playwright TypeScript project in the current directory. Creates missing config files and adds missing dependencies to existing ones.
 allowed-tools: Read, Write, Edit, Bash
 ---

@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Run an existing workflow for the current app without recording. Executes the steps live in the browser.
 allowed-tools: MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type)
 ---

@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Walk through a scenario across multiple pages and record or update Page Object Model classes for every page encountered.
 allowed-tools: MCP(bu/get_accessibility_tree), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/write_page_object), MCP(bu/clear_session)
 ---

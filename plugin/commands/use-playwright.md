@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Switch back to default Playwright mode — launches a fresh Chromium instance managed by Playwright.
 allowed-tools: MCP(bu/set_mode)
 ---

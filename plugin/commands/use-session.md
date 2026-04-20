@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Switch to extension mode for automating the user's logged-in Chrome session using playwright-crx.
 allowed-tools: MCP(bu/set_mode)
 ---

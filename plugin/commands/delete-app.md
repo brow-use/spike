@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Delete a saved app. Use when the user wants to remove an app.
 allowed-tools: MCP(bu/delete_app)
 ---

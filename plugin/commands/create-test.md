@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Create a Playwright test using existing page objects in the project. Asks for the scenario, reads available page objects, and writes a spec file.
 allowed-tools: Read, Write, Bash
 ---
