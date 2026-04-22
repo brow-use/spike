@@ -69,6 +69,54 @@ Split into `/bu:explore` and `/bu:document <sessionId>`. User runs them back-to-
 
 Switching model mid-run without a subagent boundary. The command prompt runs on whatever model invoked it.
 
+## 4. Opportunities to replace model work with deterministic code
+
+Before (or in addition to) moving to a cheaper model, check whether the model is doing anything a tool could do. Every token spent on mechanical work is a token paid at model rates for something that would be free in Node.
+
+### What the model currently does that could be deterministic
+
+| Work | Currently | Could be | Rough savings |
+|---|---|---|---|
+| **Filter destructive actions** (regex on aria-tree element names before adding to frontier) | Model reads every aria element and applies the regex itself | New tool `enumerate_interactive_elements(ariaText, bias?)` returns `{role, name, selector, href, kind}[]` **with destructive elements already stripped server-side** | ~10–15% input reduction (model never sees filtered-out rows) plus stronger safety — the model cannot accidentally invoke what it cannot see |
+| **Enumerate top-level links for Coverage rule** | Model parses the first page's aria tree and queues up to 8–15 `{kind:'navigate', url, humanLabel}` items | Same `enumerate_interactive_elements` tool with a `topLevelOnly: true` flag that returns only items marked `role=link` at depth ≤ 1 | Few K tokens per run; more importantly, deterministic consistency (the model sometimes misses a link or duplicates one) |
+| **Write the aria-tree JSONL log** | Model types the entire `output/exploration/<sessionId>.jsonl` as a single `Write` call — includes every `ariaTree` verbatim, often 30K+ output tokens | New tool `write_exploration_log(sessionId, entries)` that takes `entries: [{stepId, phash, ariaHash, url, title, ariaSummary, ariaTree, timestamp}]` and writes the file | **~30K output tokens saved per run** — the single biggest line-item after the exploration loop. Also avoids JSON-escape bugs |
+| **Build README TOC** | Model writes the table linking each feature file, with a hand-authored one-line summary per feature | New tool `write_docs_index(sessionId, entries)` that takes `entries: [{slug, title, summary}]` and writes the `README.md` table. The model supplies the 3 fields; the tool renders Markdown | ~2–3K output tokens and zero formatting drift |
+| **Compose Markdown image links** | Model writes `![alt](../../exploration/.../foo.png)` by hand, often with a typo after the first few | `save_screenshot` returns `markdownSnippet: "![${alt}](${relToDocs})"` as a bonus field; model embeds it verbatim | Small token savings, bigger reliability win |
+| **Step counter** | Model maintains `stepId` in conversation state and often renumbers mid-run when it loses track | Either `page_fingerprint` returns a monotonic `stepId`, or the counter lives in the `write_exploration_log` side | Avoids the occasional renumber bug; negligible tokens |
+
+### What is genuinely model work and should stay
+
+- **Feature clustering.** Deciding that steps 5, 6, 7 together form "Finding a subject" is semantic judgement that needs an LLM. A simple URL-prefix heuristic clusters everything under `/#/app/` into one bucket, which is wrong.
+- **Plain-language doc writing.** Generative prose at an end-user reading level is exactly what a model is for. No deterministic substitute.
+- **One-line feature summaries for the README.** Close to clustering; could in theory be the first sentence of each feature doc, but the model writes better summaries than a `split('.')[0]`.
+- **Bias selection by app description keyword overlap.** Fuzzy. A token-intersection scorer would work for "Data Entry App" but miss "individuals" → Subject Types. Keep this in the model.
+- **Plan narration ("I'll go to Search, filter Excavating Machine…")** — user-facing context that the model is uniquely good at.
+
+### Priority order for implementation
+
+1. **`write_exploration_log`** — biggest single win, ~30K out tokens, pure file-writer with no browser dependency. Trivial to add.
+2. **`enumerate_interactive_elements`** — improves both cost and safety. Needs an aria-tree parser (or can be a thin `page.locator(...)` pair in the tool, running in the same page context as `get_accessibility_tree`). Moderate effort.
+3. **`write_docs_index`** — small win, but makes the output structure more consistent across runs.
+4. **`save_screenshot` markdown-snippet bonus field** — one line added to the existing tool.
+
+Steps 1 and 4 are ~30-line changes each. Step 2 is a new tool (~50 lines). Step 3 mirrors step 1. None touch the extension; all live in `tool/` + `mcp/index.ts`.
+
+### Combined with model choice
+
+The deterministic offloads stack multiplicatively with switching to Sonnet:
+
+- Current: Opus, everything in model → baseline (call it 1×).
+- Sonnet only → ~0.2× cost, same work profile.
+- Opus + offloads → ~0.7× cost (saves ~30% of tokens that were doing mechanical work), same model quality.
+- Sonnet + offloads → ~0.14× cost.
+- Subagent split (Haiku for loop + Sonnet for write-up) + offloads → ~0.08× cost, with the lowest-cost model doing work that is now even smaller.
+
 ## Recommendation
 
-If token cost is hurting, pursue **(a)** — split the command into subagents with distinct model assignments. It's the biggest structural win and the pattern generalises to other brow-use commands that mix cheap mechanical work with expensive writing. If cost is fine and you just want to confirm Opus is worth it, try **(b)** — run the same command on Sonnet once and diff the output.
+Do **the deterministic offloads first**, then switch models. The offloads pay back within one run and help every model (including Opus when you choose to use it). Specifically:
+
+1. Add `write_exploration_log` and `enumerate_interactive_elements` as new tools. Update the command to use them. This is ~100 lines of code and cuts cost ~30% at any model tier.
+2. Default the command to **Sonnet 4.6** once the offloads are in place.
+3. If cost still matters, pursue the subagent split (§3a): Haiku runs the exploration loop against a small context; Sonnet does the feature clustering and doc writing against the jsonl.
+
+If you just want to confirm Opus is worth it today, try §3b — run the same command on Sonnet once and diff the output.

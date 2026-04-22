@@ -27,6 +27,11 @@ import { pageFingerprint, ariaHash as computeAriaHash } from '../tool/page-finge
 import { compareFingerprint } from '../tool/compare-fingerprint.js'
 import { writeFeatureDoc } from '../tool/write-feature-doc.js'
 import { saveScreenshot } from '../tool/save-screenshot.js'
+import { writeExplorationLog } from '../tool/write-exploration-log.js'
+import { writeDocsIndex } from '../tool/write-docs-index.js'
+import { enumerateInteractiveElements, parseInteractive, applyEnumerationFilters } from '../tool/enumerate-interactive-elements.js'
+import { writeResult } from '../tool/write-result.js'
+import { readPomSummary } from '../tool/read-pom-summary.js'
 import { dhash } from '../tool/phash.js'
 const OUTPUT_DIR = path.resolve(process.cwd(), 'output')
 const SERVER_START = Date.now()
@@ -42,6 +47,8 @@ const browserTools: Tool[] = [
   navigate, click, typeTool, snapshot, getAccessibilityTree,
   startTrace, stopTrace, writePageObject, writeWorkflow, writeTest, clearSession,
   pageFingerprint, compareFingerprint, writeFeatureDoc, saveScreenshot,
+  writeExplorationLog, writeDocsIndex, enumerateInteractiveElements,
+  writeResult, readPomSummary,
 ]
 
 function ensureOutputDirs(): void {
@@ -239,7 +246,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }
   }
 
-  const fileOnlyTools = new Set(['write_page_object', 'write_workflow', 'write_test', 'write_feature_doc'])
+  const fileOnlyTools = new Set(['write_page_object', 'write_workflow', 'write_test', 'write_feature_doc', 'write_exploration_log', 'write_docs_index', 'write_result', 'read_pom_summary'])
   const pureComputeTools = new Set(['compare_fingerprint'])
 
   try {
@@ -258,6 +265,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     } else if (executionMode === 'crx' && name === 'save_screenshot') {
       const sessionId = args.sessionId as string
       const shotName = args.name as string
+      const alt = (args.alt as string | undefined) ?? shotName.replace(/-/g, ' ')
       const snapResult = await crxClient.execute('snapshot', {})
       const base64 = Array.isArray(snapResult) ? (snapResult[0] as { source: { data: string } }).source.data : ''
       const dir = path.join(OUTPUT_DIR, 'exploration', sessionId)
@@ -265,7 +273,17 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       const filePath = path.join(dir, `${shotName}.png`)
       fs.writeFileSync(filePath, Buffer.from(base64, 'base64'))
       const relToDocs = path.join('..', '..', 'exploration', sessionId, `${shotName}.png`)
-      result = JSON.stringify({ absolutePath: filePath, relativeToDocs: relToDocs })
+      const markdownSnippet = `![${alt}](${relToDocs})`
+      result = JSON.stringify({ absolutePath: filePath, relativeToDocs: relToDocs, markdownSnippet })
+    } else if (executionMode === 'crx' && name === 'enumerate_interactive_elements') {
+      const ariaResult = await crxClient.execute('get_accessibility_tree', {})
+      const ariaText = typeof ariaResult === 'string' ? ariaResult : ''
+      const items = applyEnumerationFilters(parseInteractive(ariaText), {
+        topLevelOnly: (args.topLevelOnly as boolean | undefined) ?? false,
+        rolesFilter: args.rolesFilter as string[] | undefined,
+        includeDestructive: (args.includeDestructive as boolean | undefined) ?? false,
+      })
+      result = JSON.stringify(items)
     } else if (executionMode === 'crx' && !fileOnlyTools.has(name)) {
       result = await crxClient.execute(name, args)
     } else {

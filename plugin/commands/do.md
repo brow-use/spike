@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
 description: Carry out a plain-English user intention against the current app, grounded in docs/exploration/POM/workflow artifacts from an earlier run. Extracts data and presents it in the requested format plus a short plain-language narrative of how it was obtained. The whole run is recorded as a Playwright trace.
-allowed-tools: Read, Glob, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace)
+allowed-tools: Read, Glob, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/enumerate_interactive_elements), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/write_result)
 ---
 
 ## Preflight
@@ -43,10 +43,9 @@ After reading, state the execution plan aloud to the user in one or two sentence
 
 ## Destructive-action policy (hard block)
 
-Never click, type into, or otherwise invoke an element whose accessible name matches this regex (case-insensitive):
-`\b(delete|remove|cancel account|drop|destroy|deactivate|close account|erase)\b`
+`enumerate_interactive_elements` strips destructive-action elements server-side by default (names matching `\b(delete|remove|cancel account|drop|destroy|deactivate|close account|erase)\b`, case-insensitive). Always use `enumerate_interactive_elements` when picking what to click — not your own regex on `get_accessibility_tree`. You cannot invoke what you cannot see.
 
-This is a hard block. Even if the user's intent appears to request a delete/remove, refuse:
+Even if the user's intent appears to request a delete/remove, refuse at the intent-parsing stage:
 
 - Tell the user this command does not perform destructive actions.
 - Direct them to perform the action manually in the browser.
@@ -57,11 +56,12 @@ This is a hard block. Even if the user's intent appears to request a delete/remo
 ## Execution
 
 1. Navigate to the app's home URL if not already there.
-2. Work through your stated plan using `navigate`, `click`, `type`, `get_accessibility_tree`, `snapshot`. Guidelines:
-   - Before each interaction, verify current page state with `get_accessibility_tree` if anything has changed since the last read.
-   - Prefer POM-class selectors when a matching page object exists. Fall back to aria role+name (`role=button[name="Search"]`), and only CSS as last resort.
-   - For paginated tables, iterate pages until you have all rows the intent requires. Use the pagination controls identified in the aria tree.
-3. Extract the data incrementally as you find it. Keep a simple in-memory structure (list of records).
+2. Work through your stated plan using `navigate`, `click`, `type`, `enumerate_interactive_elements`, `get_accessibility_tree`, `snapshot`. Guidelines:
+   - For picking *what to click* on the current page, prefer `enumerate_interactive_elements` — it returns a filtered, already-selector-ready list of safe interactive items.
+   - Use `get_accessibility_tree` when you need the full page content (e.g. reading table cells for extraction), not for picking actions.
+   - Prefer POM-class selectors when a matching page object exists. Otherwise use the `selector` field from `enumerate_interactive_elements`. Fall back to CSS only as a last resort.
+   - For paginated tables, iterate pages until you have all rows the intent requires.
+3. Extract the data incrementally as you find it. Keep a simple in-memory structure: an array of flat objects keyed by the column names the user cares about.
 4. Stop as soon as the intent is satisfied. Do not wander into unrelated parts of the app.
 
 ## Runaway guard
@@ -70,21 +70,24 @@ Maintain `stepCount` across browser-interaction calls (`navigate`, `click`, `typ
 
 ## Output
 
-Write two files under `output/results/<sessionId>/` using the `Write` tool:
+Write two files. Use the dedicated tools — do NOT hand-format the result file via `Write`.
 
-1. **`result.<ext>`** — the extracted data. Map the format:
-   - `markdown` → `result.md` as a table (for tabular data) or bulleted list.
-   - `csv` → `result.csv` with a header row and one record per row; quote fields containing commas or newlines.
-   - `json` → `result.json` as an array of records, or a single object if the intent asks for a single value.
-   - `txt` → `result.txt` as plain lines.
+1. **Result** — call `write_result` with:
+   - `sessionId`
+   - `format` (`markdown` | `csv` | `json` | `txt`)
+   - `records` — the structured array you built during extraction. For csv/markdown each element must be a flat object keyed by column name. For json it can be any JSON value. For txt, an array of strings.
+   - `columns` (optional) — column order for csv/markdown. Defaults to keys of the first record.
+   - `title` (optional) — used as the heading of markdown output.
+   The tool writes `output/results/<sessionId>/result.<ext>`, handling CSV quoting, JSON indentation, and Markdown table alignment.
 
-2. **`how.md`** — a 5–15 line narrative in plain language:
+2. **`how.md`** — use the `Write` tool for this one (short prose, 5–15 lines). Contents:
    - Which pages you visited (e.g. "the Data Entry App search page").
    - Which filters or inputs you applied.
    - How many records you collected.
    - If you followed a recorded workflow, name it.
    - If you fell back to ad-hoc aria scraping because no POM covered the page, say so.
    - No code, no selectors, no jargon.
+   Path: `output/results/<sessionId>/how.md`.
 
 Then call `stop_trace` with `name = sessionId`. The trace zip lands at `output/trace/<sessionId>-<timestamp>.zip`.
 

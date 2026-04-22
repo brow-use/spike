@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
 description: Autonomously explore the current app and produce end-user documentation of its features. Uses perceptual hashing to avoid loops; the whole run is recorded as a single Playwright trace for human verification.
-allowed-tools: Read, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/clear_session), MCP(bu/page_fingerprint), MCP(bu/compare_fingerprint), MCP(bu/write_feature_doc), MCP(bu/save_screenshot)
+allowed-tools: Read, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/clear_session), MCP(bu/page_fingerprint), MCP(bu/compare_fingerprint), MCP(bu/write_feature_doc), MCP(bu/save_screenshot), MCP(bu/enumerate_interactive_elements), MCP(bu/write_exploration_log), MCP(bu/write_docs_index)
 ---
 
 ## Preflight
@@ -22,13 +22,11 @@ Ask the user for three values with these defaults; accept overrides:
 
 ## Destructive-action policy
 
-Never click, type into, or otherwise invoke an element whose accessible name matches this regex (case-insensitive):
-`\b(delete|remove|cancel account|drop|destroy|deactivate|close account|erase)\b`
-Skip these during enumeration; do not add them to the frontier.
+`enumerate_interactive_elements` applies the destructive-action filter server-side — elements whose accessible name matches `\b(delete|remove|cancel account|drop|destroy|deactivate|close account|erase)\b` (case-insensitive) are stripped before the list reaches you. You cannot accidentally invoke what you cannot see. Use this tool for enumeration; do not try to parse `get_accessibility_tree` output by hand to pick actions.
 
 ## Coverage rule
 
-Before descending into any single module, enumerate **every top-level link visible on the initial page** (typically a hub of 5–15 modules). Add one `{kind: 'navigate', url, humanLabel}` frontier item per top-level module. Exploration proceeds breadth-first across these modules before depth-first within any one of them: visit every top-level module at least once before deepening any branch. Only after every top-level module has at least one visited step may you deepen the branches that best match the app description's keyword bias.
+Before descending into any single module, call `enumerate_interactive_elements` with `topLevelOnly: true, rolesFilter: ["link"]` on the initial page. This returns every top-level link (typically a hub of 5–15 modules). Add one `{kind: 'navigate', url, humanLabel}` frontier item per link in that list. Exploration proceeds breadth-first across these modules before depth-first within any one of them: visit every top-level module at least once before deepening any branch. Only after every top-level module has at least one visited step may you deepen the branches that best match the app description's keyword bias.
 
 ## Exploration
 
@@ -39,9 +37,11 @@ Before descending into any single module, enumerate **every top-level link visib
 
 Repeat until a termination condition below is met:
 
-a. Call `get_accessibility_tree`. From it, enumerate interactive elements (links, buttons, inputs with labels). Filter out destructive ones per the policy above.
+a. Call `enumerate_interactive_elements` (no args — all interactive roles, all depths). The tool returns a filtered list of `{role, name, url?, depth, selector}`. Destructive names are already stripped.
 
-b. If `frontier` is empty, add up to 5 promising elements from the current page (bias by description keyword overlap). Each frontier entry is `{ kind: 'click'|'type'|'navigate', selector, humanLabel }`. For `type`, include a reasonable `text` value (e.g. a sample search term from the description).
+b. If `frontier` is empty, pick up to 5 promising items from the enumerated list (bias by description keyword overlap against each item's `name`). Use the `selector` field verbatim in your frontier entry: `{ kind: 'click'|'type'|'navigate', selector, humanLabel: name }`. For links you may prefer `kind: 'navigate'` with the `url` field instead. For `type`, include a reasonable `text` value (e.g. a sample search term from the description).
+
+For the full aria-tree audit trail (needed when you record into `visited` in step g), call `get_accessibility_tree` separately — once per novel page is enough.
 
 c. Pop the next unexplored action from `frontier` and execute it via `click`, `type`, or `navigate`.
 
@@ -71,7 +71,7 @@ Stop ONLY when one of the three conditions below holds. Do not terminate on any 
 
 Then:
 1. Call `stop_trace` with `name = sessionId`. Note the returned path.
-2. Persist the aria-tree log: use the `Write` tool to create `output/exploration/<sessionId>.jsonl`. One JSON line per entry in `visited`, with keys `stepId, phash, url, title, ariaSummary, ariaTree, timestamp`. This is the audit artifact that lets a reviewer reconstruct why each action was chosen.
+2. Persist the aria-tree log with `write_exploration_log`: pass `sessionId` and `entries` = your `visited` array. The tool writes `output/exploration/<sessionId>.jsonl` with one JSON line per entry. Do NOT hand-write the jsonl via the `Write` tool — that would spend tens of thousands of output tokens re-emitting the aria trees.
 3. Tell the user briefly: number of pages visited, termination reason, trace path, aria-log path.
 
 ## Documentation
@@ -80,7 +80,7 @@ Cluster `visited` into **features** — contiguous sequences that accomplish a u
 
 For each feature:
 
-1. For every step you want to show visually in the doc (typically: the feature's entry page and each page where the user is required to make a decision), re-navigate there if needed and call `save_screenshot` with `sessionId` and a descriptive kebab-case `name` (e.g. `creating-invoice-step-2`). The tool returns a JSON with `relativeToDocs` — use that value verbatim as the image path in the markdown.
+1. For every step you want to show visually in the doc (typically: the feature's entry page and each page where the user is required to make a decision), re-navigate there if needed and call `save_screenshot` with `sessionId`, a descriptive kebab-case `name` (e.g. `creating-invoice-step-2`), and optionally an `alt` text. The tool returns `markdownSnippet` — paste it verbatim into the doc. Do not hand-type `![...](../../exploration/...)` — use the snippet.
 
 2. Call `write_feature_doc` with `sessionId`, `name` = kebab-case feature name, and `content` following this template:
 
@@ -116,13 +116,14 @@ Tone rules:
 - Describe what the user sees and does, not how the app implements it.
 - Embed screenshots where they aid user understanding. Screenshots come from `save_screenshot`; the full trace zip remains the deeper audit artifact for anyone who wants to replay the exploration.
 
-Finally, call `write_feature_doc` once with `sessionId`, `name = "README"`, and content containing:
-- The app name, URL, and description.
-- The sessionId for this run.
-- A Markdown table of contents linking each feature doc written this run (one row per feature, with its one-line summary). Links are relative within the session directory — e.g. `./creating-an-invoice.md`.
-- A "How this was generated" footer listing the full audit trail: the trace zip at `output/trace/<sessionId>-<timestamp>.zip` (viewable with `npx playwright show-trace <that file>`), the aria-tree log at `output/exploration/<sessionId>.jsonl`, and the screenshots folder `output/exploration/<sessionId>/`.
+Finally, call `write_docs_index` to emit the README. Pass:
+- `sessionId`, `appName`, `appUrl`, `appDescription` (from `.brow-use/apps.json`).
+- `entries` — an array of `{slug, title, summary}`, one per feature doc written this run. `slug` matches the doc filename without `.md`; `title` is the human title; `summary` is one plain-language sentence (same content you'd normally write into the TOC row).
+- `stats` — optionally `{pagesVisited: visited.length, terminationReason: "frontier-empty"|"maxSteps"|"maxLoopHits"}`.
 
-All feature docs, the README, and the screenshots are scoped under `<sessionId>` so this run cannot overwrite artifacts from a previous run.
+The tool renders the TOC table and the standard "How this was generated" footer. Do NOT write the README via `write_feature_doc(name="README", ...)` — that path requires you to format the table + footer by hand and drifts across runs.
+
+All feature docs, the README, the aria log, the trace zip, and the screenshots are scoped under `<sessionId>` so this run cannot overwrite artifacts from a previous run.
 
 ## Failure modes
 
