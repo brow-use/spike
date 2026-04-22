@@ -84,6 +84,18 @@ async function handleCommand(cmd: BrowserCommand): Promise<unknown> {
     selectedTabId = payload.tabId as number
     return { tabId: selectedTabId }
   }
+  if (type === 'ping') {
+    const tab = selectedTabId !== null
+      ? await chrome.tabs.get(selectedTabId).catch(() => null)
+      : null
+    return {
+      pong: true,
+      version: chrome.runtime.getManifest().version,
+      selectedTabId,
+      currentTabUrl: tab?.url ?? null,
+      currentTabTitle: tab?.title ?? null,
+    }
+  }
 
   const page = await getActivePage()
   const context = page.context()
@@ -117,12 +129,9 @@ async function handleCommand(cmd: BrowserCommand): Promise<unknown> {
       const ctx = tracingContext ?? context
       await ctx.tracing.stop({ path: 'trace.zip' })
       tracingContext = null
-      const root = await navigator.storage.getDirectory()
-      const fileHandle = await root.getFileHandle('trace.zip')
-      const file = await fileHandle.getFile()
-      const buffer = await file.arrayBuffer()
-      await root.removeEntry('trace.zip').catch(() => {})
-      return toBase64(new Uint8Array(buffer))
+      const buffer = crx.fs.readFileSync('trace.zip') as Uint8Array
+      try { crx.fs.unlinkSync('trace.zip') } catch {}
+      return toBase64(buffer)
     }
     case 'clear_session': {
       await context.clearCookies()

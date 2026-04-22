@@ -52,6 +52,10 @@ export class CrxClient {
     return this.socket?.readyState === 1
   }
 
+  ping(): Promise<unknown> {
+    return this.send('ping')
+  }
+
   private send(type: string, payload: Record<string, unknown> = {}): Promise<unknown> {
     if (!this.connected) {
       return Promise.reject(new Error('Extension not connected. Load the brow-use extension in Chrome and ensure the server is running.'))

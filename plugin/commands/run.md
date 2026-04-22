@@ -1,8 +1,10 @@
 ---
 disable-model-invocation: true
 description: Run the user's intention in the browser using whichever execution mode is currently active.
-allowed-tools: MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type)
+allowed-tools: MCP(bu/health_check), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type)
 ---
+
+Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy`, then stop. Do not proceed.
 
 Ask the user what they want to do in the browser if they haven't already stated it.
 
