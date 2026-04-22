@@ -74,7 +74,14 @@ export const writeResult: Tool = {
     const sessionId = input.sessionId as string
     const format = input.format as string
     const rawRecords = input.records
-    const records: unknown = typeof rawRecords === 'string' ? JSON.parse(rawRecords) : rawRecords
+    let records: unknown = rawRecords
+    if (typeof rawRecords === 'string') {
+      try {
+        records = JSON.parse(rawRecords)
+      } catch {
+        records = rawRecords
+      }
+    }
     const columns = input.columns as string[] | undefined
     const title = input.title as string | undefined
 
