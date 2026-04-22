@@ -11,6 +11,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import type { Tool, ToolContext } from '../tool/tool.js'
 import { CrxClient } from './crx-client.js'
+import { log } from './logger.js'
 import { navigate } from '../tool/navigate.js'
 import { click } from '../tool/click.js'
 import { type as typeTool } from '../tool/type.js'
@@ -22,11 +23,16 @@ import { writePageObject } from '../tool/write-page-object.js'
 import { writeWorkflow } from '../tool/write-workflow.js'
 import { writeTest } from '../tool/write-test.js'
 import { clearSession } from '../tool/clear-session.js'
+import { visualFingerprint } from '../tool/visual-fingerprint.js'
+import { comparePhash } from '../tool/compare-phash.js'
+import { writeFeatureDoc } from '../tool/write-feature-doc.js'
+import { dhash } from '../tool/phash.js'
 const OUTPUT_DIR = path.resolve(process.cwd(), 'output')
 
 const browserTools: Tool[] = [
   navigate, click, typeTool, snapshot, getAccessibilityTree,
   startTrace, stopTrace, writePageObject, writeWorkflow, writeTest, clearSession,
+  visualFingerprint, comparePhash, writeFeatureDoc,
 ]
 
 const appTools = [
@@ -67,7 +73,9 @@ const crxClient = new CrxClient(OUTPUT_DIR)
 
 const wss = new WebSocketServer({ port: 3456 })
 wss.on('connection', (socket) => {
+  log('extension connected')
   crxClient.attachSocket(socket)
+  socket.on('close', () => log('extension disconnected'))
 })
 
 let executionMode: 'playwright' | 'crx' = 'playwright'
@@ -80,7 +88,7 @@ async function ensureBrowser(): Promise<ToolContext> {
   if (!page || page.isClosed()) {
     await browserContext?.close().catch(() => {})
     await browser?.close().catch(() => {})
-    for (const dir of ['page', 'workflow', 'trace']) {
+    for (const dir of ['page', 'workflow', 'trace', 'docs']) {
       fs.mkdirSync(path.join(OUTPUT_DIR, dir), { recursive: true })
     }
     browser = await chromium.launch({ headless: false })
@@ -105,16 +113,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const { name, arguments: args = {} } = req.params
+  log('call', name, args)
 
   const appTool = appTools.find(t => t.name === name)
   if (appTool) {
     try {
       if (name === 'set_mode') {
         executionMode = args.mode as 'playwright' | 'crx'
+        log('mode', executionMode)
         return { content: [{ type: 'text', text: `Execution mode set to: ${executionMode}` }] }
       }
       if (name === 'list_tabs' || name === 'select_tab') {
         const result = await crxClient.execute(name, args)
+        log('result', name, typeof result === 'string' ? result.slice(0, 200) : `[${result.length} blocks]`)
         if (typeof result === 'string') {
           return { content: [{ type: 'text', text: result }] }
         }
@@ -123,6 +134,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           : { type: 'text' as const, text: block.text }) }
       }
     } catch (err) {
+      log('error', name, err)
       return { content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true }
     }
   }
@@ -132,16 +144,25 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }
   }
 
-  const fileOnlyTools = new Set(['write_page_object', 'write_workflow', 'write_test'])
+  const fileOnlyTools = new Set(['write_page_object', 'write_workflow', 'write_test', 'write_feature_doc'])
+  const pureComputeTools = new Set(['compare_phash'])
 
   try {
     let result: string | import('../tool/tool.js').ToolResultContent[]
-    if (executionMode === 'crx' && !fileOnlyTools.has(name)) {
+    if (pureComputeTools.has(name)) {
+      result = await browserTool.execute(args, { page: null as unknown as Page, context: null as unknown as BrowserContext, outputDir: OUTPUT_DIR })
+    } else if (executionMode === 'crx' && name === 'visual_fingerprint') {
+      const snapResult = await crxClient.execute('snapshot', {})
+      const base64 = Array.isArray(snapResult) ? (snapResult[0] as { source: { data: string } }).source.data : ''
+      const phash = dhash(Buffer.from(base64, 'base64'))
+      result = JSON.stringify({ phash })
+    } else if (executionMode === 'crx' && !fileOnlyTools.has(name)) {
       result = await crxClient.execute(name, args)
     } else {
       const ctx = await ensureBrowser()
       result = await browserTool.execute(args, ctx)
     }
+    log('result', name, typeof result === 'string' ? result.slice(0, 200) : `[${result.length} blocks]`)
     if (typeof result === 'string') {
       return { content: [{ type: 'text', text: result }] }
     }
@@ -154,6 +175,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       }),
     }
   } catch (err) {
+    log('error', name, err)
     return {
       content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
       isError: true,

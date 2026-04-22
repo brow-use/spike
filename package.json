@@ -13,11 +13,13 @@
     "@modelcontextprotocol/sdk": "^1.0.0",
     "playwright": "^1.50.0",
     "playwright-crx": "^0.15.0",
+    "pngjs": "^7.0.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/chrome": "^0.1.39",
     "@types/node": "^22.0.0",
+    "@types/pngjs": "^6.0.5",
     "@types/ws": "^8.5.0",
     "esbuild": "^0.24.0",
     "tsx": "^4.21.0",
