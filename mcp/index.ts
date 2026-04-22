@@ -264,7 +264,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       fs.mkdirSync(dir, { recursive: true })
       const filePath = path.join(dir, `${shotName}.png`)
       fs.writeFileSync(filePath, Buffer.from(base64, 'base64'))
-      const relToDocs = path.join('..', 'exploration', sessionId, `${shotName}.png`)
+      const relToDocs = path.join('..', '..', 'exploration', sessionId, `${shotName}.png`)
       result = JSON.stringify({ absolutePath: filePath, relativeToDocs: relToDocs })
     } else if (executionMode === 'crx' && !fileOnlyTools.has(name)) {
       result = await crxClient.execute(name, args)

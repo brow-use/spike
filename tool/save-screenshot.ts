@@ -4,7 +4,7 @@ import type { Tool, ToolContext } from './tool.js'
 
 export const saveScreenshot: Tool = {
   name: 'save_screenshot',
-  description: 'Capture a screenshot of the current page and save it as a PNG to output/exploration/<sessionId>/<name>.png. Returns the path relative to output/docs/ so it can be embedded in a feature doc as an image link.',
+  description: 'Capture a screenshot of the current page and save it as a PNG to output/exploration/<sessionId>/<name>.png. Returns {absolutePath, relativeToDocs} — relativeToDocs is the path a feature doc at output/docs/<sessionId>/*.md should use to reference this image.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -21,7 +21,7 @@ export const saveScreenshot: Tool = {
     const filePath = path.join(dir, `${name}.png`)
     const buffer = await ctx.page.screenshot({ type: 'png' })
     fs.writeFileSync(filePath, buffer)
-    const relToDocs = path.join('..', 'exploration', sessionId, `${name}.png`)
+    const relToDocs = path.join('..', '..', 'exploration', sessionId, `${name}.png`)
     return JSON.stringify({ absolutePath: filePath, relativeToDocs: relToDocs })
   },
 }

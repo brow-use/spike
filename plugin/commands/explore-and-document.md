@@ -82,7 +82,7 @@ For each feature:
 
 1. For every step you want to show visually in the doc (typically: the feature's entry page and each page where the user is required to make a decision), re-navigate there if needed and call `save_screenshot` with `sessionId` and a descriptive kebab-case `name` (e.g. `creating-invoice-step-2`). The tool returns a JSON with `relativeToDocs` — use that value verbatim as the image path in the markdown.
 
-2. Call `write_feature_doc` with `name` = kebab-case feature name and `content` following this template:
+2. Call `write_feature_doc` with `sessionId`, `name` = kebab-case feature name, and `content` following this template:
 
 ```
 # <Human title>
@@ -116,10 +116,13 @@ Tone rules:
 - Describe what the user sees and does, not how the app implements it.
 - Embed screenshots where they aid user understanding. Screenshots come from `save_screenshot`; the full trace zip remains the deeper audit artifact for anyone who wants to replay the exploration.
 
-Finally, call `write_feature_doc` once with `name = "README"` and content containing:
+Finally, call `write_feature_doc` once with `sessionId`, `name = "README"`, and content containing:
 - The app name, URL, and description.
-- A Markdown table of contents linking each feature doc written this run (one row per feature, with its one-line summary).
-- A "How this was generated" footer listing the full audit trace: the trace zip at `output/trace/<sessionId>-<timestamp>.zip` (viewable with `npx playwright show-trace <that file>`), the aria-tree log at `output/exploration/<sessionId>.jsonl`, and the screenshots folder `output/exploration/<sessionId>/`.
+- The sessionId for this run.
+- A Markdown table of contents linking each feature doc written this run (one row per feature, with its one-line summary). Links are relative within the session directory — e.g. `./creating-an-invoice.md`.
+- A "How this was generated" footer listing the full audit trail: the trace zip at `output/trace/<sessionId>-<timestamp>.zip` (viewable with `npx playwright show-trace <that file>`), the aria-tree log at `output/exploration/<sessionId>.jsonl`, and the screenshots folder `output/exploration/<sessionId>/`.
+
+All feature docs, the README, and the screenshots are scoped under `<sessionId>` so this run cannot overwrite artifacts from a previous run.
 
 ## Failure modes
 
