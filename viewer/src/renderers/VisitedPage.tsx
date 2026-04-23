@@ -5,9 +5,10 @@ interface Props {
   event: TimelineEvent
   screenshots: TimelineEvent[]
   onCompareWithPrevious?: () => void
+  onJumpToTrace?: () => void
 }
 
-export function VisitedPage({ event, screenshots, onCompareWithPrevious }: Props) {
+export function VisitedPage({ event, screenshots, onCompareWithPrevious, onJumpToTrace }: Props) {
   const d = event.detail as {
     stepId?: string
     url?: string
@@ -32,16 +33,18 @@ export function VisitedPage({ event, screenshots, onCompareWithPrevious }: Props
           </div>
         </Row>
       )}
-      <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-        <button
-          onClick={() => setShowTree(!showTree)}
-          style={buttonStyle}
-        >
+      <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button onClick={() => setShowTree(!showTree)} style={buttonStyle}>
           {showTree ? 'Hide aria tree' : 'Show aria tree'}
         </button>
+        {onJumpToTrace && (
+          <button onClick={onJumpToTrace} style={{ ...buttonStyle, borderColor: '#616161', color: '#444' }}>
+            ↳ Jump to trace action
+          </button>
+        )}
         {onCompareWithPrevious && (
           <button onClick={onCompareWithPrevious} style={buttonStyle}>
-            Compare with previous visited page
+            Compare with previous
           </button>
         )}
       </div>

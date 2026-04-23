@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import { Highlight, themes } from 'prism-react-renderer'
 import type { TimelineEvent } from '../types.js'
 
-export function TraceAction({ event }: { event: TimelineEvent }) {
+export function TraceAction({ event, onJumpToPage }: { event: TimelineEvent; onJumpToPage?: () => void }) {
   const d = event.detail as { callId?: string; method?: string; params?: unknown } | undefined
   const params = d?.params
   const paramsJson = params ? JSON.stringify(params, null, 2) : ''
+  const screenshotSrc = event.links?.screenshot
+  const [imgExpanded, setImgExpanded] = useState(false)
 
   return (
     <div>
@@ -17,6 +20,57 @@ export function TraceAction({ event }: { event: TimelineEvent }) {
         <div style={{ color: '#777' }}>Duration</div>
         <div>{event.duration?.toFixed(1)} ms</div>
       </div>
+      {onJumpToPage && (
+        <div style={{ marginBottom: 12 }}>
+          <button
+            onClick={onJumpToPage}
+            style={{
+              padding: '6px 12px',
+              border: '1px solid #1565c0',
+              background: 'white',
+              color: '#1565c0',
+              borderRadius: 4,
+              cursor: 'pointer',
+              fontSize: 13,
+            }}
+          >
+            ↑ Jump to browser page
+          </button>
+        </div>
+      )}
+
+      {screenshotSrc && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ color: '#555', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+            Page state after action
+          </div>
+          <img
+            src={screenshotSrc}
+            alt="page after action"
+            onClick={() => setImgExpanded(!imgExpanded)}
+            style={{
+              maxWidth: '100%',
+              maxHeight: imgExpanded ? 'none' : 220,
+              objectFit: 'cover',
+              objectPosition: 'top',
+              border: '1px solid #ddd',
+              borderRadius: 4,
+              display: 'block',
+              cursor: 'zoom-in',
+            }}
+          />
+          <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+            click to {imgExpanded ? 'collapse' : 'expand'} · <a href={screenshotSrc} target="_blank" rel="noreferrer" style={{ color: '#1565c0' }}>open full size</a>
+          </div>
+        </div>
+      )}
+
+      {!screenshotSrc && (
+        <div style={{ color: '#bbb', fontSize: 12, marginBottom: 12 }}>
+          No screenshot available for this action. Re-run <code>npm run viewer:ingest</code> — screenshots are extracted from the trace zip when present.
+        </div>
+      )}
+
       {paramsJson && (
         <>
           <div style={{ color: '#555', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Params</div>

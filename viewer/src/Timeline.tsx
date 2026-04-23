@@ -102,21 +102,20 @@ export function Timeline({ bundles, onSelect, selectedKey }: Props) {
         const baseColor = KIND_COLOR[e.kind] ?? '#666'
         // In multi-run, override with session colour so events from one run are colour-tagged.
         const color = isMultiRun ? sessionColor : baseColor
-        const isSpan = typeof e.duration === 'number' && e.duration > 0
         // In multi-run, normalise to ms since run start (relative to epoch = 0).
         const startMs = isMultiRun ? (e.t - runStart) : e.t
-        const endMs = isMultiRun ? startMs + (e.duration ?? 0) : e.t + (e.duration ?? 0)
-        const start = new Date(startMs)
-        const end = isSpan ? new Date(endMs) : undefined
         const group = isMultiRun ? `${bundle.sessionId}::${e.lane}` : e.lane
         allOffsets.push(startMs)
+        // Always use 'box' type. Trace-action items have real durations (1–10 ms)
+        // but at timeline scale those range bars collapse to sub-pixel red hairlines.
+        // Box items are always legible regardless of duration — duration is visible
+        // in the detail pane.
         items.add({
           id: `${bundle.sessionId}::${idx}`,
           group,
           content: escapeHtml(e.label),
-          start,
-          end,
-          type: isSpan ? 'range' : 'box',
+          start: new Date(startMs),
+          type: 'box',
           style: `background-color: ${color}; color: white; border-color: ${color};`,
         })
       })
@@ -150,18 +149,27 @@ export function Timeline({ bundles, onSelect, selectedKey }: Props) {
       maxBound = new Date(runEnd + outerPad)
     }
 
+    // Reduce initial visible window to 1/4 of the full span so events have
+    // 4× more horizontal space. min/max stay wide so the user can pan to see
+    // everything. Keep the start of the range so first events are visible.
+    const zoomedViewEnd = new Date(viewStart.getTime() + (viewEnd.getTime() - viewStart.getTime()) / 4)
+
     const timeline = new VisTimeline(containerRef.current, items, groups, {
       orientation: 'top',
       stack: true,
-      // No zoom; vertical scroll is converted to horizontal pan (two-finger trackpad).
       zoomable: false,
       moveable: true,
+      // verticalScroll: true enables two-finger up/down scroll to move through
+      // stacked items in the lanes. vis-timeline handles this internally.
+      // (The page layout is height:100% with no overflow, so page-level vertical
+      // scroll doesn't apply — all vertical scrolling happens inside the timeline.)
+      verticalScroll: true,
       min: minBound,
       max: maxBound,
       margin: { item: 8 },
       showCurrentTime: false,
       start: viewStart,
-      end: viewEnd,
+      end: zoomedViewEnd,
       ...(isMultiRun
         ? {
             // Hide full date; show elapsed time.

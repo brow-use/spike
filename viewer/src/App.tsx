@@ -90,6 +90,11 @@ export default function App() {
     setDiffPair({ prev: visitedInSession[idx - 1], curr: current })
   }, [bundles])
 
+  const handleJumpToEvent = useCallback((eventIdx: number) => {
+    if (!selectedEvent) return
+    setSelectedEventRef({ sessionId: selectedEvent.sessionId, eventIdx })
+  }, [selectedEvent])
+
   const hasPrevVisited = (() => {
     if (!selectedEvent) return false
     if (selectedEvent.kind !== 'visited-page') return false
@@ -146,6 +151,7 @@ export default function App() {
           }
           onClose={() => setSelectedEventRef(null)}
           onCompareWithPrevious={hasPrevVisited ? handleCompareWithPrevious : undefined}
+          onJumpToEvent={handleJumpToEvent}
         />
       )}
       {diffPair && (

@@ -22,6 +22,8 @@ export interface TimelineEvent {
     doc?: string
     resultFile?: string
     ariaFingerprint?: { phash: string; ariaHash: string }
+    linkedTraceEventIdx?: number      // visited-page → index of matching goto trace-action
+    linkedVisitedPageEventIdx?: number // trace-action (goto) → index of matching visited-page
   }
 }
 

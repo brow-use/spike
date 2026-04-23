@@ -157,19 +157,37 @@ interface TraceEvent {
   class?: string
   method?: string
   params?: Record<string, unknown>
+  pageId?: string
   sdkLanguage?: string
   // console events
   text?: string
   messageType?: string
-  // url events
-  url?: string
+  // screencast-frame
+  sha1?: string
+  timestamp?: number
   // catch-all
   [k: string]: unknown
 }
 
+interface ActionRecord {
+  callId: string
+  method: string
+  startMs: number
+  endMs: number
+  params?: unknown
+  pageId?: string
+}
+
+interface ScreencastFrame {
+  timestamp: number
+  sha1: string
+  pageId: string
+}
+
 interface TraceParsed {
-  actions: { callId: string; method: string; startMs: number; endMs: number; params?: unknown }[]
+  actions: ActionRecord[]
   consoles: { t: number; level: string; text: string }[]
+  screencastFrames: ScreencastFrame[]
 }
 
 async function openZip(filePath: string): Promise<yauzl.ZipFile> {
@@ -187,10 +205,7 @@ async function openZip(filePath: string): Promise<yauzl.ZipFile> {
 async function readZipEntryText(zip: yauzl.ZipFile, entry: yauzl.Entry): Promise<string> {
   return new Promise((resolve, reject) => {
     zip.openReadStream(entry, (err, stream) => {
-      if (err || !stream) {
-        reject(err ?? new Error('no stream'))
-        return
-      }
+      if (err || !stream) { reject(err ?? new Error('no stream')); return }
       const chunks: Buffer[] = []
       stream.on('data', (c: Buffer) => chunks.push(c))
       stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')))
@@ -199,21 +214,48 @@ async function readZipEntryText(zip: yauzl.ZipFile, entry: yauzl.Entry): Promise
   })
 }
 
-async function parseTraceZip(zipPath: string): Promise<TraceParsed> {
-  const result: TraceParsed = { actions: [], consoles: [] }
+async function readZipEntryBuffer(zip: yauzl.ZipFile, entry: yauzl.Entry): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    zip.openReadStream(entry, (err, stream) => {
+      if (err || !stream) { reject(err ?? new Error('no stream')); return }
+      const chunks: Buffer[] = []
+      stream.on('data', (c: Buffer) => chunks.push(c))
+      stream.on('end', () => resolve(Buffer.concat(chunks)))
+      stream.on('error', reject)
+    })
+  })
+}
+
+async function parseTraceZip(
+  zipPath: string,
+  resourcesDestDir: string | null,  // null = don't extract
+): Promise<TraceParsed> {
+  const result: TraceParsed = { actions: [], consoles: [], screencastFrames: [] }
   if (!fs.existsSync(zipPath)) return result
 
   const zip = await openZip(zipPath)
   const traceTextParts: string[] = []
-  const networkTextParts: string[] = []
 
   await new Promise<void>((resolve, reject) => {
     zip.on('entry', (entry: yauzl.Entry) => {
       const name = entry.fileName
+
       if (name === 'trace.trace' || name === 'trace.network') {
         readZipEntryText(zip, entry).then(text => {
-          if (name === 'trace.trace') traceTextParts.push(text)
-          else networkTextParts.push(text)
+          traceTextParts.push(text)
+          zip.readEntry()
+        }).catch(reject)
+      } else if (
+        resourcesDestDir &&
+        name.startsWith('resources/') &&
+        (name.endsWith('.jpeg') || name.endsWith('.jpg') || name.endsWith('.png'))
+      ) {
+        // Extract screenshot resources for in-browser display.
+        const sha1 = name.split('/').pop()!
+        const dest = path.join(resourcesDestDir, sha1)
+        readZipEntryBuffer(zip, entry).then(buf => {
+          fs.mkdirSync(resourcesDestDir, { recursive: true })
+          fs.writeFileSync(dest, buf)
           zip.readEntry()
         }).catch(reject)
       } else {
@@ -225,47 +267,73 @@ async function parseTraceZip(zipPath: string): Promise<TraceParsed> {
     zip.readEntry()
   })
 
-  // Aggregate before/after pairs into single action events.
-  const pending = new Map<string, { method: string; startMs: number; params?: unknown }>()
+  // Parse events from trace.trace.
+  const pending = new Map<string, { method: string; startMs: number; params?: unknown; pageId?: string }>()
 
-  const allLines = [...traceTextParts, ...networkTextParts]
-    .flatMap(t => t.split('\n'))
-    .filter(l => l.trim().length > 0)
+  for (const text of traceTextParts) {
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue
+      let ev: TraceEvent
+      try { ev = JSON.parse(line) as TraceEvent } catch { continue }
 
-  for (const line of allLines) {
-    let ev: TraceEvent
-    try { ev = JSON.parse(line) as TraceEvent } catch { continue }
-
-    if (ev.type === 'before' && ev.callId) {
-      const method = ev.apiName ?? ev.method ?? 'unknown'
-      const startMs = typeof ev.startTime === 'number' ? ev.startTime : 0
-      pending.set(ev.callId, { method, startMs, params: ev.params })
-    } else if (ev.type === 'after' && ev.callId) {
-      const started = pending.get(ev.callId)
-      if (started) {
-        const endMs = typeof ev.endTime === 'number' ? ev.endTime : started.startMs
-        result.actions.push({
-          callId: ev.callId,
-          method: started.method,
-          startMs: started.startMs,
-          endMs,
-          params: started.params,
+      if (ev.type === 'before' && ev.callId) {
+        const method = ev.apiName ?? ev.method ?? 'unknown'
+        const startMs = typeof ev.startTime === 'number' ? ev.startTime : 0
+        pending.set(ev.callId, { method, startMs, params: ev.params, pageId: ev.pageId })
+      } else if (ev.type === 'after' && ev.callId) {
+        const started = pending.get(ev.callId)
+        if (started) {
+          const endMs = typeof ev.endTime === 'number' ? ev.endTime : started.startMs
+          result.actions.push({
+            callId: ev.callId,
+            method: started.method,
+            startMs: started.startMs,
+            endMs,
+            params: started.params,
+            pageId: started.pageId,
+          })
+          pending.delete(ev.callId)
+        }
+      } else if (ev.type === 'screencast-frame' && ev.sha1 && ev.pageId) {
+        const ts = typeof ev.timestamp === 'number' ? ev.timestamp : 0
+        result.screencastFrames.push({ timestamp: ts, sha1: ev.sha1, pageId: ev.pageId })
+      } else if (ev.type === 'console') {
+        const t = typeof ev.time === 'number' ? ev.time
+          : typeof ev.timestamp === 'number' ? ev.timestamp : 0
+        result.consoles.push({
+          t,
+          level: ev.messageType ?? 'log',
+          text: typeof ev.text === 'string' ? ev.text : JSON.stringify(ev.text ?? ''),
         })
-        pending.delete(ev.callId)
       }
-    } else if (ev.type === 'console') {
-      const t = typeof ev.time === 'number' ? ev.time
-        : typeof ev.timestamp === 'number' ? ev.timestamp
-        : 0
-      result.consoles.push({
-        t,
-        level: ev.messageType ?? 'log',
-        text: typeof ev.text === 'string' ? ev.text : JSON.stringify(ev.text ?? ''),
-      })
     }
   }
 
+  // Sort frames ascending by timestamp for binary-search-style lookup.
+  result.screencastFrames.sort((a, b) => a.timestamp - b.timestamp)
   return result
+}
+
+// Find the last screencast frame captured within [startMs - 100ms, endMs + 3000ms]
+// for the given pageId. Falls back to any frame near the action if pageId doesn't match.
+function findActionScreenshot(
+  action: ActionRecord,
+  frames: ScreencastFrame[],
+  sessionId: string,
+): string | undefined {
+  if (frames.length === 0) return undefined
+  const window = frames.filter(
+    f => f.timestamp >= action.startMs - 100 && f.timestamp <= action.endMs + 3000,
+  )
+  // Prefer frames matching the action's pageId, fall back to any frame in window.
+  const candidates = action.pageId
+    ? (window.filter(f => f.pageId === action.pageId).length > 0
+        ? window.filter(f => f.pageId === action.pageId)
+        : window)
+    : window
+  if (candidates.length === 0) return undefined
+  const frame = candidates[candidates.length - 1]  // latest in the window
+  return `/data/${sessionId}/trace-resources/${frame.sha1}`
 }
 
 // ---------- per-run builders ----------
@@ -491,25 +559,31 @@ function buildResultWriteEvents(run: Run, sessionDataDir: string): TimelineEvent
   return out
 }
 
-async function buildTraceEvents(run: Run, runStartMs: number): Promise<TimelineEvent[]> {
+async function buildTraceEvents(
+  run: Run,
+  runStartMs: number,
+  sessionDataDir: string,
+): Promise<TimelineEvent[]> {
   const tracePath = run.artifacts?.tracePath
   if (!tracePath) return []
   const abs = resolveArtifact(tracePath)
   if (!fs.existsSync(abs)) return []
 
-  const parsed = await parseTraceZip(abs)
+  const resourcesDestDir = path.join(sessionDataDir, 'trace-resources')
+  const parsed = await parseTraceZip(abs, resourcesDestDir)
   const out: TimelineEvent[] = []
 
-  // Playwright trace event times are millis since monotonic boot, not wall clock.
-  // Anchor them: offset = runStartMs - <earliest trace event time> so the first
-  // trace event lines up with run-start on the merged timeline.
-  const firstTraceT = Math.min(
-    parsed.actions.length ? parsed.actions[0].startMs : Infinity,
-    parsed.consoles.length ? parsed.consoles[0].t : Infinity,
-  )
-  const offset = Number.isFinite(firstTraceT) ? runStartMs - firstTraceT : 0
+  // Anchor monotonic trace timestamps to wall-clock run-start.
+  const allTs = [
+    ...parsed.actions.map(a => a.startMs),
+    ...parsed.consoles.map(c => c.t),
+    ...parsed.screencastFrames.map(f => f.timestamp),
+  ].filter(t => t > 0)
+  const firstTraceT = allTs.length ? Math.min(...allTs) : 0
+  const offset = firstTraceT > 0 ? runStartMs - firstTraceT : 0
 
   for (const a of parsed.actions) {
+    const screenshotUrl = findActionScreenshot(a, parsed.screencastFrames, run.sessionId)
     out.push({
       sessionId: run.sessionId,
       t: a.startMs + offset,
@@ -518,6 +592,7 @@ async function buildTraceEvents(run: Run, runStartMs: number): Promise<TimelineE
       label: a.method,
       duration: Math.max(0, a.endMs - a.startMs),
       detail: { callId: a.callId, method: a.method, params: a.params },
+      ...(screenshotUrl ? { links: { screenshot: screenshotUrl } } : {}),
     })
   }
 
@@ -552,11 +627,40 @@ async function buildBundle(run: Run, apps: App[]): Promise<Bundle> {
     ...screenshots,
     ...buildDocWriteEvents(run, sessionDataDir),
     ...buildResultWriteEvents(run, sessionDataDir),
-    ...(await buildTraceEvents(run, runStartMs)),
+    ...(await buildTraceEvents(run, runStartMs, sessionDataDir)),
   ]
 
   // Sort by time; preserve insertion order for ties.
   events.sort((a, b) => a.t - b.t)
+
+  // Cross-link visited-page events to their matching goto trace-action, by URL.
+  // After sorting, each event has a stable index in the array.
+  const gotoActionsByUrl = new Map<string, number>()  // url → index in events[]
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i]
+    if (e.kind === 'trace-action') {
+      const d = e.detail as { method?: string; params?: { url?: string } } | undefined
+      if (d?.method === 'goto' && d.params?.url) {
+        // Keep the first match per URL (chronological order).
+        if (!gotoActionsByUrl.has(d.params.url)) {
+          gotoActionsByUrl.set(d.params.url, i)
+        }
+      }
+    }
+  }
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i]
+    if (e.kind === 'visited-page') {
+      const url = (e.detail as { url?: string } | undefined)?.url
+      if (url && gotoActionsByUrl.has(url)) {
+        const traceIdx = gotoActionsByUrl.get(url)!
+        e.links = { ...e.links, linkedTraceEventIdx: traceIdx }
+        // Back-link: the goto trace-action → this visited-page.
+        const traceEvent = events[traceIdx]
+        traceEvent.links = { ...(traceEvent.links ?? {}), linkedVisitedPageEventIdx: i }
+      }
+    }
+  }
 
   const eventsByKind: Record<string, number> = {}
   for (const e of events) eventsByKind[e.kind] = (eventsByKind[e.kind] ?? 0) + 1

@@ -14,9 +14,10 @@ interface Props {
   screenshots: TimelineEvent[]
   onClose: () => void
   onCompareWithPrevious?: (event: TimelineEvent) => void
+  onJumpToEvent?: (eventIdx: number) => void
 }
 
-export function DetailPane({ event, sessionId, screenshots, onClose, onCompareWithPrevious }: Props) {
+export function DetailPane({ event, sessionId, screenshots, onClose, onCompareWithPrevious, onJumpToEvent }: Props) {
   if (!event) return null
 
   return (
@@ -63,7 +64,7 @@ export function DetailPane({ event, sessionId, screenshots, onClose, onCompareWi
         >close</button>
       </header>
       <div style={{ padding: 16, overflow: 'auto', flex: 1 }}>
-        {render(event, sessionId, screenshots, onCompareWithPrevious)}
+        {render(event, sessionId, screenshots, onCompareWithPrevious, onJumpToEvent)}
       </div>
     </aside>
   )
@@ -74,6 +75,7 @@ function render(
   sessionId: string,
   screenshots: TimelineEvent[],
   onCompareWithPrevious?: (event: TimelineEvent) => void,
+  onJumpToEvent?: (eventIdx: number) => void,
 ) {
   switch (event.kind) {
     case 'agent-reasoning':
@@ -88,6 +90,11 @@ function render(
           event={event}
           screenshots={screenshots}
           onCompareWithPrevious={onCompareWithPrevious ? () => onCompareWithPrevious(event) : undefined}
+          onJumpToTrace={
+            onJumpToEvent && event.links?.linkedTraceEventIdx != null
+              ? () => onJumpToEvent(event.links!.linkedTraceEventIdx!)
+              : undefined
+          }
         />
       )
     case 'screenshot-saved':
@@ -97,7 +104,16 @@ function render(
     case 'result-write':
       return <ResultWrite event={event} />
     case 'trace-action':
-      return <TraceAction event={event} />
+      return (
+        <TraceAction
+          event={event}
+          onJumpToPage={
+            onJumpToEvent && event.links?.linkedVisitedPageEventIdx != null
+              ? () => onJumpToEvent(event.links!.linkedVisitedPageEventIdx!)
+              : undefined
+          }
+        />
+      )
     case 'trace-console':
       return <TraceConsole event={event} />
     case 'trace-network':
