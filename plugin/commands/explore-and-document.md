@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
 description: Autonomously explore the current app and produce end-user documentation of its features. Uses perceptual hashing to avoid loops; the whole run is recorded as a single Playwright trace for human verification.
-allowed-tools: Read, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/clear_session), MCP(bu/page_fingerprint), MCP(bu/compare_fingerprint), MCP(bu/write_feature_doc), MCP(bu/save_screenshot), MCP(bu/enumerate_interactive_elements), MCP(bu/write_exploration_log), MCP(bu/write_docs_index), MCP(bu/record_run)
+allowed-tools: Read, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/clear_session), MCP(bu/page_fingerprint), MCP(bu/compare_fingerprint), MCP(bu/write_feature_doc), MCP(bu/save_screenshot), MCP(bu/enumerate_interactive_elements), MCP(bu/write_exploration_log), MCP(bu/write_docs_index), MCP(bu/record_run), MCP(bu/log_reasoning)
 ---
 
 ## Preflight
@@ -23,6 +23,23 @@ Ask the user for three values with these defaults; accept overrides:
 ## Destructive-action policy
 
 `enumerate_interactive_elements` applies the destructive-action filter server-side — elements whose accessible name matches `\b(delete|remove|cancel account|drop|destroy|deactivate|close account|erase)\b` (case-insensitive) are stripped before the list reaches you. You cannot accidentally invoke what you cannot see. Use this tool for enumeration; do not try to parse `get_accessibility_tree` output by hand to pick actions.
+
+## Reasoning log (call sparingly)
+
+Call `log_reasoning` with the run's `sessionId` only at **non-obvious** decision points. This is an audit trail, not a narrator. Do NOT call it on every step. The file lands at `output/reasoning/<sessionId>.jsonl`.
+
+Required call sites:
+
+1. **Plan** — once, after reading the knowledge stack and the app description, before `start_trace`. Payload: the one- to two-sentence plan narration (same text you say to the user). `kind: "plan"`.
+2. **Decision** — only when you make a judgment call that a reader of the trace would not recover from the aria log alone. Examples:
+   - Exploring a module whose name does NOT match any description keyword (explain why you picked it next).
+   - Skipping an action because `compare_fingerprint` returned `aria-identical` and you recognised it as a loop.
+   - Back-navigating from a leaf to the nearest parent URL.
+   `kind: "decision"`.
+3. **Observation** — once, at termination, just before `record_run`. Payload: termination reason + a one-liner on overall coverage. `kind: "observation"`.
+4. **Error** — on any unrecoverable error (extension disconnect, repeated click failure, trace stop failure). `kind: "error"`.
+
+Do NOT call on routine pops from the frontier, on every successful novel page, or to narrate the plan step by step.
 
 ## Coverage rule
 

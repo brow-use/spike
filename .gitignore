@@ -6,3 +6,5 @@ output/
 .DS_Store
 .claude/
 scratch.jsonl
+viewer/data/
+viewer/public/data/

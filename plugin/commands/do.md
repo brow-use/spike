@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
 description: Carry out a plain-English user intention against the current app, grounded in docs/exploration/POM/workflow artifacts from an earlier run. Extracts data and presents it in the requested format plus a short plain-language narrative of how it was obtained. The whole run is recorded as a Playwright trace.
-allowed-tools: Read, Glob, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/enumerate_interactive_elements), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/write_result), MCP(bu/record_run)
+allowed-tools: Read, Glob, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/enumerate_interactive_elements), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/write_result), MCP(bu/record_run), MCP(bu/log_reasoning)
 ---
 
 ## Preflight
@@ -40,6 +40,23 @@ Build up app understanding in this order. Treat everything as a **hint**, not a 
 5. **Screenshots** — do not preload. If aria + docs + POM together are not enough to decide a specific step, `Read` the single relevant screenshot in `output/exploration/explore-<id>/<name>.png`.
 
 After reading, state the execution plan aloud to the user in one or two sentences — the concrete sequence you intend to take. Example: *"I'll go to the Data Entry App, search Excavating Machine with no filters, open each row for the registration date, and write the result as CSV."* This keeps intent visible before you click anything.
+
+## Reasoning log (call sparingly)
+
+Call `log_reasoning` with the run's `sessionId` only at **non-obvious** decision points. This is an audit trail, not a narrator. Do NOT call it on every step. The file lands at `output/reasoning/<sessionId>.jsonl`.
+
+Required call sites:
+
+1. **Plan** — once, after the knowledge stack is loaded, before `start_trace`. Payload: the one- to two-sentence plan narration (same text you state to the user). `kind: "plan"`.
+2. **Decision** — only for judgment calls a reader couldn't infer from the action sequence alone. Examples:
+   - Picking between two plausible selectors/paths (say which you picked and why).
+   - Re-running a search because the first query returned too few/many rows.
+   - Skipping a step because the knowledge-stack POM/workflow didn't match and you fell back to ad-hoc aria scraping.
+   `kind: "decision"`.
+3. **Observation** — once, at termination, just before `record_run`. Payload: termination reason + a one-liner on what was retrieved (or why nothing was). `kind: "observation"`.
+4. **Error** — on refusal (destructive intent), step-budget hit, extension disconnect, or any unrecoverable error. `kind: "error"`.
+
+Do NOT call on every navigate/click/type or to narrate routine steps.
 
 ## Destructive-action policy (hard block)
 
