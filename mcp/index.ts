@@ -32,6 +32,7 @@ import { writeDocsIndex } from '../tool/write-docs-index.js'
 import { enumerateInteractiveElements, parseInteractive, applyEnumerationFilters } from '../tool/enumerate-interactive-elements.js'
 import { writeResult } from '../tool/write-result.js'
 import { readPomSummary } from '../tool/read-pom-summary.js'
+import { recordRun } from '../tool/record-run.js'
 import { dhash } from '../tool/phash.js'
 const OUTPUT_DIR = path.resolve(process.cwd(), 'output')
 const SERVER_START = Date.now()
@@ -48,7 +49,7 @@ const browserTools: Tool[] = [
   startTrace, stopTrace, writePageObject, writeWorkflow, writeTest, clearSession,
   pageFingerprint, compareFingerprint, writeFeatureDoc, saveScreenshot,
   writeExplorationLog, writeDocsIndex, enumerateInteractiveElements,
-  writeResult, readPomSummary,
+  writeResult, readPomSummary, recordRun,
 ]
 
 function ensureOutputDirs(): void {
@@ -246,7 +247,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }
   }
 
-  const fileOnlyTools = new Set(['write_page_object', 'write_workflow', 'write_test', 'write_feature_doc', 'write_exploration_log', 'write_docs_index', 'write_result', 'read_pom_summary'])
+  const fileOnlyTools = new Set(['write_page_object', 'write_workflow', 'write_test', 'write_feature_doc', 'write_exploration_log', 'write_docs_index', 'write_result', 'read_pom_summary', 'record_run'])
   const pureComputeTools = new Set(['compare_fingerprint'])
 
   try {

@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
 description: Carry out a plain-English user intention against the current app, grounded in docs/exploration/POM/workflow artifacts from an earlier run. Extracts data and presents it in the requested format plus a short plain-language narrative of how it was obtained. The whole run is recorded as a Playwright trace.
-allowed-tools: Read, Glob, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/enumerate_interactive_elements), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/write_result)
+allowed-tools: Read, Glob, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/enumerate_interactive_elements), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/write_result), MCP(bu/record_run)
 ---
 
 ## Preflight
@@ -90,6 +90,23 @@ Write two files. Use the dedicated tools — do NOT hand-format the result file 
    Path: `output/results/<sessionId>/how.md`.
 
 Then call `stop_trace` with `name = sessionId`. The trace zip lands at `output/trace/<sessionId>-<timestamp>.zip`.
+
+## Record the run
+
+After writing result + how.md and stopping the trace, call `record_run` to register this run in `.brow-use/runs.json`:
+
+- `sessionId` — this run's id (the `do-<unix-ms>` one).
+- `command: "do"`.
+- `startedAt`, `endedAt` — ISO timestamps.
+- `appId` — from `.brow-use/apps.json`.
+- `mode` — `"crx"` or `"playwright"`.
+- `intent` — the user's plain-text intent.
+- `format` — `"markdown"` | `"csv"` | `"json"` | `"txt"`.
+- `recordsExtracted` — the number of records in the result. `0` if the intent was refused or no data found.
+- `sourceExploreId` — the id the user supplied for grounding (e.g. `1745296800000`).
+- `artifacts` — object with `tracePath`, `resultPath`, `howPath`. Omit `resultPath` if no result file was written (refused/failed run).
+
+Call it regardless of outcome (success, refusal, partial). It is the audit trail.
 
 ## Termination
 

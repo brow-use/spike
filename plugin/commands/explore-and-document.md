@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
 description: Autonomously explore the current app and produce end-user documentation of its features. Uses perceptual hashing to avoid loops; the whole run is recorded as a single Playwright trace for human verification.
-allowed-tools: Read, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/clear_session), MCP(bu/page_fingerprint), MCP(bu/compare_fingerprint), MCP(bu/write_feature_doc), MCP(bu/save_screenshot), MCP(bu/enumerate_interactive_elements), MCP(bu/write_exploration_log), MCP(bu/write_docs_index)
+allowed-tools: Read, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/clear_session), MCP(bu/page_fingerprint), MCP(bu/compare_fingerprint), MCP(bu/write_feature_doc), MCP(bu/save_screenshot), MCP(bu/enumerate_interactive_elements), MCP(bu/write_exploration_log), MCP(bu/write_docs_index), MCP(bu/record_run)
 ---
 
 ## Preflight
@@ -124,6 +124,22 @@ Finally, call `write_docs_index` to emit the README. Pass:
 The tool renders the TOC table and the standard "How this was generated" footer. Do NOT write the README via `write_feature_doc(name="README", ...)` — that path requires you to format the table + footer by hand and drifts across runs.
 
 All feature docs, the README, the aria log, the trace zip, and the screenshots are scoped under `<sessionId>` so this run cannot overwrite artifacts from a previous run.
+
+## Record the run
+
+At the very end, after all docs are written, call `record_run` to register this run in the brow-use run database (`.brow-use/runs.json`):
+
+- `sessionId` — this run's id.
+- `command: "explore-and-document"`.
+- `startedAt` — ISO timestamp from when you derived the sessionId (you can reconstruct it from the unix-ms portion).
+- `endedAt` — ISO timestamp of now.
+- `appId` — the `currentAppId` value from `.brow-use/apps.json`.
+- `mode` — `"crx"` or `"playwright"`, whichever was active (check `health_check`'s `mode` field at preflight).
+- `pagesVisited` — `visited.length`.
+- `terminationReason` — `"frontier-empty"` | `"maxSteps"` | `"maxLoopHits"`.
+- `artifacts` — object with `tracePath`, `docsDir`, `ariaLog`, `screenshotsDir`.
+
+Do this regardless of success or partial completion — it is the audit trail for every run.
 
 ## Failure modes
 

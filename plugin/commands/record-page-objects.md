@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
 description: Walk through a scenario across multiple pages and record or update Page Object Model classes for every page encountered.
-allowed-tools: Read, Glob, MCP(bu/health_check), MCP(bu/get_accessibility_tree), MCP(bu/enumerate_interactive_elements), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/write_page_object), MCP(bu/read_pom_summary), MCP(bu/clear_session)
+allowed-tools: Read, Glob, MCP(bu/health_check), MCP(bu/get_accessibility_tree), MCP(bu/enumerate_interactive_elements), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/write_page_object), MCP(bu/read_pom_summary), MCP(bu/clear_session), MCP(bu/record_run)
 ---
 
 Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy`, then stop. Do not proceed.
@@ -9,9 +9,11 @@ Call `health_check`. If the returned `ok` is `false`, print each issue's `messag
 Read `.brow-use/apps.json` and find the app whose id matches `currentAppId` to get the active app's URL and description.
 If the file does not exist or `currentAppId` is null, tell the user to run `/bu:apps` first.
 
+Derive a `sessionId = "record-po-<UNIX-millis>"` once. Note the current ISO timestamp as `startedAt`.
+
 Ask the user if they want to clear the browser session (cookies, localStorage, sessionStorage) before starting. If yes, call `clear_session`.
 
-Ask the user to describe the scenario they want to walk through before doing anything else.
+Ask the user to describe the scenario they want to walk through before doing anything else. Keep this text as `scenario` — you will record it at the end.
 
 ## Pass 1 — Discovery (do not write any files)
 
@@ -48,3 +50,17 @@ With the complete name map from Pass 1, generate each page object. For every pag
    - Import all referenced page classes from their correct file names in the same directory
 
 After all files are written, summarise what was created or updated.
+
+## Record the run
+
+At the very end, call `record_run` to register this run in `.brow-use/runs.json`:
+
+- `sessionId` — the `record-po-<unix-ms>` you derived up-front.
+- `command: "record-page-objects"`.
+- `startedAt`, `endedAt` — ISO timestamps.
+- `appId` — `currentAppId` from `.brow-use/apps.json`.
+- `mode` — `"crx"` or `"playwright"`, whichever was active (check `health_check`'s `mode` at preflight).
+- `scenario` — the scenario text the user provided.
+- `pageObjectFiles` — array of absolute or repo-relative paths for every `.ts` file you wrote or updated this run.
+
+Call `record_run` regardless of whether any files were created (even a no-match scenario is worth an audit row).
