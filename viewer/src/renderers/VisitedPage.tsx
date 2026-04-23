@@ -3,10 +3,11 @@ import type { TimelineEvent } from '../types.js'
 
 interface Props {
   event: TimelineEvent
+  screenshots: TimelineEvent[]
   onCompareWithPrevious?: () => void
 }
 
-export function VisitedPage({ event, onCompareWithPrevious }: Props) {
+export function VisitedPage({ event, screenshots, onCompareWithPrevious }: Props) {
   const d = event.detail as {
     stepId?: string
     url?: string
@@ -56,6 +57,57 @@ export function VisitedPage({ event, onCompareWithPrevious }: Props) {
           maxHeight: 400,
           whiteSpace: 'pre-wrap',
         }}>{d?.ariaTree}</pre>
+      )}
+      {/* Matched screenshot (from ingest URL→name heuristic) */}
+      {event.links?.screenshot && (
+        <div style={{ marginTop: 20 }}>
+          <div style={{ color: '#555', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
+            Screenshot
+          </div>
+          <a href={event.links.screenshot} target="_blank" rel="noreferrer">
+            <img
+              src={event.links.screenshot}
+              alt="page screenshot"
+              style={{
+                maxWidth: '100%',
+                border: '1px solid #ddd',
+                borderRadius: 4,
+                cursor: 'zoom-in',
+                display: 'block',
+              }}
+            />
+          </a>
+        </div>
+      )}
+      {/* Fallback: gallery of all session screenshots when no match found */}
+      {!event.links?.screenshot && screenshots.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <div style={{ color: '#555', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+            Session screenshots <span style={{ color: '#aaa', fontWeight: 400 }}>(no exact match — showing all)</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {screenshots.map((ss, i) => {
+              const src = ss.links?.screenshot
+              const name = (ss.detail as { name?: string } | undefined)?.name ?? ''
+              return src ? (
+                <a key={i} href={src} target="_blank" rel="noreferrer" title={name}>
+                  <img
+                    src={src}
+                    alt={name}
+                    style={{
+                      width: 88,
+                      height: 58,
+                      objectFit: 'cover',
+                      border: '1px solid #ddd',
+                      borderRadius: 3,
+                      cursor: 'pointer',
+                    }}
+                  />
+                </a>
+              ) : null
+            })}
+          </div>
+        </div>
       )}
     </div>
   )

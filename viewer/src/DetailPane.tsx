@@ -11,11 +11,12 @@ import { RunStart, RunEnd } from './renderers/RunStartEnd.js'
 interface Props {
   event: TimelineEvent | null
   sessionId: string
+  screenshots: TimelineEvent[]
   onClose: () => void
   onCompareWithPrevious?: (event: TimelineEvent) => void
 }
 
-export function DetailPane({ event, sessionId, onClose, onCompareWithPrevious }: Props) {
+export function DetailPane({ event, sessionId, screenshots, onClose, onCompareWithPrevious }: Props) {
   if (!event) return null
 
   return (
@@ -62,7 +63,7 @@ export function DetailPane({ event, sessionId, onClose, onCompareWithPrevious }:
         >close</button>
       </header>
       <div style={{ padding: 16, overflow: 'auto', flex: 1 }}>
-        {render(event, sessionId, onCompareWithPrevious)}
+        {render(event, sessionId, screenshots, onCompareWithPrevious)}
       </div>
     </aside>
   )
@@ -71,6 +72,7 @@ export function DetailPane({ event, sessionId, onClose, onCompareWithPrevious }:
 function render(
   event: TimelineEvent,
   sessionId: string,
+  screenshots: TimelineEvent[],
   onCompareWithPrevious?: (event: TimelineEvent) => void,
 ) {
   switch (event.kind) {
@@ -84,6 +86,7 @@ function render(
       return (
         <VisitedPage
           event={event}
+          screenshots={screenshots}
           onCompareWithPrevious={onCompareWithPrevious ? () => onCompareWithPrevious(event) : undefined}
         />
       )

@@ -122,24 +122,42 @@ export function Timeline({ bundles, onSelect, selectedKey }: Props) {
       })
     }
 
-    // Initial view bounds.
+    // Bounds: innerPad for the initial visible window, outerPad for the pan limit.
+    // Separate values prevent events at the boundary from being clipped.
     let viewStart: Date
     let viewEnd: Date
+    let minBound: Date
+    let maxBound: Date
     if (isMultiRun) {
       const minT = Math.min(...allOffsets, 0)
       const maxT = Math.max(...allOffsets, 1000)
-      viewStart = new Date(minT - 1000)
-      viewEnd = new Date(maxT + 1000)
+      const span = Math.max(maxT - minT, 1000)
+      const innerPad = Math.max(span * 0.08, 3000)
+      const outerPad = Math.max(span * 0.25, 8000)
+      viewStart = new Date(minT - innerPad)
+      viewEnd = new Date(maxT + innerPad)
+      minBound = new Date(minT - outerPad)
+      maxBound = new Date(maxT + outerPad)
     } else {
-      viewStart = new Date(bundles[0].runStartMs - 1000)
-      viewEnd = new Date(bundles[0].runEndMs + 1000)
+      const runStart = bundles[0].runStartMs
+      const runEnd = bundles[0].runEndMs
+      const span = Math.max(runEnd - runStart, 1000)
+      const innerPad = Math.max(span * 0.08, 3000)
+      const outerPad = Math.max(span * 0.25, 8000)
+      viewStart = new Date(runStart - innerPad)
+      viewEnd = new Date(runEnd + innerPad)
+      minBound = new Date(runStart - outerPad)
+      maxBound = new Date(runEnd + outerPad)
     }
 
     const timeline = new VisTimeline(containerRef.current, items, groups, {
       orientation: 'top',
       stack: true,
-      zoomMin: 1000,
-      zoomMax: 1000 * 60 * 60 * 24 * 7,
+      // No zoom; vertical scroll is converted to horizontal pan (two-finger trackpad).
+      zoomable: false,
+      moveable: true,
+      min: minBound,
+      max: maxBound,
       margin: { item: 8 },
       showCurrentTime: false,
       start: viewStart,

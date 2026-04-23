@@ -319,7 +319,52 @@ function buildReasoningEvents(run: Run): TimelineEvent[] {
   }))
 }
 
-function buildVisitedPageEvents(run: Run): TimelineEvent[] {
+// Match a page URL to the best-fit screenshot by scoring URL path words against
+// screenshot filename words. Returns the matched viewer URL or undefined.
+function wordMatchScore(urlWord: string, nameWord: string): number {
+  if (nameWord === urlWord) return 4                              // exact
+  if (nameWord.length >= 5 && nameWord.includes(urlWord)) return 3  // name contains url-word
+  if (urlWord.length >= 5 && urlWord.includes(nameWord)) return 3   // url-word contains name-word
+  if (urlWord.startsWith(nameWord) || nameWord.startsWith(urlWord)) return 1  // prefix
+  return 0
+}
+
+function matchScreenshotToUrl(url: string, screenshots: TimelineEvent[]): string | undefined {
+  let fragment = ''
+  try {
+    fragment = new URL(url).hash.replace(/^#\//, '')
+  } catch {
+    return undefined
+  }
+  if (!fragment || screenshots.length === 0) return undefined
+
+  // Only use URL path words that are at least 4 chars (prevents "app" matching everything).
+  const urlWords = fragment.split(/[/?&=_-]/).filter(w => w.length >= 4)
+  if (urlWords.length === 0) return undefined
+
+  let bestScore = 0
+  let bestMatch: TimelineEvent | null = null
+
+  for (const ss of screenshots) {
+    const name = (ss.detail as { name?: string } | undefined)?.name ?? ''
+    const nameWords = name.split('-')
+    let score = 0
+    for (const uw of urlWords) {
+      for (const nw of nameWords) {
+        score += wordMatchScore(uw, nw)
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score
+      bestMatch = ss
+    }
+  }
+
+  // Require a minimum score to avoid spurious matches.
+  return bestScore >= 2 ? bestMatch?.links?.screenshot : undefined
+}
+
+function buildVisitedPageEvents(run: Run, screenshots: TimelineEvent[]): TimelineEvent[] {
   if (run.command !== 'explore-and-document') return []
   const ariaLog = run.artifacts?.ariaLog
   if (!ariaLog) return []
@@ -334,21 +379,27 @@ function buildVisitedPageEvents(run: Run): TimelineEvent[] {
     ariaTree: string
     timestamp?: string
   }>(filePath)
-  return lines.map(l => ({
-    sessionId: run.sessionId,
-    t: isoToMs(l.timestamp),
-    kind: 'visited-page',
-    lane: 'browser',
-    label: `${l.stepId} · ${l.title || l.url}`,
-    detail: {
-      stepId: l.stepId,
-      url: l.url,
-      title: l.title,
-      ariaSummary: l.ariaSummary,
-      ariaTree: l.ariaTree,
-    },
-    links: { ariaFingerprint: { phash: l.phash, ariaHash: l.ariaHash } },
-  }))
+  return lines.map(l => {
+    const matchedScreenshot = matchScreenshotToUrl(l.url, screenshots)
+    return {
+      sessionId: run.sessionId,
+      t: isoToMs(l.timestamp),
+      kind: 'visited-page',
+      lane: 'browser',
+      label: `${l.stepId} · ${l.title || l.url}`,
+      detail: {
+        stepId: l.stepId,
+        url: l.url,
+        title: l.title,
+        ariaSummary: l.ariaSummary,
+        ariaTree: l.ariaTree,
+      },
+      links: {
+        ariaFingerprint: { phash: l.phash, ariaHash: l.ariaHash },
+        ...(matchedScreenshot ? { screenshot: matchedScreenshot } : {}),
+      },
+    }
+  })
 }
 
 function buildScreenshotEvents(run: Run, sessionDataDir: string): TimelineEvent[] {
@@ -491,11 +542,14 @@ async function buildBundle(run: Run, apps: App[]): Promise<Bundle> {
   const sessionDataDir = path.join(DATA_DIR, run.sessionId)
   const runStartMs = isoToMs(run.startedAt)
 
+  // Build screenshots first so we can cross-link them into visited-page events.
+  const screenshots = buildScreenshotEvents(run, sessionDataDir)
+
   const events: TimelineEvent[] = [
     ...buildRunStartEnd(run),
     ...buildReasoningEvents(run),
-    ...buildVisitedPageEvents(run),
-    ...buildScreenshotEvents(run, sessionDataDir),
+    ...buildVisitedPageEvents(run, screenshots),
+    ...screenshots,
     ...buildDocWriteEvents(run, sessionDataDir),
     ...buildResultWriteEvents(run, sessionDataDir),
     ...(await buildTraceEvents(run, runStartMs)),

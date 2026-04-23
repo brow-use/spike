@@ -139,6 +139,11 @@ export default function App() {
         <DetailPane
           event={selectedEvent}
           sessionId={selectedEvent?.sessionId ?? ''}
+          screenshots={
+            bundles
+              .find(b => b.sessionId === (selectedEvent?.sessionId ?? ''))
+              ?.events.filter(e => e.kind === 'screenshot-saved') ?? []
+          }
           onClose={() => setSelectedEventRef(null)}
           onCompareWithPrevious={hasPrevVisited ? handleCompareWithPrevious : undefined}
         />
