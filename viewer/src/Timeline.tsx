@@ -127,9 +127,9 @@ export function Timeline({ bundles, onSelect, selectedKey }: Props) {
     let viewEnd: Date
     let minBound: Date
     let maxBound: Date
-    if (isMultiRun) {
-      const minT = Math.min(...allOffsets, 0)
-      const maxT = Math.max(...allOffsets, 1000)
+    {
+      const minT = Math.min(...allOffsets, isMultiRun ? 0 : bundles[0].runStartMs)
+      const maxT = Math.max(...allOffsets, isMultiRun ? 1000 : bundles[0].runEndMs)
       const span = Math.max(maxT - minT, 1000)
       const innerPad = Math.max(span * 0.08, 3000)
       const outerPad = Math.max(span * 0.25, 8000)
@@ -137,22 +137,7 @@ export function Timeline({ bundles, onSelect, selectedKey }: Props) {
       viewEnd = new Date(maxT + innerPad)
       minBound = new Date(minT - outerPad)
       maxBound = new Date(maxT + outerPad)
-    } else {
-      const runStart = bundles[0].runStartMs
-      const runEnd = bundles[0].runEndMs
-      const span = Math.max(runEnd - runStart, 1000)
-      const innerPad = Math.max(span * 0.08, 3000)
-      const outerPad = Math.max(span * 0.25, 8000)
-      viewStart = new Date(runStart - innerPad)
-      viewEnd = new Date(runEnd + innerPad)
-      minBound = new Date(runStart - outerPad)
-      maxBound = new Date(runEnd + outerPad)
     }
-
-    // Reduce initial visible window to 1/4 of the full span so events have
-    // 4× more horizontal space. min/max stay wide so the user can pan to see
-    // everything. Keep the start of the range so first events are visible.
-    const zoomedViewEnd = new Date(viewStart.getTime() + (viewEnd.getTime() - viewStart.getTime()) / 4)
 
     const timeline = new VisTimeline(containerRef.current, items, groups, {
       orientation: 'top',
@@ -169,7 +154,7 @@ export function Timeline({ bundles, onSelect, selectedKey }: Props) {
       margin: { item: 8 },
       showCurrentTime: false,
       start: viewStart,
-      end: zoomedViewEnd,
+      end: viewEnd,
       ...(isMultiRun
         ? {
             // Hide full date; show elapsed time.

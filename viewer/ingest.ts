@@ -459,9 +459,7 @@ function matchScreenshotToUrl(url: string, screenshots: TimelineEvent[]): string
 
 function buildVisitedPageEvents(run: Run, screenshots: TimelineEvent[]): TimelineEvent[] {
   if (run.command !== 'explore' && run.command !== 'run') return []
-  const ariaLog = run.artifacts?.ariaLog
-  if (!ariaLog) return []
-  const filePath = resolveArtifact(ariaLog)
+  const filePath = path.join(OUTPUT, 'exploration', `${run.sessionId}.jsonl`)
   const lines = readJsonl<{
     stepId: string
     phash: string
@@ -584,15 +582,29 @@ function buildResultWriteEvents(run: Run, sessionDataDir: string): TimelineEvent
   return out
 }
 
+function resolveTracePath(run: Run): string | null {
+  const stored = run.artifacts?.tracePath
+  if (stored) {
+    const abs = resolveArtifact(stored)
+    if (fs.existsSync(abs)) return abs
+  }
+  // fallback: glob output/trace/<sessionId>-*.zip
+  const traceDir = path.join(OUTPUT, 'trace')
+  if (!fs.existsSync(traceDir)) return null
+  const match = fs.readdirSync(traceDir)
+    .filter(f => f.startsWith(`${run.sessionId}-`) && f.endsWith('.zip'))
+    .sort()
+    .pop()
+  return match ? path.join(traceDir, match) : null
+}
+
 async function buildTraceEvents(
   run: Run,
   runStartMs: number,
   sessionDataDir: string,
 ): Promise<TimelineEvent[]> {
-  const tracePath = run.artifacts?.tracePath
-  if (!tracePath) return []
-  const abs = resolveArtifact(tracePath)
-  if (!fs.existsSync(abs)) return []
+  const abs = resolveTracePath(run)
+  if (!abs) return []
 
   const resourcesDestDir = path.join(sessionDataDir, 'trace-resources')
   const parsed = await parseTraceZip(abs, resourcesDestDir)
