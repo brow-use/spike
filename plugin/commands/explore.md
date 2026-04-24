@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
-description: Autonomously explore the current app and produce end-user documentation of its features. Uses perceptual hashing to avoid loops; the whole run is recorded as a single Playwright trace for human verification.
-allowed-tools: Read, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/clear_session), MCP(bu/page_fingerprint), MCP(bu/compare_fingerprint), MCP(bu/write_feature_doc), MCP(bu/save_screenshot), MCP(bu/enumerate_interactive_elements), MCP(bu/write_exploration_log), MCP(bu/write_docs_index), MCP(bu/record_run), MCP(bu/log_reasoning)
+description: Autonomously explore the current app and capture a per-page aria-tree log. Uses perceptual hashing to avoid loops; the whole run is recorded as a single Playwright trace for human verification. Run /bu:document afterwards to produce end-user feature docs from the log.
+allowed-tools: Read, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/clear_session), MCP(bu/page_fingerprint), MCP(bu/compare_fingerprint), MCP(bu/enumerate_interactive_elements), MCP(bu/write_exploration_log), MCP(bu/record_run), MCP(bu/log_reasoning)
 ---
 
 ## Preflight
@@ -89,72 +89,21 @@ Stop ONLY when one of the three conditions below holds. Do not terminate on any 
 Then:
 1. Call `stop_trace` with `name = sessionId`. Note the returned path.
 2. Persist the aria-tree log with `write_exploration_log`: pass `sessionId` and `entries` = your `visited` array. The tool writes `output/exploration/<sessionId>.jsonl` with one JSON line per entry. Do NOT hand-write the jsonl via the `Write` tool — that would spend tens of thousands of output tokens re-emitting the aria trees.
-3. Tell the user briefly: number of pages visited, termination reason, trace path, aria-log path.
-
-## Documentation
-
-Cluster `visited` into **features** — contiguous sequences that accomplish a user-meaningful outcome (e.g. "sign in", "create an invoice", "browse products"). Use URL paths and the `ariaSummary` you recorded to group. A single visited page can belong to one feature.
-
-For each feature:
-
-1. For every step you want to show visually in the doc (typically: the feature's entry page and each page where the user is required to make a decision), re-navigate there if needed and call `save_screenshot` with `sessionId`, a descriptive kebab-case `name` (e.g. `creating-invoice-step-2`), and optionally an `alt` text. The tool returns `markdownSnippet` — paste it verbatim into the doc. Do not hand-type `![...](../../exploration/...)` — use the snippet.
-
-2. Call `write_feature_doc` with `sessionId`, `name` = kebab-case feature name, and `content` following this template:
-
-```
-# <Human title>
-
-<one-sentence plain-language summary>
-
-## Before you start
-
-<prerequisites like login or existing data; omit the heading if none>
-
-## Steps
-
-1. <what the user sees + does, in plain language>
-
-   ![Step description](<relativeToDocs from save_screenshot>)
-
-2. ...
-
-## What happens next
-
-<observed outcome>
-
-## Tips
-
-<optional>
-```
-
-Tone rules:
-- Second person ("you").
-- No developer jargon: no "selector", "DOM", "click handler", "element", code fences.
-- Describe what the user sees and does, not how the app implements it.
-- Embed screenshots where they aid user understanding. Screenshots come from `save_screenshot`; the full trace zip remains the deeper audit artifact for anyone who wants to replay the exploration.
-
-Finally, call `write_docs_index` to emit the README. Pass:
-- `sessionId`, `appName`, `appUrl`, `appDescription` (from `.brow-use/apps.json`).
-- `entries` — an array of `{slug, title, summary}`, one per feature doc written this run. `slug` matches the doc filename without `.md`; `title` is the human title; `summary` is one plain-language sentence (same content you'd normally write into the TOC row).
-- `stats` — optionally `{pagesVisited: visited.length, terminationReason: "frontier-empty"|"maxSteps"|"maxLoopHits"}`.
-
-The tool renders the TOC table and the standard "How this was generated" footer. Do NOT write the README via `write_feature_doc(name="README", ...)` — that path requires you to format the table + footer by hand and drifts across runs.
-
-All feature docs, the README, the aria log, the trace zip, and the screenshots are scoped under `<sessionId>` so this run cannot overwrite artifacts from a previous run.
+3. Tell the user briefly: number of pages visited, termination reason, trace path, aria-log path. Remind them they can now run `/bu:document` to produce end-user documentation from this log.
 
 ## Record the run
 
-At the very end, after all docs are written, call `record_run` to register this run in the brow-use run database (`.brow-use/runs.json`):
+At the very end, call `record_run` to register this run in the brow-use run database (`.brow-use/runs.json`):
 
 - `sessionId` — this run's id.
-- `command: "explore-and-document"`.
+- `command: "explore"`.
 - `startedAt` — ISO timestamp from when you derived the sessionId (you can reconstruct it from the unix-ms portion).
 - `endedAt` — ISO timestamp of now.
 - `appId` — the `currentAppId` value from `.brow-use/apps.json`.
 - `mode` — `"crx"` or `"playwright"`, whichever was active (check `health_check`'s `mode` field at preflight).
 - `pagesVisited` — `visited.length`.
 - `terminationReason` — `"frontier-empty"` | `"maxSteps"` | `"maxLoopHits"`.
-- `artifacts` — object with `tracePath`, `docsDir`, `ariaLog`, `screenshotsDir`.
+- `artifacts` — object with `tracePath`, `ariaLog`.
 
 Do this regardless of success or partial completion — it is the audit trail for every run.
 
@@ -162,4 +111,4 @@ Do this regardless of success or partial completion — it is the audit trail fo
 
 - If `page_fingerprint` errors, navigate back to the last good URL from `visited` and try the next frontier item.
 - If two consecutive actions produce `matched=true`, the current page is not progressing — navigate back to the nearest parent URL.
-- If the extension disconnects mid-run (crx mode), stop tracing, write whatever docs you have, and surface the error to the user.
+- If the extension disconnects mid-run (crx mode), stop tracing, write whatever you have, and surface the error to the user.

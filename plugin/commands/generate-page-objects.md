@@ -1,12 +1,12 @@
 ---
 disable-model-invocation: true
-description: Generate Playwright Page Object Model classes from the aria-tree log of an explore-and-document run. No browser required — works entirely from the captured exploration data.
+description: Generate Playwright Page Object Model classes from the aria-tree log of an explore run. No browser required — works entirely from the captured exploration data.
 allowed-tools: Read, Glob, MCP(bu/read_pom_summary), MCP(bu/write_page_object)
 ---
 
 ## Preflight
 
-Read `.brow-use/runs.json`. Filter entries where `command === "explore-and-document"`. If no such entries exist, tell the user to run `/bu:explore-and-document` first and stop.
+Read `.brow-use/runs.json`. Filter entries where `command === "explore"`. If no such entries exist, tell the user to run `/bu:explore` first and stop.
 
 List the available runs to the user as a table with columns: index, sessionId, date (from `startedAt`), pages visited, termination reason.
 

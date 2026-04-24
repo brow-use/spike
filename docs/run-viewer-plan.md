@@ -34,7 +34,7 @@ New at filesystem root (not in repo, created at runtime by the server):
 
 ## Scope
 
-`.brow-use/runs.json` is the authoritative index. Today it tracks four commands: `explore-and-document`, `do`, `record-page-objects`, `record-workflow`. The viewer **visualises** only the first two (content-shaped artifacts). The other two appear in the session picker with metadata only (no timeline). They remain candidates for later if we add `log_reasoning` hooks to them.
+`.brow-use/runs.json` is the authoritative index. Today it tracks four commands: `explore`, `do`, `record-page-objects`, `record-workflow`. The viewer **visualises** only the first two (content-shaped artifacts). The other two appear in the session picker with metadata only (no timeline). They remain candidates for later if we add `log_reasoning` hooks to them.
 
 ## Timeline schema
 
@@ -113,7 +113,7 @@ Tasks are totally ordered. Each ends with acceptance criteria that must pass bef
 **Goal.** Both commands emit reasoning at prompt-sanctioned points. Non-obvious only (Decision #4).
 
 **Files to modify.**
-- `plugin/commands/explore-and-document.md`:
+- `plugin/commands/explore.md`:
   - `allowed-tools`: append `MCP(bu/log_reasoning)`.
   - Add a section **"Reasoning log (call sparingly)"** before Exploration, listing exactly when to call:
     1. **Plan** — after the knowledge stack is built and before `start_trace`. Payload: the execution plan narration (one to two sentences).
@@ -126,7 +126,7 @@ Tasks are totally ordered. Each ends with acceptance criteria that must pass bef
   - Call sites: plan after the knowledge stack and before `start_trace`; decision when picking a non-obvious next action (selector-ambiguous situations); observation at termination; error on refusal (destructive intent) and on any failure.
 
 **Acceptance.**
-- A real `/bu:explore-and-document` run with `maxSteps=5` against the Avni app produces an `output/reasoning/<sessionId>.jsonl` with at least a plan line and a termination-observation line. Zero-entry runs are acceptable only if nothing non-obvious happened.
+- A real `/bu:explore` run with `maxSteps=5` against the Avni app produces an `output/reasoning/<sessionId>.jsonl` with at least a plan line and a termination-observation line. Zero-entry runs are acceptable only if nothing non-obvious happened.
 - Running `jq -c . output/reasoning/<sessionId>.jsonl` parses cleanly.
 
 **Effort.** ~30 minutes (prompt edits + one smoke run).
@@ -140,7 +140,7 @@ Tasks are totally ordered. Each ends with acceptance criteria that must pass bef
 **Files to create.**
 - `viewer/ingest.ts`. Behaviour:
   1. Read `.brow-use/runs.json` and `.brow-use/apps.json`.
-  2. For each run where `command` ∈ {`explore-and-document`, `do`}:
+  2. For each run where `command` ∈ {`explore`, `do`}:
      - Join `appId` → app name/url/description.
      - Emit `run-start` and `run-end` events (from `startedAt` / `endedAt`).
      - If `output/reasoning/<sessionId>.jsonl` exists: emit one `agent-reasoning` event per line.

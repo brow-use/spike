@@ -35,14 +35,14 @@ function writeRuns(data: RunsFile): void {
 
 export const recordRun: Tool = {
   name: 'record_run',
-  description: 'Append a completed run to .brow-use/runs.json — the database of every brow-use command invocation that produced persistent output. Call this exactly once, at the end of each supported command (explore-and-document, do, record-page-objects, record-workflow). If an entry with the same sessionId already exists it is replaced. Returns {path, total}.',
+  description: 'Append a completed run to .brow-use/runs.json — the database of every brow-use command invocation that produced persistent output. Call this exactly once, at the end of each supported command (explore, do, record-page-objects, record-workflow, run). If an entry with the same sessionId already exists it is replaced. Returns {path, total}.',
   inputSchema: {
     type: 'object',
     properties: {
-      sessionId: { type: 'string', description: 'Unique session id (e.g. explore-<unix-ms>, do-<unix-ms>, record-po-<unix-ms>, record-wf-<unix-ms>).' },
+      sessionId: { type: 'string', description: 'Unique session id (e.g. explore-<unix-ms>, do-<unix-ms>, record-po-<unix-ms>, record-wf-<unix-ms>, run-<unix-ms>).' },
       command: {
         type: 'string',
-        enum: ['explore-and-document', 'do', 'record-page-objects', 'record-workflow'],
+        enum: ['explore', 'do', 'record-page-objects', 'record-workflow', 'run'],
         description: 'Which brow-use command produced this run.',
       },
       startedAt: { type: 'string', description: 'ISO timestamp when the run began.' },
@@ -51,14 +51,14 @@ export const recordRun: Tool = {
       mode: { type: 'string', enum: ['crx', 'playwright'], description: 'Browser execution mode used.' },
       artifacts: {
         type: 'object',
-        description: 'Map of artifact labels to file or directory paths. Labels by command: tracePath, docsDir, ariaLog, screenshotsDir (explore); tracePath, resultPath, howPath (do); pageObjectPaths (record-page-objects; array joined with comma); tracePath, workflowPath (record-workflow).',
+        description: 'Map of artifact labels to file or directory paths. Labels by command: tracePath, ariaLog (explore); tracePath, resultPath, howPath (do); pageObjectPaths (record-page-objects; array joined with comma); tracePath, workflowPath (record-workflow); tracePath, ariaLog (run).',
       },
       pagesVisited: { type: 'number', description: 'Explore only: visited.length at termination.' },
       terminationReason: { type: 'string', description: 'Explore only: "frontier-empty" | "maxSteps" | "maxLoopHits" | "error".' },
       intent: { type: 'string', description: 'Do only: the plain-text user intent for this run.' },
       format: { type: 'string', description: 'Do only: output format requested (markdown|csv|json|txt).' },
       recordsExtracted: { type: 'number', description: 'Do only: number of records in the result file (0 if none).' },
-      sourceExploreId: { type: 'string', description: 'Do only: the explore-and-document run id this /bu:do run was grounded in.' },
+      sourceExploreId: { type: 'string', description: 'Do only: the explore run id this /bu:do run was grounded in.' },
       scenario: { type: 'string', description: 'Record-page-objects only: user-provided scenario description.' },
       pageObjectFiles: { type: 'array', items: { type: 'string' }, description: 'Record-page-objects only: paths of .ts files written or updated this run.' },
       workflowName: { type: 'string', description: 'Record-workflow only: the workflow function name (camelCase).' },

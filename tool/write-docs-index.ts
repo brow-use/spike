@@ -98,7 +98,7 @@ export const writeDocsIndex: Tool = {
     lines.push(`- **Aria-tree log** — one JSON line per visited page, including the full accessibility tree the agent saw: \`output/exploration/${sessionId}.jsonl\``)
     lines.push(`- **Screenshots** — images embedded in the feature docs above: \`output/exploration/${sessionId}/\``)
     lines.push('')
-    lines.push('To reproduce on your own, run `/bu:explore-and-document` with the brow-use plugin. Each run is scoped under its own `sessionId` so this guide will not be overwritten.')
+    lines.push('To reproduce on your own, run `/bu:explore` followed by `/bu:document` with the brow-use plugin. Each run is scoped under its own `sessionId` so this guide will not be overwritten.')
     lines.push('')
 
     fs.writeFileSync(filePath, lines.join('\n'), 'utf-8')

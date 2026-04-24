@@ -41,7 +41,7 @@ describe('record_run', () => {
   test('first call creates the file + appends the entry', async () => {
     const r = await call({
       sessionId: 'explore-1',
-      command: 'explore-and-document',
+      command: 'explore',
       startedAt: '2026-04-22T10:00:00.000Z',
       endedAt: '2026-04-22T10:05:00.000Z',
       appId: 'app-1',
@@ -68,7 +68,7 @@ describe('record_run', () => {
   test('second call with different sessionId appends', async () => {
     await call({
       sessionId: 'explore-1',
-      command: 'explore-and-document',
+      command: 'explore',
       startedAt: '2026-04-22T10:00:00.000Z',
       endedAt: '2026-04-22T10:05:00.000Z',
       appId: 'app-1',
@@ -94,7 +94,7 @@ describe('record_run', () => {
   test('same sessionId replaces the existing entry', async () => {
     await call({
       sessionId: 'explore-1',
-      command: 'explore-and-document',
+      command: 'explore',
       startedAt: '2026-04-22T10:00:00.000Z',
       endedAt: '2026-04-22T10:05:00.000Z',
       appId: 'app-1',
@@ -102,7 +102,7 @@ describe('record_run', () => {
     })
     await call({
       sessionId: 'explore-1',
-      command: 'explore-and-document',
+      command: 'explore',
       startedAt: '2026-04-22T10:00:00.000Z',
       endedAt: '2026-04-22T10:15:00.000Z',
       appId: 'app-1',
@@ -156,13 +156,13 @@ describe('record_run', () => {
   test('return payload includes path and running total', async () => {
     await call({
       sessionId: 'explore-a',
-      command: 'explore-and-document',
+      command: 'explore',
       startedAt: 't',
       endedAt: 't',
     })
     const r = await call({
       sessionId: 'explore-b',
-      command: 'explore-and-document',
+      command: 'explore',
       startedAt: 't',
       endedAt: 't',
     })
@@ -188,6 +188,31 @@ describe('record_run', () => {
     assert.equal(data.runs.length, 2)
     assert.equal(data.runs[0].sessionId, 'pre-existing')
     assert.equal(data.runs[1].sessionId, 'new')
+  })
+
+  test('run command is persisted with tracePath + ariaLog artifacts', async () => {
+    await call({
+      sessionId: 'run-1',
+      command: 'run',
+      startedAt: '2026-04-23T10:00:00.000Z',
+      endedAt: '2026-04-23T10:02:00.000Z',
+      appId: 'app-1',
+      mode: 'crx',
+      intent: 'open the login page',
+      artifacts: {
+        tracePath: 'output/trace/run-1-1.zip',
+        ariaLog: 'output/exploration/run-1.jsonl',
+      },
+    })
+    const data = readRuns()
+    assert.equal(data.runs.length, 1)
+    assert.equal(data.runs[0].sessionId, 'run-1')
+    assert.equal(data.runs[0].command, 'run')
+    assert.equal(data.runs[0].intent, 'open the login page')
+    assert.deepEqual(data.runs[0].artifacts, {
+      tracePath: 'output/trace/run-1-1.zip',
+      ariaLog: 'output/exploration/run-1.jsonl',
+    })
   })
 
   test('corrupt runs.json is recovered as empty (does not lose new entry)', async () => {

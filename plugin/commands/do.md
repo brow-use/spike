@@ -14,7 +14,7 @@ allowed-tools: Read, Glob, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu
 Ask the user for three things (if they have not already stated them):
 
 1. **Intent** (required, plain text). The business-level goal — e.g. *"Export the full list of Excavating Machines with registration date and address as CSV."* Do NOT ask them for detailed steps; the agent decides how to achieve the intent.
-2. **Run id** (required). The bare Unix-ms portion of an earlier `/bu:explore-and-document` session, e.g. `1745296800000`. Do NOT auto-pick. If the user does not know an id, run `Glob` on `output/docs/*/` and list the available session folders. If none exist, tell the user to run `/bu:explore-and-document` first and stop.
+2. **Run id** (required). The bare Unix-ms portion of an earlier `/bu:explore` session, e.g. `1745296800000`. Do NOT auto-pick. If the user does not know an id, run `Glob` on `output/docs/*/` and list the available session folders. If none exist, tell the user to run `/bu:explore` followed by `/bu:document` first and stop.
 3. **Output format** (optional). One of `markdown` | `csv` | `json` | `txt`. Default: `markdown`. If the user's intent text already implies a format (e.g. "as CSV"), use that and skip asking.
 
 ## Resolution

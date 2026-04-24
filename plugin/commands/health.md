@@ -1,6 +1,6 @@
 ---
 disable-model-invocation: true
-description: Verify the MCP server, Chrome extension, and their connection are working. Run before long-running commands like /bu:explore-and-document.
+description: Verify the MCP server, Chrome extension, and their connection are working. Run before long-running commands like /bu:explore.
 allowed-tools: MCP(bu/health_check)
 ---
 

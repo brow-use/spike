@@ -48,7 +48,7 @@ interface App {
 
 interface Run {
   sessionId: string
-  command: 'explore-and-document' | 'do' | 'record-page-objects' | 'record-workflow'
+  command: 'explore' | 'do' | 'record-page-objects' | 'record-workflow' | 'run'
   startedAt: string
   endedAt: string
   appId: string | null
@@ -339,16 +339,20 @@ function findActionScreenshot(
 // ---------- per-run builders ----------
 
 function buildRunStartEnd(run: Run): TimelineEvent[] {
-  const label = run.command === 'explore-and-document'
+  const label = run.command === 'explore'
     ? `Start explore — ${run.sessionId}`
     : run.command === 'do'
       ? `Start do — "${run.intent ?? ''}"`
-      : `Start ${run.command}`
-  const endLabel = run.command === 'explore-and-document'
+      : run.command === 'run'
+        ? `Start run — "${run.intent ?? ''}"`
+        : `Start ${run.command}`
+  const endLabel = run.command === 'explore'
     ? `End — ${run.terminationReason ?? 'complete'} (${run.pagesVisited ?? 0} pages)`
     : run.command === 'do'
       ? `End — ${run.recordsExtracted ?? 0} records`
-      : `End ${run.command}`
+      : run.command === 'run'
+        ? `End run`
+        : `End ${run.command}`
 
   return [
     {
@@ -433,7 +437,7 @@ function matchScreenshotToUrl(url: string, screenshots: TimelineEvent[]): string
 }
 
 function buildVisitedPageEvents(run: Run, screenshots: TimelineEvent[]): TimelineEvent[] {
-  if (run.command !== 'explore-and-document') return []
+  if (run.command !== 'explore' && run.command !== 'run') return []
   const ariaLog = run.artifacts?.ariaLog
   if (!ariaLog) return []
   const filePath = resolveArtifact(ariaLog)
@@ -500,7 +504,7 @@ function buildScreenshotEvents(run: Run, sessionDataDir: string): TimelineEvent[
 }
 
 function buildDocWriteEvents(run: Run, sessionDataDir: string): TimelineEvent[] {
-  if (run.command !== 'explore-and-document') return []
+  if (run.command !== 'explore') return []
   const docsDir = run.artifacts?.docsDir
   if (!docsDir) return []
   const srcDir = resolveArtifact(docsDir)
@@ -681,7 +685,7 @@ async function buildBundle(run: Run, apps: App[]): Promise<Bundle> {
 
 function toIndexEntry(run: Run, apps: App[], eventCount: number | undefined): IndexEntry {
   const app = apps.find(a => a.id === run.appId) ?? null
-  const hasTimeline = run.command === 'explore-and-document' || run.command === 'do'
+  const hasTimeline = run.command === 'explore' || run.command === 'do' || run.command === 'run'
   return {
     sessionId: run.sessionId,
     command: run.command,
@@ -720,7 +724,7 @@ async function main(): Promise<void> {
 
   for (const run of runsFile.runs) {
     let eventCount: number | undefined
-    if (run.command === 'explore-and-document' || run.command === 'do') {
+    if (run.command === 'explore' || run.command === 'do' || run.command === 'run') {
       const bundle = await buildBundle(run, apps)
       writeJson(path.join(DATA_DIR, `${run.sessionId}.json`), bundle)
       eventCount = bundle.events.length
