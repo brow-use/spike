@@ -1,4 +1,4 @@
-import type { TimelineEvent } from './types.js'
+import type { Edge, TimelineEvent } from './types.js'
 import { AgentReasoning } from './renderers/AgentReasoning.js'
 import { VisitedPage } from './renderers/VisitedPage.js'
 import { ScreenshotSaved } from './renderers/ScreenshotSaved.js'
@@ -10,14 +10,16 @@ import { RunStart, RunEnd } from './renderers/RunStartEnd.js'
 
 interface Props {
   event: TimelineEvent | null
+  eventIdx: number | null
   sessionId: string
   screenshots: TimelineEvent[]
+  edges: Edge[]
   onClose: () => void
   onCompareWithPrevious?: (event: TimelineEvent) => void
   onJumpToEvent?: (eventIdx: number) => void
 }
 
-export function DetailPane({ event, sessionId, screenshots, onClose, onCompareWithPrevious, onJumpToEvent }: Props) {
+export function DetailPane({ event, eventIdx, sessionId, screenshots, edges, onClose, onCompareWithPrevious, onJumpToEvent }: Props) {
   if (!event) return null
 
   return (
@@ -64,7 +66,7 @@ export function DetailPane({ event, sessionId, screenshots, onClose, onCompareWi
         >close</button>
       </header>
       <div style={{ padding: 16, overflow: 'auto', flex: 1 }}>
-        {render(event, sessionId, screenshots, onCompareWithPrevious, onJumpToEvent)}
+        {render(event, eventIdx, sessionId, screenshots, edges, onCompareWithPrevious, onJumpToEvent)}
       </div>
     </aside>
   )
@@ -72,8 +74,10 @@ export function DetailPane({ event, sessionId, screenshots, onClose, onCompareWi
 
 function render(
   event: TimelineEvent,
+  eventIdx: number | null,
   sessionId: string,
   screenshots: TimelineEvent[],
+  edges: Edge[],
   onCompareWithPrevious?: (event: TimelineEvent) => void,
   onJumpToEvent?: (eventIdx: number) => void,
 ) {
@@ -88,6 +92,8 @@ function render(
       return (
         <VisitedPage
           event={event}
+          eventIdx={eventIdx ?? -1}
+          edges={edges}
           screenshots={screenshots}
           onCompareWithPrevious={onCompareWithPrevious ? () => onCompareWithPrevious(event) : undefined}
           onJumpToTrace={
@@ -95,6 +101,7 @@ function render(
               ? () => onJumpToEvent(event.links!.linkedTraceEventIdx!)
               : undefined
           }
+          onJumpToEvent={onJumpToEvent}
         />
       )
     case 'screenshot-saved':

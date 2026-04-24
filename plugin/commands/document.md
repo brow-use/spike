@@ -36,13 +36,31 @@ A single page belongs to only one feature. Pages that serve as navigation hubs (
 
 ## Navigation inference (covers the subtle risk)
 
-To narrate "the user selects X to get to the next page" you need to know which click caused each transition. The aria log records resulting page states, not actions taken — so infer navigation edges:
+To narrate "the user selects X to get to the next page" you need to know which click caused each transition. The aria log records resulting page states, not actions taken — so infer navigation edges up-front and reuse them throughout the command.
 
-1. **Link-with-URL match.** For each page `N`, scan `ariaTree` for `link <Name> <url>` entries. If a link's URL matches page `N+1`'s URL, the transition step is "select `<Name>`".
-2. **Link-name match (SPA click handlers).** If no link URL matches (common in SPA apps that use click handlers without `href`), scan for a `link <Name>` or `button <Name>` on page `N` whose name appears prominently in page `N+1`'s `title` or `ariaSummary`. If you find one, still use "select `<Name>`".
-3. **Fallback.** If neither matches, use neutral phrasing ("open the record", "go to the next screen") and record a `log_reasoning` entry of `kind: "decision"` explaining that the navigation edge could not be recovered from the aria log for step `N → N+1`.
+For every consecutive pair `(pages[N], pages[N+1])` run the following rules in order and record an `edge` object:
+
+1. **Link-with-URL match.** Scan `pages[N].ariaTree` for `link <Name> <url>` entries. If a link's URL matches `pages[N+1].url`, the trigger is `"select <Name>"`. Set `confidence = "high"`.
+2. **Link-name match (SPA click handlers).** If no link URL matches (common in SPA apps that use click handlers without `href`), scan for a `link <Name>` or `button <Name>` on `pages[N]` whose name appears prominently in `pages[N+1].title` or `ariaSummary`. The trigger is still `"select <Name>"`. Set `confidence = "medium"`.
+3. **Fallback.** If neither matches, use neutral phrasing (`"open the record"`, `"go to the next screen"`), set `confidence = "low"`, and record one `log_reasoning` entry of `kind: "decision"` explaining that the edge could not be recovered from the aria log for step `N → N+1`. Do not call `log_reasoning` again for the same edge.
+
+Shape of each `edge` object (keep it in memory for the rest of the command):
+
+```
+{
+  fromStepId, fromUrl, fromTitle,
+  toStepId,   toUrl,   toTitle,
+  viaRole,     // "link" | "button" | null
+  viaName,     // accessible name of the trigger, or null
+  phrasing,    // the plain-language phrase to use in docs: "select Save", "open the record", etc.
+  confidence,  // "high" | "medium" | "low"
+  crossFeature // bool, filled in later after feature clustering
+}
+```
 
 Do not manufacture steps that aren't in the aria log. If a feature has only one page, the narrative describes that single page.
+
+After feature clustering runs, set `edge.crossFeature = true` whenever `fromStepId` and `toStepId` belong to different features. These edges power the "How to get here" and "Where you can go next" sections of each feature doc.
 
 ## Reasoning log (call sparingly)
 
@@ -71,13 +89,17 @@ For each feature:
 
 <one-sentence plain-language summary>
 
+## How to get here
+
+<One line per incoming cross-feature edge: "From the **<fromTitle>** screen, <phrasing>."; omit the heading if there are none.>
+
 ## Before you start
 
 <prerequisites like login or existing data; omit the heading if none>
 
 ## Steps
 
-1. <what the user sees + does, in plain language>
+1. <what the user sees + does, in plain language. When narrating a transition from the prior step, reuse the edge's `phrasing` verbatim so the wording stays consistent with page-transitions.md.>
 
    ![Step description](<relativeToDocs from save_screenshot>)
 
@@ -86,6 +108,10 @@ For each feature:
 ## What happens next
 
 <observed outcome>
+
+## Where you can go next
+
+<One line per outgoing cross-feature edge: "To reach **<toTitle>**, <phrasing>."; omit the heading if there are none.>
 
 ## Tips
 
@@ -97,6 +123,26 @@ Tone rules:
 - No developer jargon: no "selector", "DOM", "click handler", "element", code fences.
 - Describe what the user sees and does, not how the app implements it.
 - Embed screenshots only where they aid user understanding.
+
+## Page transitions index
+
+After all feature docs are written, emit a single run-wide index of every inferred edge. Call `write_feature_doc` with:
+- `sessionId = sourceExploreId`
+- `name = "page-transitions"`
+- `content` matching the template below.
+
+```
+# Page transitions
+
+One row per inferred navigation edge from this exploration. `Trigger` is the human-readable phrase used elsewhere in the docs. Low-confidence rows are edges where the aria log did not contain an explicit link or button matching the landing page — the trigger there is a plain-language guess.
+
+| From | To | Trigger | Confidence | Feature |
+|------|----|---------|------------|---------|
+| <fromTitle> (<fromStepId>) | <toTitle> (<toStepId>) | <phrasing> | <confidence> | <same-feature name, or "cross: <from-feature> → <to-feature>"> |
+| ... | ... | ... | ... | ... |
+```
+
+Sort rows by `fromStepId` ascending, then `toStepId`. Emit one row per edge even when multiple edges share the same (from, to) with different triggers. If the edges list is empty (single-page run), write only the heading paragraph and skip the table.
 
 Finally, call `write_docs_index` to emit the README:
 - `sessionId = sourceExploreId`, `appName`, `appUrl`, `appDescription` (from the `apps.json` lookup above; pass empty strings if the app entry was missing).
@@ -111,8 +157,9 @@ All feature docs, the README, and the screenshots are scoped under `<sourceExplo
 
 Print briefly:
 - Number of features documented and their names.
-- Docs path: `output/docs/<sourceExploreId>/`.
+- Docs path: `output/docs/<sourceExploreId>/` (lists `page-transitions.md` alongside the feature docs and README).
 - Screenshots path: `output/exploration/<sourceExploreId>/`.
+- Number of edges: total, split by confidence (`high`/`medium`/`low`).
 - Any features whose narratives fell back to neutral navigation phrasing (rule 3).
 
 ## Failure modes

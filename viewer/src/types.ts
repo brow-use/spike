@@ -35,6 +35,26 @@ export interface App {
   createdAt: string
 }
 
+export interface Edge {
+  fromStepId: string | null
+  fromUrl: string | null
+  fromTitle: string | null
+  fromEventIdx: number | null
+  toStepId: string
+  toUrl: string
+  toTitle: string | null
+  toEventIdx: number
+  via: {
+    method: string
+    selector?: string
+    text?: string
+    url?: string
+  }
+  t: number
+  traceEventIdx: number | null
+  isRevisit: boolean
+}
+
 export interface Bundle {
   sessionId: string
   command: string
@@ -46,6 +66,7 @@ export interface Bundle {
   app: App | null
   stats: { eventsByKind: Record<string, number> }
   events: TimelineEvent[]
+  edges: Edge[]
 }
 
 export interface IndexEntry {

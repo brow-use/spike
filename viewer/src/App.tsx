@@ -143,11 +143,15 @@ export default function App() {
       {bundles.length > 0 && (
         <DetailPane
           event={selectedEvent}
+          eventIdx={selectedEventRef?.eventIdx ?? null}
           sessionId={selectedEvent?.sessionId ?? ''}
           screenshots={
             bundles
               .find(b => b.sessionId === (selectedEvent?.sessionId ?? ''))
               ?.events.filter(e => e.kind === 'screenshot-saved') ?? []
+          }
+          edges={
+            bundles.find(b => b.sessionId === (selectedEvent?.sessionId ?? ''))?.edges ?? []
           }
           onClose={() => setSelectedEventRef(null)}
           onCompareWithPrevious={hasPrevVisited ? handleCompareWithPrevious : undefined}

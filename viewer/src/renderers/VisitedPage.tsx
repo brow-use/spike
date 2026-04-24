@@ -1,14 +1,17 @@
 import { useState } from 'react'
-import type { TimelineEvent } from '../types.js'
+import type { Edge, TimelineEvent } from '../types.js'
 
 interface Props {
   event: TimelineEvent
+  eventIdx: number
+  edges: Edge[]
   screenshots: TimelineEvent[]
   onCompareWithPrevious?: () => void
   onJumpToTrace?: () => void
+  onJumpToEvent?: (eventIdx: number) => void
 }
 
-export function VisitedPage({ event, screenshots, onCompareWithPrevious, onJumpToTrace }: Props) {
+export function VisitedPage({ event, eventIdx, edges, screenshots, onCompareWithPrevious, onJumpToTrace, onJumpToEvent }: Props) {
   const d = event.detail as {
     stepId?: string
     url?: string
@@ -18,6 +21,9 @@ export function VisitedPage({ event, screenshots, onCompareWithPrevious, onJumpT
   } | undefined
   const fp = event.links?.ariaFingerprint
   const [showTree, setShowTree] = useState(false)
+
+  const incoming = edges.filter(e => e.toEventIdx === eventIdx)
+  const outgoing = edges.filter(e => e.fromEventIdx === eventIdx)
 
   return (
     <div>
@@ -61,6 +67,8 @@ export function VisitedPage({ event, screenshots, onCompareWithPrevious, onJumpT
           whiteSpace: 'pre-wrap',
         }}>{d?.ariaTree}</pre>
       )}
+      <EdgeList title="Reached from" edges={incoming} side="from" onJumpToEvent={onJumpToEvent} />
+      <EdgeList title="Leads to" edges={outgoing} side="to" onJumpToEvent={onJumpToEvent} />
       {/* Matched screenshot (from ingest URL→name heuristic) */}
       {event.links?.screenshot && (
         <div style={{ marginTop: 20 }}>
@@ -123,6 +131,85 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <div style={{ fontSize: 14 }}>{children}</div>
     </div>
   )
+}
+
+function EdgeList({
+  title,
+  edges,
+  side,
+  onJumpToEvent,
+}: {
+  title: string
+  edges: Edge[]
+  side: 'from' | 'to'
+  onJumpToEvent?: (eventIdx: number) => void
+}) {
+  if (edges.length === 0) return null
+  return (
+    <div style={{ marginTop: 20 }}>
+      <div style={{ color: '#555', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+        {title} <span style={{ color: '#aaa', fontWeight: 400 }}>({edges.length})</span>
+      </div>
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        {edges.map((e, i) => {
+          const otherTitle = side === 'from' ? e.fromTitle : e.toTitle
+          const otherUrl = side === 'from' ? e.fromUrl : e.toUrl
+          const otherStepId = side === 'from' ? e.fromStepId : e.toStepId
+          const otherIdx = side === 'from' ? e.fromEventIdx : e.toEventIdx
+          const trigger = formatTrigger(e)
+          return (
+            <li key={i} style={{
+              padding: '6px 8px',
+              borderLeft: `3px solid ${e.isRevisit ? '#ef6c00' : '#1565c0'}`,
+              background: '#fafafa',
+              marginBottom: 4,
+              fontSize: 13,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ color: '#555', fontFamily: 'monospace', fontSize: 11 }}>
+                  {otherStepId ?? '∅'}
+                </span>
+                <span style={{ fontWeight: 500 }}>{otherTitle ?? otherUrl ?? '(unknown)'}</span>
+                {e.isRevisit && (
+                  <span style={{ fontSize: 10, color: '#ef6c00', textTransform: 'uppercase' }}>revisit</span>
+                )}
+                {otherIdx != null && onJumpToEvent && (
+                  <button
+                    onClick={() => onJumpToEvent(otherIdx)}
+                    style={{
+                      marginLeft: 'auto',
+                      padding: '2px 6px',
+                      border: '1px solid #ccc',
+                      background: 'white',
+                      borderRadius: 3,
+                      fontSize: 11,
+                      cursor: 'pointer',
+                    }}
+                  >jump</button>
+                )}
+              </div>
+              <div style={{ color: '#777', fontSize: 12, marginTop: 2 }}>via {trigger}</div>
+              {otherUrl && (
+                <div style={{ color: '#888', fontSize: 11, fontFamily: 'monospace', marginTop: 2, wordBreak: 'break-all' }}>
+                  {otherUrl}
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
+function formatTrigger(edge: Edge): string {
+  const m = edge.via.method
+  if (m === 'unknown') return 'no trigger recorded in trace'
+  if (m === 'goto') return `goto ${edge.via.url ?? ''}`
+  const parts: string[] = [m]
+  if (edge.via.selector) parts.push(`on \`${edge.via.selector}\``)
+  if (edge.via.text) parts.push(`text "${edge.via.text}"`)
+  return parts.join(' ')
 }
 
 const buttonStyle: React.CSSProperties = {
