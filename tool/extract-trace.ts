@@ -222,7 +222,8 @@ export const extractTrace: Tool = {
       const ariaSummary = summariseAriaTree(c.ariaTree)
       const timestamp = new Date().toISOString()
       jsonlLines.push(JSON.stringify({
-        stepId, url: c.frameUrl, title, ariaSummary, ariaTree: c.ariaTree, timestamp,
+        stepId, url: c.frameUrl, title, ariaSummary, ariaTree: c.ariaTree,
+        timestamp, traceEndMs: c.endTime,
       }))
 
       const frame = pickClosestFrame(screencastFrames, c.endTime)

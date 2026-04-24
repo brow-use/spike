@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import type { Bundle, IndexEntry, TimelineEvent } from './types.js'
 import { SessionPicker } from './SessionPicker.js'
-import { Timeline } from './Timeline.js'
+import { StepView } from './StepView.js'
 import { DetailPane } from './DetailPane.js'
 import { AriaDiff } from './renderers/AriaDiff.js'
 
@@ -58,7 +58,7 @@ export default function App() {
       .finally(() => setLoadingBundles(false))
   }, [selectedSessionIds])
 
-  const handleTimelineSelect = useCallback((event: TimelineEvent | null) => {
+  const handleEventSelect = useCallback((event: TimelineEvent | null) => {
     if (!event) {
       setSelectedEventRef(null)
       return
@@ -121,22 +121,27 @@ export default function App() {
         />
       </aside>
       <main style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {loadingBundles && <div style={{ padding: 12 }}>Loading timeline…</div>}
+        {loadingBundles && <div style={{ padding: 12 }}>Loading run…</div>}
+        {!loadingBundles && bundles.length > 1 && (
+          <div style={{ padding: '8px 16px', background: '#fff7e6', borderBottom: '1px solid #f1d9a8', fontSize: 12, color: '#664d03' }}>
+            Showing {bundles[0].sessionId} — multi-run comparison is not supported in step view yet. Pick one run at a time.
+          </div>
+        )}
         {!loadingBundles && bundles.length > 0 && (
-          <Timeline
-            bundles={bundles}
-            onSelect={handleTimelineSelect}
+          <StepView
+            bundle={bundles[0]}
+            onSelectEvent={handleEventSelect}
             selectedKey={selectedKey}
           />
         )}
         {!loadingBundles && bundles.length === 0 && selectedSessionIds.length > 0 && (
           <div style={{ padding: 16 }}>
-            No timeline data for selected session(s) — the command type may not be visualised in MVP.
+            No data for selected session(s). Did you run <code>make extract SESSION=&lt;id&gt;</code> then <code>npm run viewer:ingest</code>?
           </div>
         )}
         {!loadingBundles && selectedSessionIds.length === 0 && (
           <div style={{ padding: 16, color: '#888' }}>
-            Select a run from the left to view its timeline.
+            Select a run from the left to view its steps.
           </div>
         )}
       </main>

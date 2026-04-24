@@ -412,69 +412,53 @@ function buildReasoningEvents(run: Run): TimelineEvent[] {
   }))
 }
 
-// Match a page URL to the best-fit screenshot by scoring URL path words against
-// screenshot filename words. Returns the matched viewer URL or undefined.
-function wordMatchScore(urlWord: string, nameWord: string): number {
-  if (nameWord === urlWord) return 4                              // exact
-  if (nameWord.length >= 5 && nameWord.includes(urlWord)) return 3  // name contains url-word
-  if (urlWord.length >= 5 && urlWord.includes(nameWord)) return 3   // url-word contains name-word
-  if (urlWord.startsWith(nameWord) || nameWord.startsWith(urlWord)) return 1  // prefix
-  return 0
+interface AriaLogLine {
+  stepId: string
+  phash: string
+  ariaHash: string
+  url: string
+  title: string
+  ariaSummary: string
+  ariaTree: string
+  timestamp?: string
+  traceEndMs?: number
 }
 
-function matchScreenshotToUrl(url: string, screenshots: TimelineEvent[]): string | undefined {
-  let fragment = ''
-  try {
-    fragment = new URL(url).hash.replace(/^#\//, '')
-  } catch {
-    return undefined
-  }
-  if (!fragment || screenshots.length === 0) return undefined
-
-  // Only use URL path words that are at least 4 chars (prevents "app" matching everything).
-  const urlWords = fragment.split(/[/?&=_-]/).filter(w => w.length >= 4)
-  if (urlWords.length === 0) return undefined
-
-  let bestScore = 0
-  let bestMatch: TimelineEvent | null = null
-
-  for (const ss of screenshots) {
-    const name = (ss.detail as { name?: string } | undefined)?.name ?? ''
-    const nameWords = name.split('-')
-    let score = 0
-    for (const uw of urlWords) {
-      for (const nw of nameWords) {
-        score += wordMatchScore(uw, nw)
-      }
-    }
-    if (score > bestScore) {
-      bestScore = score
-      bestMatch = ss
-    }
-  }
-
-  // Require a minimum score to avoid spurious matches.
-  return bestScore >= 2 ? bestMatch?.links?.screenshot : undefined
-}
-
-function buildVisitedPageEvents(run: Run, screenshots: TimelineEvent[]): TimelineEvent[] {
-  if (run.command !== 'explore' && run.command !== 'run') return []
+function readAriaLog(run: Run): AriaLogLine[] {
   const filePath = path.join(OUTPUT, 'exploration', `${run.sessionId}.jsonl`)
-  const lines = readJsonl<{
-    stepId: string
-    phash: string
-    ariaHash: string
-    url: string
-    title: string
-    ariaSummary: string
-    ariaTree: string
-    timestamp?: string
-  }>(filePath)
-  return lines.map(l => {
-    const matchedScreenshot = matchScreenshotToUrl(l.url, screenshots)
+  return readJsonl<AriaLogLine>(filePath)
+}
+
+function resolveWallClock(line: AriaLogLine, runStartMs: number, offset: number): number {
+  if (typeof line.traceEndMs === 'number' && line.traceEndMs > 0) {
+    return line.traceEndMs + offset
+  }
+  // Pre-traceEndMs runs: the timestamp string recorded extraction time, not capture time.
+  // Fall back to runStartMs so events at least sit inside the run's visible window.
+  return isoToMs(line.timestamp) || runStartMs
+}
+
+function buildVisitedPageEvents(
+  run: Run,
+  screenshots: TimelineEvent[],
+  runStartMs: number,
+  offset: number,
+  ariaLog: AriaLogLine[],
+): TimelineEvent[] {
+  if (run.command !== 'explore' && run.command !== 'run') return []
+  // Index screenshots by stepId for direct match (page-0003.jpg → "0003").
+  const screenshotByStep = new Map<string, string>()
+  for (const s of screenshots) {
+    const name = (s.detail as { name?: string } | undefined)?.name ?? ''
+    const m = name.match(/^page-(\d+)\.[a-z]+$/)
+    const url = s.links?.screenshot
+    if (m && url) screenshotByStep.set(m[1], url)
+  }
+  return ariaLog.map(l => {
+    const screenshot = screenshotByStep.get(l.stepId)
     return {
       sessionId: run.sessionId,
-      t: isoToMs(l.timestamp),
+      t: resolveWallClock(l, runStartMs, offset),
       kind: 'visited-page',
       lane: 'browser',
       label: `${l.stepId} · ${l.title || l.url}`,
@@ -487,13 +471,19 @@ function buildVisitedPageEvents(run: Run, screenshots: TimelineEvent[]): Timelin
       },
       links: {
         ariaFingerprint: { phash: l.phash, ariaHash: l.ariaHash },
-        ...(matchedScreenshot ? { screenshot: matchedScreenshot } : {}),
+        ...(screenshot ? { screenshot } : {}),
       },
     }
   })
 }
 
-function buildScreenshotEvents(run: Run, sessionDataDir: string): TimelineEvent[] {
+function buildScreenshotEvents(
+  run: Run,
+  sessionDataDir: string,
+  runStartMs: number,
+  offset: number,
+  ariaLog: AriaLogLine[],
+): TimelineEvent[] {
   // Per-step screenshots: output/exploration/<sessionId>/page-<stepId>.{jpg,png}
   // — extract_trace writes JPGs (from the trace screencast); older runs may have PNGs.
   const srcDir = path.join(OUTPUT, 'exploration', run.sessionId)
@@ -502,20 +492,28 @@ function buildScreenshotEvents(run: Run, sessionDataDir: string): TimelineEvent[
   const destDir = path.join(sessionDataDir, 'screenshots')
   fs.mkdirSync(destDir, { recursive: true })
 
+  // Index aria log by stepId to recover capture time for each screenshot.
+  const ariaByStep = new Map<string, AriaLogLine>()
+  for (const l of ariaLog) ariaByStep.set(l.stepId, l)
+
   const out: TimelineEvent[] = []
   for (const name of fs.readdirSync(srcDir)) {
     if (!name.endsWith('.png') && !name.endsWith('.jpg') && !name.endsWith('.jpeg')) continue
     const src = path.join(srcDir, name)
     const dest = path.join(destDir, name)
     copyFileSafe(src, dest)
-    const stat = fs.statSync(src)
+    const stepId = name.match(/^page-(\d+)\./)?.[1]
+    const matched = stepId ? ariaByStep.get(stepId) : undefined
+    const t = matched
+      ? resolveWallClock(matched, runStartMs, offset)
+      : fs.statSync(src).mtimeMs
     out.push({
       sessionId: run.sessionId,
-      t: stat.mtimeMs,
+      t,
       kind: 'screenshot-saved',
       lane: 'browser',
       label: `screenshot: ${name}`,
-      detail: { name },
+      detail: { name, stepId: stepId ?? null },
       links: { screenshot: `/data/${run.sessionId}/screenshots/${name}` },
     })
   }
@@ -598,26 +596,22 @@ function resolveTracePath(run: Run): string | null {
   return match ? path.join(traceDir, match) : null
 }
 
-async function buildTraceEvents(
-  run: Run,
-  runStartMs: number,
-  sessionDataDir: string,
-): Promise<TimelineEvent[]> {
-  const abs = resolveTracePath(run)
-  if (!abs) return []
-
-  const resourcesDestDir = path.join(sessionDataDir, 'trace-resources')
-  const parsed = await parseTraceZip(abs, resourcesDestDir)
-  const out: TimelineEvent[] = []
-
-  // Anchor monotonic trace timestamps to wall-clock run-start.
+function computeTraceOffset(parsed: TraceParsed, runStartMs: number): number {
   const allTs = [
     ...parsed.actions.map(a => a.startMs),
     ...parsed.consoles.map(c => c.t),
     ...parsed.screencastFrames.map(f => f.timestamp),
   ].filter(t => t > 0)
   const firstTraceT = allTs.length ? Math.min(...allTs) : 0
-  const offset = firstTraceT > 0 ? runStartMs - firstTraceT : 0
+  return firstTraceT > 0 ? runStartMs - firstTraceT : 0
+}
+
+function buildTraceEvents(
+  run: Run,
+  parsed: TraceParsed,
+  offset: number,
+): TimelineEvent[] {
+  const out: TimelineEvent[] = []
 
   for (const a of parsed.actions) {
     const screenshotUrl = findActionScreenshot(a, parsed.screencastFrames, run.sessionId)
@@ -828,17 +822,25 @@ async function buildBundle(run: Run, apps: App[]): Promise<Bundle> {
   const sessionDataDir = path.join(DATA_DIR, run.sessionId)
   const runStartMs = isoToMs(run.startedAt)
 
-  // Build screenshots first so we can cross-link them into visited-page events.
-  const screenshots = buildScreenshotEvents(run, sessionDataDir)
+  // Parse the trace once; every builder that needs trace-relative wall-clock
+  // timing shares the same offset.
+  const tracePath = resolveTracePath(run)
+  const parsed: TraceParsed = tracePath
+    ? await parseTraceZip(tracePath, path.join(sessionDataDir, 'trace-resources'))
+    : { actions: [], consoles: [], screencastFrames: [] }
+  const offset = computeTraceOffset(parsed, runStartMs)
+
+  const ariaLog = readAriaLog(run)
+  const screenshots = buildScreenshotEvents(run, sessionDataDir, runStartMs, offset, ariaLog)
 
   const events: TimelineEvent[] = [
     ...buildRunStartEnd(run),
     ...buildReasoningEvents(run),
-    ...buildVisitedPageEvents(run, screenshots),
+    ...buildVisitedPageEvents(run, screenshots, runStartMs, offset, ariaLog),
     ...screenshots,
     ...buildDocWriteEvents(run, sessionDataDir),
     ...buildResultWriteEvents(run, sessionDataDir),
-    ...(await buildTraceEvents(run, runStartMs, sessionDataDir)),
+    ...buildTraceEvents(run, parsed, offset),
   ]
 
   // Sort by time; preserve insertion order for ties.

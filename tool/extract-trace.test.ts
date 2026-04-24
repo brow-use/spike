@@ -35,6 +35,8 @@ test('extract_trace produces aria log + per-step screenshots + action sidecar', 
   assert.ok(first.title, 'title extracted from aria heading')
   assert.ok(first.ariaSummary.length > 0, 'ariaSummary derived from aria tree')
   assert.ok(first.ariaTree.length > 100, 'full aria tree preserved')
+  assert.equal(typeof first.traceEndMs, 'number', 'traceEndMs preserved from trace')
+  assert.ok(first.traceEndMs > 0, 'traceEndMs is a non-zero monotonic timestamp')
 
   const shotFiles = fs.readdirSync(res.screenshotsDir).sort()
   assert.equal(shotFiles.length, 10)
