@@ -22,8 +22,8 @@ Ask the user for three things (if they have not already stated them):
 Resolve the user's `<id>` to the artifacts on disk:
 
 - Docs folder: `output/docs/explore-<id>/` — **required**. If missing, abort and list the available ids from `output/docs/*/`.
-- Aria-tree log: `output/exploration/explore-<id>.jsonl` — optional; skip silently if missing.
-- Screenshots: `output/exploration/explore-<id>/*.png` — optional; list filenames but do not preload images.
+- Aria-tree log: `output/exploration/explore-<id>.jsonl` — optional; skip silently if missing. Produced by `make extract SESSION=explore-<id>`.
+- Screenshots: `output/exploration/explore-<id>/page-*.{jpg,png}` — optional; list filenames but do not preload images. The file extension is `.jpg` for runs produced by `make extract` (Playwright's screencast) and `.png` for older runs.
 
 Page objects (`output/page/*.ts`) and workflows (`output/workflow/*.ts`) are not id-scoped — read them regardless.
 
@@ -37,7 +37,7 @@ Build up app understanding in this order. Treat everything as a **hint**, not a 
 2. **Aria log** — read `output/exploration/explore-<id>.jsonl` line by line. Each line has `url`, `title`, `ariaSummary`, and the full `ariaTree`. Use this as a sitemap (the URLs visited in the explore run) plus pre-scraped selectors.
 3. **Page objects** — read every `.ts` in `output/page/`. These are Playwright POM classes with locator definitions per interactive element. Prefer these for selectors when they cover the page in question.
 4. **Workflows** — read every `.ts` in `output/workflow/`. If any workflow's function name or inputs match the user's intent, follow its steps rather than improvising. Name the matched workflow in `how.md` at the end.
-5. **Screenshots** — do not preload. If aria + docs + POM together are not enough to decide a specific step, `Read` the single relevant screenshot in `output/exploration/explore-<id>/<name>.png`.
+5. **Screenshots** — do not preload. If aria + docs + POM together are not enough to decide a specific step, `Read` the single relevant screenshot in `output/exploration/explore-<id>/page-<stepId>.{jpg,png}`.
 
 After reading, state the execution plan aloud to the user in one or two sentences — the concrete sequence you intend to take. Example: *"I'll go to the Data Entry App, search Excavating Machine with no filters, open each row for the registration date, and write the result as CSV."* This keeps intent visible before you click anything.
 

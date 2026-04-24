@@ -15,7 +15,7 @@ Ask the user to pick one by index or sessionId. Wait for their answer before pro
 ## Resolution
 
 From the chosen run entry read:
-- `artifacts.ariaLog` — required. If the key is missing or the file does not exist on disk, tell the user and stop.
+- `artifacts.ariaLog` — required. If the key is missing or the file does not exist on disk, tell the user to run `make extract SESSION=<sessionId>` first, then re-run this command. Stop.
 - `appId` and `mode` — carry forward for `record_run`.
 
 Read the aria log file. Each line is a JSON object: `{ stepId, url, title, ariaSummary, ariaTree, timestamp }`. Parse all lines into a working array `pages`.

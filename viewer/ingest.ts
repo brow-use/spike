@@ -496,8 +496,8 @@ function buildVisitedPageEvents(run: Run, screenshots: TimelineEvent[]): Timelin
 }
 
 function buildScreenshotEvents(run: Run, sessionDataDir: string): TimelineEvent[] {
-  // Explore: output/exploration/<sessionId>/*.png
-  // Do: output/exploration/<sessionId>/*.png (same dir; save_screenshot uses it for both)
+  // Per-step screenshots: output/exploration/<sessionId>/page-<stepId>.{jpg,png}
+  // — extract_trace writes JPGs (from the trace screencast); older runs may have PNGs.
   const srcDir = path.join(OUTPUT, 'exploration', run.sessionId)
   if (!fs.existsSync(srcDir)) return []
 
@@ -506,7 +506,7 @@ function buildScreenshotEvents(run: Run, sessionDataDir: string): TimelineEvent[
 
   const out: TimelineEvent[] = []
   for (const name of fs.readdirSync(srcDir)) {
-    if (!name.endsWith('.png')) continue
+    if (!name.endsWith('.png') && !name.endsWith('.jpg') && !name.endsWith('.jpeg')) continue
     const src = path.join(srcDir, name)
     const dest = path.join(destDir, name)
     copyFileSafe(src, dest)

@@ -25,7 +25,7 @@
 
 ### Level 2
 - document (Creates a documentation from the exploration data for human verification and any other AI usage e.g. do in step 3)
-- generate-page-objects (Generates page objects from the exploration and run data)
+- generate-page-objects (Generates page objects from the exploration and run data. It can also interconnect pages based on action taken.)
 
 ### Level 3
 - do (Depends on the documentation, and falls back to source run data if documentation is not sufficient, and executes user provided instructions)

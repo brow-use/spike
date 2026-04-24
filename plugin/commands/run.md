@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
 description: Run the user's intention in the browser using whichever execution mode is currently active. The run is recorded (Playwright trace + per-step aria-tree log + runs.json entry) so it is forensically reviewable afterwards.
-allowed-tools: Read, MCP(bu/health_check), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/page_fingerprint), MCP(bu/write_exploration_log), MCP(bu/record_run), MCP(bu/log_reasoning)
+allowed-tools: Read, MCP(bu/health_check), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/page_fingerprint), MCP(bu/record_run), MCP(bu/log_reasoning)
 ---
 
 ## Preflight
@@ -17,7 +17,8 @@ Before asking the user for their intent:
 
 1. Derive `sessionId = "run-<UNIX-millis>"` once.
 2. Call `start_trace`.
-3. Initialize an in-memory `visited` array and `stepCounter = 0`.
+
+The trace is the source of truth. You do NOT need to maintain an in-memory `visited` array, compute fingerprints, or save per-step screenshots during execution — the trace captures every `get_accessibility_tree` call, every navigation, and a screencast. Downstream artifacts (aria-tree log, per-step screenshots) are produced by the shell command `make extract SESSION=<sessionId>` afterwards, not by this command.
 
 ## Ask
 
@@ -35,16 +36,9 @@ After each significant action, call `get_accessibility_tree` to verify the outco
 
 ### Per-step capture
 
-After each successful action that lands on a new page state:
+No explicit per-step capture is required. The `get_accessibility_tree` call you already make to verify the outcome is recorded inside the trace as an `ariaSnapshot` event, and Playwright's trace screencast captures the visual state. `make extract SESSION=<sessionId>` turns those into the aria log and `page-<stepId>.{jpg,png}` files at the end.
 
-1. Call `page_fingerprint`. Parse the returned JSON; keep `{phash, ariaHash, url, title}`.
-2. Use the `ariaTree` text from the verification `get_accessibility_tree` call above — do not call it twice.
-3. Append `{stepId, phash, ariaHash, url, title, ariaSummary, ariaTree, timestamp}` to `visited`, where:
-   - `stepId = String(++stepCounter).padStart(4, '0')`.
-   - `ariaSummary` is a one-line description (e.g. "form with Name, Email, Submit").
-   - `timestamp` is an ISO string of now.
-
-Do NOT call `compare_fingerprint`. The user's intent drives progression; duplicates are fine to record.
+Do NOT call `page_fingerprint` or `compare_fingerprint` — this command is intent-driven, not loop-driven. Duplicates are fine; the aria-log dedup happens at extraction time.
 
 ### Reasoning log (sparingly)
 
@@ -61,14 +55,13 @@ When the intention is complete:
 
 1. Call `log_reasoning` once with `kind: "observation"` summarizing the outcome.
 2. Call `stop_trace` with `name = sessionId`. Keep the returned `tracePath`.
-3. Call `write_exploration_log` with `sessionId` and `entries = visited`. Get back the `ariaLog` path. Do NOT hand-write the jsonl via the `Write` tool.
-4. Call `record_run` with:
+3. Call `record_run` with:
    - `sessionId`
    - `command: "run"`
    - `startedAt` — ISO timestamp derived from the unix-ms portion of `sessionId`.
    - `endedAt` — ISO timestamp of now.
    - `appId` — `currentAppId` from `.brow-use/apps.json`.
    - `mode` — `"crx"` or `"playwright"` from `health_check`'s `mode`.
-   - `artifacts: { tracePath, ariaLog }`.
+   - `artifacts: { tracePath, ariaLog: "output/exploration/<sessionId>.jsonl" }`. The `ariaLog` path is predictable but the file will not exist until the user runs `make extract SESSION=<sessionId>`.
    - `intent` — the plain-text user intent.
-5. Confirm to the user in one sentence: what was accomplished + the trace path + aria-log path.
+4. Confirm to the user in one sentence what was accomplished and give the trace path. Then instruct them: `make extract SESSION=<sessionId>` produces the aria-tree log and per-step screenshots from the trace.

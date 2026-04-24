@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
-description: Generate end-user feature documentation from the aria-tree log of an earlier /bu:explore run. Uses the live browser only to capture screenshots; all narrative is derived from the recorded aria trees, so the doc pass is deterministic and re-runnable.
-allowed-tools: Read, Glob, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/save_screenshot), MCP(bu/write_feature_doc), MCP(bu/write_docs_index), MCP(bu/log_reasoning)
+description: Generate end-user feature documentation from the aria-tree log of an earlier /bu:explore run. Read-only over the run's artifacts — no browser is launched; screenshots are reused from the explore run so the doc pass is deterministic and re-runnable.
+allowed-tools: Read, Glob, MCP(bu/health_check), MCP(bu/write_feature_doc), MCP(bu/write_docs_index), MCP(bu/log_reasoning)
 ---
 
 ## Preflight
@@ -16,7 +16,7 @@ List the available runs as a table: index, sessionId, date (from `startedAt`), p
 
 From the chosen run read:
 - `sessionId` — call it `sourceExploreId`. All outputs this command writes are scoped under this id, so re-running the command overwrites cleanly.
-- `artifacts.ariaLog` — required. If the key is missing or the file does not exist on disk, tell the user and stop.
+- `artifacts.ariaLog` — required. If the key is missing or the file does not exist on disk, tell the user to run `make extract SESSION=<sourceExploreId>` first, then re-run this command. Stop.
 - `appId` — needed for looking up app metadata below.
 
 Read `.brow-use/apps.json` and find the app whose id matches the run's `appId`. Keep its `name`, `url`, and `description` — you will pass them to `write_docs_index` later. If the app is no longer in `apps.json`, proceed with the sessionId alone and note it in the summary.
@@ -73,14 +73,19 @@ Do NOT narrate every feature, every screenshot, or every successful navigation i
 
 ## Documentation
 
+This command is read-only over the explore run's artifacts. It does NOT launch the browser and does NOT take fresh screenshots — both the aria log and per-step screenshots are produced by the shell command `make extract SESSION=<sourceExploreId>`, which post-processes the Playwright trace zip. Screenshots land at `output/exploration/<sourceExploreId>/page-<stepId>.<ext>` where `<ext>` is `jpg` (from the trace screencast) or `png` (older runs). Re-navigating during the doc pass would produce stale-state images (logged-out pages, empty forms, different data) that don't match the aria log.
+
 For each feature:
 
-1. Decide which pages warrant a screenshot — typically the feature's entry page and each page where the user makes a meaningful decision. Skip intermediate loading screens and pages that duplicate what a prior screenshot already shows.
+1. Decide which pages warrant an embedded screenshot — typically the feature's entry page and each page where the user makes a meaningful decision. Skip intermediate loading screens and pages that duplicate what a prior screenshot already shows.
 
-2. For each screenshot point:
-   - Call `navigate` with the exact `url` from the aria log entry.
-   - Call `save_screenshot` with `sessionId = sourceExploreId`, a descriptive kebab-case `name` (e.g. `data-entry-app-step-2`), and an `alt` text. Use the returned `markdownSnippet` verbatim in the doc.
-   - Do NOT hand-type `![...](../../exploration/...)` — always use the snippet.
+2. For each page you want to embed:
+   - Use `Glob` with pattern `output/exploration/<sourceExploreId>/page-<stepId>.*` to find the screenshot. Accept either `.jpg` or `.png`; embed whichever exists.
+   - If exactly one is found, embed it in the doc as:
+     ```
+     ![<alt text describing what the user sees>](../../exploration/<sourceExploreId>/page-<stepId>.<ext>)
+     ```
+   - If none is found, omit the image for that page and add the page's `{stepId, url, title}` to a running `missingScreenshots` list. At the end, mention this list in the summary to the user. Do NOT call `log_reasoning` per missing screenshot — one summary line is enough.
 
 3. Call `write_feature_doc` with `sessionId = sourceExploreId`, `name` = kebab-case feature name, and `content` following this template:
 
@@ -101,7 +106,7 @@ For each feature:
 
 1. <what the user sees + does, in plain language. When narrating a transition from the prior step, reuse the edge's `phrasing` verbatim so the wording stays consistent with page-transitions.md.>
 
-   ![Step description](<relativeToDocs from save_screenshot>)
+   ![Step description](../../exploration/<sourceExploreId>/page-<stepId>.<ext>)
 
 2. ...
 
@@ -158,12 +163,12 @@ All feature docs, the README, and the screenshots are scoped under `<sourceExplo
 Print briefly:
 - Number of features documented and their names.
 - Docs path: `output/docs/<sourceExploreId>/` (lists `page-transitions.md` alongside the feature docs and README).
-- Screenshots path: `output/exploration/<sourceExploreId>/`.
+- Screenshots path: `output/exploration/<sourceExploreId>/` (reused from the explore run — this command does not capture new ones).
 - Number of edges: total, split by confidence (`high`/`medium`/`low`).
 - Any features whose narratives fell back to neutral navigation phrasing (rule 3).
+- If `missingScreenshots` is non-empty, list the affected `{stepId, title}` pairs and note: "these pages have aria data but no captured screenshot — the trace's screencast may not have covered that step, or `make extract SESSION=<sourceExploreId>` has not been run since the most recent explore run."
 
 ## Failure modes
 
-- If `save_screenshot` fails for a page (e.g. the app requires state that is no longer present), skip that image — write the doc without it and record a `log_reasoning` entry of `kind: "error"`. Do not abort the whole run.
-- If the extension disconnects (crx mode), stop at the current feature, write a README with whatever features completed, and surface the error.
-- If a feature has zero pages worth screenshotting, write its doc text-only — that is a valid output.
+- This command only reads files and writes docs. It does not launch a browser, so connection failures from `/bu:explore` do not apply here.
+- If a feature has zero pages worth screenshotting (or all of them are in `missingScreenshots`), write its doc text-only — that is a valid output.

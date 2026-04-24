@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
 description: Autonomously explore the current app and capture a per-page aria-tree log. Uses perceptual hashing to avoid loops; the whole run is recorded as a single Playwright trace for human verification. Run /bu:document afterwards to produce end-user feature docs from the log.
-allowed-tools: Read, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/clear_session), MCP(bu/page_fingerprint), MCP(bu/compare_fingerprint), MCP(bu/enumerate_interactive_elements), MCP(bu/write_exploration_log), MCP(bu/record_run), MCP(bu/log_reasoning)
+allowed-tools: Read, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/clear_session), MCP(bu/page_fingerprint), MCP(bu/compare_fingerprint), MCP(bu/enumerate_interactive_elements), MCP(bu/record_run), MCP(bu/log_reasoning)
 ---
 
 ## Preflight
@@ -73,7 +73,7 @@ f. If `matched` is true:
 
 g. If `matched` is false (or `phash-close` but the URL is new):
    - Reset `contiguousLoopHits` to 0.
-   - Append `{ stepId, phash, ariaHash, url, title, ariaSummary, ariaTree, timestamp }` to `visited`. `stepId` is the current step number (zero-padded, e.g. `"0007"`). `ariaSummary` is a one-line description (e.g. "form with Name, Email, Submit" — used later to cluster features). `ariaTree` is the full text returned by `get_accessibility_tree` for this page.
+   - Append `{ phash, ariaHash, url }` to `visited`. This is loop-detection state only — the full aria tree, title, and screenshot are recovered from the trace at the end via `extract_trace`, not persisted by this command.
    - Return to step a.
 
 h. Back-navigation: after exploring what appears to be a leaf (no new actions surface), call `navigate` to the nearest parent URL from `visited` rather than relying on browser history.
@@ -88,8 +88,11 @@ Stop ONLY when one of the three conditions below holds. Do not terminate on any 
 
 Then:
 1. Call `stop_trace` with `name = sessionId`. Note the returned path.
-2. Persist the aria-tree log with `write_exploration_log`: pass `sessionId` and `entries` = your `visited` array. The tool writes `output/exploration/<sessionId>.jsonl` with one JSON line per entry. Do NOT hand-write the jsonl via the `Write` tool — that would spend tens of thousands of output tokens re-emitting the aria trees.
-3. Tell the user briefly: number of pages visited, termination reason, trace path, aria-log path. Remind them they can now run `/bu:document` to produce end-user documentation from this log.
+2. Tell the user briefly: number of pages visited, termination reason, and the trace path. Tell them the next step before `/bu:document` is to extract downstream artifacts from the shell:
+   ```
+   make extract SESSION=<sessionId>
+   ```
+   This produces `output/exploration/<sessionId>.jsonl` (aria-tree log) and `output/exploration/<sessionId>/page-<stepId>.{jpg,png}` (per-step screenshots) from the trace. `/bu:explore` never writes those itself — the extraction step is shell-driven so the user can re-run it any time the trace format or extractor heuristics change.
 
 ## Record the run
 
@@ -101,9 +104,9 @@ At the very end, call `record_run` to register this run in the brow-use run data
 - `endedAt` — ISO timestamp of now.
 - `appId` — the `currentAppId` value from `.brow-use/apps.json`.
 - `mode` — `"crx"` or `"playwright"`, whichever was active (check `health_check`'s `mode` field at preflight).
-- `pagesVisited` — `visited.length`.
+- `pagesVisited` — `visited.length` at termination.
 - `terminationReason` — `"frontier-empty"` | `"maxSteps"` | `"maxLoopHits"`.
-- `artifacts` — object with `tracePath`, `ariaLog`.
+- `artifacts` — object with `tracePath` and `ariaLog` = `"output/exploration/<sessionId>.jsonl"`. The ariaLog path is predictable but the file will not exist until the user runs `make extract SESSION=<sessionId>`. Downstream consumers (`/bu:document`, `/bu:generate-page-objects`, `/bu:do`) check this path and stop with an instruction if the file is missing.
 
 Do this regardless of success or partial completion — it is the audit trail for every run.
 
