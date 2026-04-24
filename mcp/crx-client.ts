@@ -17,10 +17,20 @@ interface CommandResult {
   error?: string
 }
 
+interface ActionEntry {
+  t: number
+  name: string
+  selector?: string
+  url?: string
+  text?: string
+}
+
 export class CrxClient {
   private socket: WebSocket | null = null
   private pending = new Map<string, { resolve: (data: unknown) => void; reject: (err: Error) => void }>()
   private outputDir: string
+  private actionBuffer: ActionEntry[] = []
+  private tracing = false
 
   constructor(outputDir: string) {
     this.outputDir = outputDir
@@ -70,15 +80,21 @@ export class CrxClient {
   async execute(toolName: string, args: Record<string, unknown>): Promise<string | ToolResultContent[]> {
     switch (toolName) {
       case 'navigate': {
+        const t = Date.now()
         const result = await this.send('navigate', { url: args.url }) as { title: string; url: string }
+        if (this.tracing) this.actionBuffer.push({ t, name: 'navigate', url: args.url as string })
         return JSON.stringify(result)
       }
       case 'click': {
+        const t = Date.now()
         await this.send('click', { selector: args.selector })
+        if (this.tracing) this.actionBuffer.push({ t, name: 'click', selector: args.selector as string })
         return `Clicked: ${args.selector}`
       }
       case 'type': {
+        const t = Date.now()
         await this.send('type', { selector: args.selector, text: args.text })
+        if (this.tracing) this.actionBuffer.push({ t, name: 'type', selector: args.selector as string, text: args.text as string })
         return `Typed into: ${args.selector}`
       }
       case 'get_accessibility_tree': {
@@ -90,15 +106,22 @@ export class CrxClient {
         return [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: base64 } }]
       }
       case 'start_trace': {
+        this.actionBuffer = []
+        this.tracing = true
         await this.send('start_trace')
         return 'Trace started (extension mode)'
       }
       case 'stop_trace': {
+        this.tracing = false
         const base64 = await this.send('stop_trace') as string
         const traceDir = path.join(this.outputDir, 'trace')
         fs.mkdirSync(traceDir, { recursive: true })
-        const tracePath = path.join(traceDir, `${args.name}-${Date.now()}.zip`)
+        const sessionName = args.name as string
+        const tracePath = path.join(traceDir, `${sessionName}-${Date.now()}.zip`)
         fs.writeFileSync(tracePath, Buffer.from(base64, 'base64'))
+        const actionsPath = path.join(traceDir, `${sessionName}-actions.jsonl`)
+        fs.writeFileSync(actionsPath, this.actionBuffer.map(e => JSON.stringify(e)).join('\n') + '\n', 'utf-8')
+        this.actionBuffer = []
         return `Trace saved to: ${tracePath}`
       }
       case 'clear_session': {

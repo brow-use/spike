@@ -28,4 +28,4 @@
 - generate-page-objects (Generates page objects from the exploration and run data)
 
 ### Level 3
-- do (Depends on the documentation, and falls back to exploration data if documentation is not sufficient, and executes user provided instructions)
+- do (Depends on the documentation, and falls back to source run data if documentation is not sufficient, and executes user provided instructions)

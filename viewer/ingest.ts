@@ -637,6 +637,14 @@ async function buildTraceEvents(
 
 // ---------- edge extraction ----------
 
+interface SidecarAction {
+  t: number
+  name: string
+  selector?: string
+  url?: string
+  text?: string
+}
+
 const ACTION_METHODS = new Set(['click', 'goto', 'type', 'fill', 'press', 'check', 'uncheck', 'selectOption'])
 
 interface ActionParams {
@@ -658,16 +666,62 @@ function readMethod(event: TimelineEvent): string | undefined {
   return d?.method
 }
 
-function buildEdges(events: TimelineEvent[]): Edge[] {
+function readSidecar(sessionId: string): SidecarAction[] {
+  // Sidecar filename: output/trace/<sessionId>-actions.jsonl
+  // The sessionId portion of the zip path is used as the prefix: <sessionId>-<timestamp>.zip
+  // so the sidecar is <sessionId>-actions.jsonl in the same directory.
+  const traceDir = path.join(ROOT, 'output', 'trace')
+  const sidecarPath = path.join(traceDir, `${sessionId}-actions.jsonl`)
+  return readJsonl<SidecarAction>(sidecarPath)
+}
+
+function buildEdges(events: TimelineEvent[], sidecar: SidecarAction[]): Edge[] {
   const visited: { e: TimelineEvent; i: number }[] = []
-  const actions: { e: TimelineEvent; i: number }[] = []
+  const traceActions: { e: TimelineEvent; i: number }[] = []
   for (let i = 0; i < events.length; i++) {
     const e = events[i]
     if (e.kind === 'visited-page') visited.push({ e, i })
     else if (e.kind === 'trace-action') {
       const m = readMethod(e)
-      if (m && ACTION_METHODS.has(m)) actions.push({ e, i })
+      if (m && ACTION_METHODS.has(m)) traceActions.push({ e, i })
     }
+  }
+
+  // Normalised action list: prefer sidecar (has click/type) over trace (only goto).
+  // Each entry: { t, name, selector?, url?, text?, traceEventIdx? }
+  interface NormAction {
+    t: number
+    name: string
+    selector?: string
+    url?: string
+    text?: string
+    traceEventIdx: number | null
+  }
+
+  let actions: NormAction[]
+  if (sidecar.length > 0) {
+    actions = sidecar.map(s => ({
+      t: s.t,
+      name: s.name,
+      selector: s.selector,
+      url: s.url,
+      text: s.text,
+      traceEventIdx: null,
+    }))
+    // Also merge goto trace-actions in case the sidecar doesn't cover them
+    // (e.g. Playwright mode where there's no sidecar but trace has gotos).
+    for (const ta of traceActions) {
+      if (readMethod(ta.e) === 'goto') {
+        const p = readParams(ta.e)
+        actions.push({ t: ta.e.t, name: 'goto', url: p.url, traceEventIdx: ta.i })
+      }
+    }
+    actions.sort((a, b) => a.t - b.t)
+  } else {
+    actions = traceActions.map(ta => {
+      const p = readParams(ta.e)
+      return { t: ta.e.t, name: readMethod(ta.e) ?? 'unknown', selector: p.selector, url: p.url, text: p.text ?? p.value, traceEventIdx: ta.i }
+    })
   }
 
   // First occurrence per URL → used to resolve any goto-target to a stepId.
@@ -690,15 +744,14 @@ function buildEdges(events: TimelineEvent[]): Edge[] {
   for (let vi = 0; vi < visited.length - 1; vi++) {
     const prev = visited[vi]
     const curr = visited[vi + 1]
-    let trigger: { e: TimelineEvent; i: number } | null = null
+    let trigger: NormAction | null = null
     for (const a of actions) {
-      if (a.e.t > prev.e.t && a.e.t <= curr.e.t) trigger = a
-      else if (a.e.t > curr.e.t) break
+      if (a.t > prev.e.t && a.t <= curr.e.t) trigger = a
+      else if (a.t > curr.e.t) break
     }
     const prevD = prev.e.detail as { stepId?: string; url?: string; title?: string } | undefined
     const currD = curr.e.detail as { stepId?: string; url?: string; title?: string } | undefined
     if (!currD?.stepId || !currD.url) continue
-    const params = trigger ? readParams(trigger.e) : {}
     push({
       fromStepId: prevD?.stepId ?? null,
       fromUrl: prevD?.url ?? null,
@@ -709,35 +762,34 @@ function buildEdges(events: TimelineEvent[]): Edge[] {
       toTitle: currD.title ?? null,
       toEventIdx: curr.i,
       via: {
-        method: trigger ? (readMethod(trigger.e) ?? 'unknown') : 'unknown',
-        selector: params.selector,
-        text: params.text ?? params.value,
-        url: params.url,
+        method: trigger?.name ?? 'unknown',
+        selector: trigger?.selector,
+        text: trigger?.text,
+        url: trigger?.url,
       },
-      t: trigger ? trigger.e.t : curr.e.t,
-      traceEventIdx: trigger?.i ?? null,
+      t: trigger?.t ?? curr.e.t,
+      traceEventIdx: trigger?.traceEventIdx ?? null,
       isRevisit: false,
     })
   }
 
-  // Pass 2: goto actions whose target URL matches a known visited page.
-  // Captures "revisit" edges — cases where the agent jumped back to a known page without appending a new visited entry.
+  // Pass 2: navigate/goto actions whose target URL matches a known visited page.
+  // Captures "revisit" edges — the agent jumped back to a known page without appending a new visited entry.
   for (const a of actions) {
-    if (readMethod(a.e) !== 'goto') continue
-    const params = readParams(a.e)
-    const targetUrl = params.url
+    if (a.name !== 'navigate' && a.name !== 'goto') continue
+    const targetUrl = a.url
     if (!targetUrl) continue
     const target = urlToVisited.get(targetUrl)
     if (!target) continue
     let fromPage: { e: TimelineEvent; i: number } | null = null
     for (const v of visited) {
-      if (v.e.t <= a.e.t) fromPage = v
+      if (v.e.t <= a.t) fromPage = v
       else break
     }
     const fromD = fromPage ? fromPage.e.detail as { stepId?: string; url?: string; title?: string } | undefined : undefined
     const targetD = target.e.detail as { stepId?: string; url?: string; title?: string } | undefined
     if (!targetD?.stepId || !targetD.url) continue
-    if (fromD?.stepId === targetD.stepId) continue  // same-page goto, no-op
+    if (fromD?.stepId === targetD.stepId) continue  // same-page navigate, no-op
     push({
       fromStepId: fromD?.stepId ?? null,
       fromUrl: fromD?.url ?? null,
@@ -747,10 +799,10 @@ function buildEdges(events: TimelineEvent[]): Edge[] {
       toUrl: targetD.url,
       toTitle: targetD.title ?? null,
       toEventIdx: target.i,
-      via: { method: 'goto', url: targetUrl },
-      t: a.e.t,
-      traceEventIdx: a.i,
-      isRevisit: a.e.t > target.e.t,
+      via: { method: a.name, url: targetUrl },
+      t: a.t,
+      traceEventIdx: a.traceEventIdx,
+      isRevisit: a.t > target.e.t,
     })
   }
 
@@ -809,7 +861,8 @@ async function buildBundle(run: Run, apps: App[]): Promise<Bundle> {
     }
   }
 
-  const edges = buildEdges(events)
+  const sidecar = readSidecar(run.sessionId)
+  const edges = buildEdges(events, sidecar)
 
   const eventsByKind: Record<string, number> = {}
   for (const e of events) eventsByKind[e.kind] = (eventsByKind[e.kind] ?? 0) + 1
