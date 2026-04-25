@@ -23,11 +23,15 @@
 - self-explore (The model/agent explores the web application on its own, records everything, and saves it)
 - run-instruction (The model/agent runs the user's intention in the browser, records everything, and saves it. If the user instruction requires any return data then that is returned.)
 
-### Level 2
+### Level 2 (Deterministic)
+- extract
+- ingest (for web application)
+
+### Level 3
 - document (Creates a documentation from the exploration data for human verification and any other AI usage e.g. do in layer 3. The documentation describes each page and the interconnections between them)
 - generate-page-objects (Generates page objects from the exploration and run data. It can also interconnect pages based on action taken.)
 
-### Level 3
+### Level 4
 - do (Depends on the documentation, and falls back to source run data if documentation is not sufficient, and executes user provided instructions)
 - generate-workflow-functions (Generates workflow functions from the documentation, run data, and user instructions.)
 
@@ -37,6 +41,11 @@
 - Generate video with screenshots and transcript
 
 ## To Do
-- generate page object should interconnect pages based on navigation actions. also should be captured as run data for now.
-- what does where you went next means
 - fix record-workflow-run to support generate workflow functions
+- what does where you went next means
+
+## Documentation
+- Product doc (explaining what this is, how it works, etc.)
+- Architecture (overall architecture, command layers)
+- User guide (different commands)
+- Developer guide

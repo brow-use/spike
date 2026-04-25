@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
 description: Generate end-user feature documentation from the aria-tree log of an earlier /bu:explore run. Read-only over the run's artifacts — no browser is launched; screenshots are reused from the explore run so the doc pass is deterministic and re-runnable.
-allowed-tools: Read, Glob, MCP(bu/health_check), MCP(bu/write_feature_doc), MCP(bu/write_docs_index), MCP(bu/log_reasoning)
+allowed-tools: Read, Glob, MCP(bu/health_check), MCP(bu/read_observed_edges), MCP(bu/write_feature_doc), MCP(bu/write_docs_index), MCP(bu/log_reasoning)
 ---
 
 ## Preflight
@@ -34,39 +34,43 @@ Signals to use:
 
 A single page belongs to only one feature. Pages that serve as navigation hubs (the root/home) may form a single "Getting around" feature.
 
-## Navigation inference (covers the subtle risk)
+## Navigation edges (call read_observed_edges once)
 
-To narrate "the user selects X to get to the next page" you need to know which click caused each transition. The aria log records resulting page states, not actions taken — so infer navigation edges up-front and reuse them throughout the command.
-
-For every consecutive pair `(pages[N], pages[N+1])` run the following rules in order and record an `edge` object:
-
-1. **Link-with-URL match.** Scan `pages[N].ariaTree` for `link <Name> <url>` entries. If a link's URL matches `pages[N+1].url`, the trigger is `"select <Name>"`. Set `confidence = "high"`.
-2. **Link-name match (SPA click handlers).** If no link URL matches (common in SPA apps that use click handlers without `href`), scan for a `link <Name>` or `button <Name>` on `pages[N]` whose name appears prominently in `pages[N+1].title` or `ariaSummary`. The trigger is still `"select <Name>"`. Set `confidence = "medium"`.
-3. **Fallback.** If neither matches, use neutral phrasing (`"open the record"`, `"go to the next screen"`), set `confidence = "low"`, and record one `log_reasoning` entry of `kind: "decision"` explaining that the edge could not be recovered from the aria log for step `N → N+1`. Do not call `log_reasoning` again for the same edge.
-
-Shape of each `edge` object (keep it in memory for the rest of the command):
+Call `read_observed_edges` with `sessionId = sourceExploreId`. The tool correlates the trace sidecar (`output/trace/<sessionId>-actions.jsonl` — the ground-truth clicks/navigates recorded as the agent ran) with the aria log, and returns one edge per consecutive aria pair:
 
 ```
 {
-  fromStepId, fromUrl, fromTitle,
-  toStepId,   toUrl,   toTitle,
-  viaRole,     // "link" | "button" | null
-  viaName,     // accessible name of the trigger, or null
-  phrasing,    // the plain-language phrase to use in docs: "select Save", "open the record", etc.
-  confidence,  // "high" | "medium" | "low"
-  crossFeature // bool, filled in later after feature clustering
+  edges: [
+    {
+      fromStepId, fromUrl, fromTitle,
+      toStepId,   toUrl,   toTitle,
+      trigger: { method, role, name, selector, text, url },
+      phrasing,    // human-readable phrase ready to drop into prose ("select Save", "go to the next screen")
+      confidence,  // "high" | "medium" | "low"
+      source       // "sidecar" | "aria-heuristic" | "none"
+    },
+    ...
+  ],
+  sidecarFound, sidecarActions, ariaPages,
+  counts: { high, medium, low, total }
 }
 ```
 
-Do not manufacture steps that aren't in the aria log. If a feature has only one page, the narrative describes that single page.
+Use this list directly. Do NOT re-derive edges from the aria tree — the tool already falls back to an aria-only heuristic for any pair the sidecar cannot explain (same-URL state changes, runs captured before the sidecar existed). It also attaches an extra in-memory field as you process:
 
-After feature clustering runs, set `edge.crossFeature = true` whenever `fromStepId` and `toStepId` belong to different features. These edges power the "How to get here" and "Where you can go next" sections of each feature doc.
+- `crossFeature` — you fill this in after feature clustering: `true` whenever `fromStepId` and `toStepId` belong to different features. Cross-feature edges drive the "How to get here" and "Where you can go next" sections of each feature doc.
+
+Rules of engagement with this data:
+
+- Reuse `edge.phrasing` verbatim when narrating a transition in a feature doc — this keeps prose consistent with `page-transitions.md`.
+- Do not manufacture steps that aren't in the aria log. If a feature has only one page, the narrative describes that single page.
+- Call `log_reasoning` (`kind: "decision"`) exactly once per low-confidence edge (`source: "none"`), explaining the edge could not be recovered. Do NOT log for `medium` edges or for sidecar-sourced edges.
 
 ## Reasoning log (call sparingly)
 
 Call `log_reasoning` with `sessionId = sourceExploreId` only at **non-obvious** decisions:
 - A feature clustering call a reader couldn't re-derive from URL + `ariaSummary` alone (e.g. merging two different URL prefixes into one feature).
-- A navigation edge that fell back to neutral phrasing (rule 3 above).
+- A navigation edge returned by `read_observed_edges` with `source: "none"` (neutral-phrasing fallback).
 - Skipping a page from the docs entirely (e.g. it was a redirect page with no user content).
 
 Do NOT narrate every feature, every screenshot, or every successful navigation inference.

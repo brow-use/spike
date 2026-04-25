@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
 description: Generate Playwright Page Object Model classes from the aria-tree log of an explore run. No browser required — works entirely from the captured exploration data.
-allowed-tools: Read, Glob, MCP(bu/read_pom_summary), MCP(bu/write_page_object)
+allowed-tools: Read, Glob, MCP(bu/read_observed_edges), MCP(bu/read_pom_summary), MCP(bu/write_page_object)
 ---
 
 ## Preflight
@@ -37,7 +37,16 @@ For each unique page derive:
 
 **Elements** — parse the `ariaTree` text. Collect every item whose role is one of: `button`, `link`, `textbox`, `combobox`, `checkbox`, `radio`, `menuitem`, `tab`, `searchbox`. For each record `{ role, name }`. Discard items with an empty name or a name that is a single character.
 
-**Navigation edges** — for each `link` element whose URL matches another page in the map, record the target class name as the return type of the navigation method for that link.
+**Navigation edges** — call `read_observed_edges` once with the chosen `sessionId`. It returns ground-truth transitions recorded in the trace sidecar (every click and navigate the agent actually performed), with a trigger element `{ role, name, selector, text, url }` and a `confidence` field. Use this list as the primary source for typing navigation methods:
+
+1. For each edge with `source: "sidecar"` and a `trigger.role + trigger.name`:
+   - Find the element in the `from` page's element list whose role+name match the trigger. The `async` method that clicks (or types into, for form submits) that element returns the `to` page's class.
+   - For edges whose trigger is a `navigate`/`goto` with no clickable element in the `from` page (e.g. same-URL state changes triggered by `button` clicks), still type the relevant element's method based on `trigger.selector` / `trigger.name`.
+2. For edges with `source: "aria-heuristic"` and `confidence: "high"` or `"medium"` (URL-match or name-match fallbacks the tool derived when the sidecar was silent): apply the same element→return-type rule — these are best-guess but still more reliable than pure URL-equality.
+3. For edges with `source: "none"` (`confidence: "low"`): do NOT type the destination. Leave the corresponding action method returning `Promise<void>` and note the limitation in a comment on the class — we don't claim destinations we didn't observe.
+4. Additional URL-match fallback for links that were never exercised: for any `link` element in a page whose `/url` matches another page in the map but for which no edge was recorded, type the method with that page's class. This gives typed coverage for unvisited-but-linkable pages.
+
+Prefer (1) over (4): if the same link was both visited (observed edge) and URL-matchable, the observed edge's trigger is the source of truth.
 
 ## Pass 2 — Generation
 
