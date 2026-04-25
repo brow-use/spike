@@ -2,211 +2,176 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>brow-use — Architecture Diagram</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Architecture diagram — brow-use</title>
+  <link rel="stylesheet" href="assets/site.css">
   <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; max-width: 960px; margin: 40px auto; padding: 0 24px 60px; background: #0d1117; color: #c9d1d9; }
-    h1 { font-size: 1.6rem; border-bottom: 1px solid #21262d; padding-bottom: 14px; margin-bottom: 8px; color: #e6edf3; }
-    h2 { font-size: 0.8rem; margin-top: 44px; margin-bottom: 16px; color: #e6edf3; text-transform: uppercase; letter-spacing: 0.06em; }
-    .subtitle { color: #8b949e; font-size: 0.95rem; margin-top: 4px; margin-bottom: 40px; }
-    nav { margin-bottom: 32px; font-size: 0.85rem; color: #8b949e; }
-    nav a { color: #58a6ff; text-decoration: none; }
     svg { width: 100%; height: auto; display: block; }
   </style>
 </head>
 <body>
 
-  <nav><a href="index.html">← docs</a></nav>
-  <h1>Architecture</h1>
-  <p class="subtitle">How a user prompt becomes browser automation and generated code</p>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html"><span class="brand-mark"></span> brow-use</a>
+      <nav class="site-nav">
+        <a href="index.html">Product</a>
+        <a href="architecture.html" class="active">Architecture</a>
+        <a href="user-guide.html">User guide</a>
+        <a href="developer-guide.html">Developer guide</a>
+        <a class="gh" href="https://github.com/brow-use/spike" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
 
-  <h2>Mode 1 — Default (Playwright)</h2>
+  <main class="page page-wide">
 
-  <svg viewBox="0 0 860 500" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif">
+    <div class="eyebrow"><a href="architecture.html" style="color: inherit;">← Architecture</a></div>
+    <h1>Diagrams</h1>
+    <p class="subtitle">How a user prompt flows through the agent, the MCP server, and the browser — for both modes.</p>
 
-    <defs>
-      <!-- Arrowhead markers -->
-      <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-        <path d="M0,0 L0,6 L8,3 z" fill="#388bfd"/>
-      </marker>
-      <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-        <path d="M0,0 L0,6 L8,3 z" fill="#3fb950"/>
-      </marker>
-      <marker id="arrow-yellow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-        <path d="M0,0 L0,6 L8,3 z" fill="#d29922"/>
-      </marker>
-      <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-        <path d="M0,0 L0,6 L8,3 z" fill="#8957e5"/>
-      </marker>
-      <marker id="arrow-grey" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-        <path d="M0,0 L0,6 L8,3 z" fill="#484f58"/>
-      </marker>
-    </defs>
+    <h2>Mode 1 — Default (Playwright)</h2>
 
-    <!-- ── User Prompt ── -->
-    <rect x="30" y="148" width="138" height="64" rx="8" fill="#161b22" stroke="#388bfd" stroke-width="1.5"/>
-    <text x="99" y="174" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="600">User Prompt</text>
-    <text x="99" y="194" text-anchor="middle" fill="#8b949e" font-size="11">describe scenario</text>
+    <svg viewBox="0 0 860 500" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif">
 
-    <!-- ── Claude Code ── -->
-    <rect x="280" y="110" width="220" height="140" rx="8" fill="#161b22" stroke="#58a6ff" stroke-width="2"/>
-    <text x="390" y="138" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="700">Claude Code</text>
-    <line x1="290" y1="148" x2="490" y2="148" stroke="#21262d" stroke-width="1"/>
-    <text x="390" y="168" text-anchor="middle" fill="#8b949e" font-size="11">agent loop</text>
-    <text x="390" y="186" text-anchor="middle" fill="#8b949e" font-size="11">reason → act → observe</text>
-    <text x="390" y="204" text-anchor="middle" fill="#8b949e" font-size="11">build page name map</text>
-    <text x="390" y="222" text-anchor="middle" fill="#8b949e" font-size="11">generate code</text>
+      <defs>
+        <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#388bfd"/></marker>
+        <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3fb950"/></marker>
+        <marker id="arrow-yellow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#d29922"/></marker>
+        <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8957e5"/></marker>
+        <marker id="arrow-grey" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#484f58"/></marker>
+      </defs>
 
-    <!-- ── Playwright ── -->
-    <rect x="620" y="100" width="200" height="160" rx="8" fill="#161b22" stroke="#3fb950" stroke-width="1.5"/>
-    <text x="720" y="128" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="700">Playwright</text>
-    <line x1="630" y1="138" x2="810" y2="138" stroke="#21262d" stroke-width="1"/>
-    <!-- Browser box inside -->
-    <rect x="644" y="150" width="152" height="90" rx="6" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
-    <text x="720" y="172" text-anchor="middle" fill="#8b949e" font-size="11">Browser</text>
-    <text x="720" y="192" text-anchor="middle" fill="#6e7681" font-size="10">Chromium</text>
-    <text x="720" y="212" text-anchor="middle" fill="#6e7681" font-size="10">live session</text>
-    <text x="720" y="230" text-anchor="middle" fill="#6e7681" font-size="10">headless: false</text>
+      <rect x="30" y="148" width="138" height="64" rx="8" fill="#161b22" stroke="#388bfd" stroke-width="1.5"/>
+      <text x="99" y="174" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="600">User Prompt</text>
+      <text x="99" y="194" text-anchor="middle" fill="#8b949e" font-size="11">describe scenario</text>
 
-    <!-- ── Arrow: User → Claude Code ── -->
-    <line x1="168" y1="180" x2="278" y2="180" stroke="#388bfd" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+      <rect x="280" y="110" width="220" height="140" rx="8" fill="#161b22" stroke="#58a6ff" stroke-width="2"/>
+      <text x="390" y="138" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="700">Claude Code</text>
+      <line x1="290" y1="148" x2="490" y2="148" stroke="#21262d" stroke-width="1"/>
+      <text x="390" y="168" text-anchor="middle" fill="#8b949e" font-size="11">agent loop</text>
+      <text x="390" y="186" text-anchor="middle" fill="#8b949e" font-size="11">reason → act → observe</text>
+      <text x="390" y="204" text-anchor="middle" fill="#8b949e" font-size="11">build page name map</text>
+      <text x="390" y="222" text-anchor="middle" fill="#8b949e" font-size="11">generate code</text>
 
-    <!-- ── Arrow: Claude Code → Playwright (actions, upper) ── -->
-    <line x1="500" y1="165" x2="618" y2="155" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrow-green)"/>
-    <text x="556" y="153" text-anchor="middle" fill="#3fb950" font-size="10">navigate / click / type</text>
+      <rect x="620" y="100" width="200" height="160" rx="8" fill="#161b22" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="720" y="128" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="700">Playwright</text>
+      <line x1="630" y1="138" x2="810" y2="138" stroke="#21262d" stroke-width="1"/>
+      <rect x="644" y="150" width="152" height="90" rx="6" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+      <text x="720" y="172" text-anchor="middle" fill="#8b949e" font-size="11">Browser</text>
+      <text x="720" y="192" text-anchor="middle" fill="#6e7681" font-size="10">Chromium</text>
+      <text x="720" y="212" text-anchor="middle" fill="#6e7681" font-size="10">live session</text>
+      <text x="720" y="230" text-anchor="middle" fill="#6e7681" font-size="10">headless: false</text>
 
-    <!-- ── Arrow: Playwright → Claude Code (tree + snapshots, lower) ── -->
-    <line x1="618" y1="205" x2="500" y2="215" stroke="#d29922" stroke-width="1.5" marker-end="url(#arrow-yellow)"/>
-    <text x="556" y="232" text-anchor="middle" fill="#d29922" font-size="10">accessibility tree / snapshots</text>
+      <line x1="168" y1="180" x2="278" y2="180" stroke="#388bfd" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
 
-    <!-- ── Arrow: Playwright → Claude Code (trace, dashed) ── -->
-    <line x1="618" y1="230" x2="500" y2="238" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow-yellow)"/>
-    <text x="556" y="258" text-anchor="middle" fill="#6e7681" font-size="10">traces (record-workflow only)</text>
+      <line x1="500" y1="165" x2="618" y2="155" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+      <text x="556" y="153" text-anchor="middle" fill="#3fb950" font-size="10">navigate / click / type</text>
 
-    <!-- ── Output boxes ── -->
+      <line x1="618" y1="205" x2="500" y2="215" stroke="#d29922" stroke-width="1.5" marker-end="url(#arrow-yellow)"/>
+      <text x="556" y="232" text-anchor="middle" fill="#d29922" font-size="10">accessibility tree / snapshots</text>
 
-    <!-- Playwright Page Objects -->
-    <rect x="80" y="360" width="190" height="72" rx="8" fill="#161b22" stroke="#8957e5" stroke-width="1.5"/>
-    <text x="175" y="385" text-anchor="middle" fill="#d2a8ff" font-size="12" font-weight="600">Playwright</text>
-    <text x="175" y="403" text-anchor="middle" fill="#d2a8ff" font-size="12" font-weight="600">Page Objects</text>
-    <text x="175" y="421" text-anchor="middle" fill="#6e7681" font-size="10">output/page/*.ts</text>
+      <line x1="618" y1="230" x2="500" y2="238" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow-yellow)"/>
+      <text x="556" y="258" text-anchor="middle" fill="#6e7681" font-size="10">traces (record-workflow only)</text>
 
-    <!-- Traces -->
-    <rect x="580" y="360" width="190" height="72" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1.5"/>
-    <text x="675" y="392" text-anchor="middle" fill="#e3b341" font-size="12" font-weight="600">Traces</text>
-    <text x="675" y="421" text-anchor="middle" fill="#6e7681" font-size="10">output/trace/*.zip</text>
+      <rect x="80" y="360" width="190" height="72" rx="8" fill="#161b22" stroke="#8957e5" stroke-width="1.5"/>
+      <text x="175" y="385" text-anchor="middle" fill="#d2a8ff" font-size="12" font-weight="600">Playwright</text>
+      <text x="175" y="403" text-anchor="middle" fill="#d2a8ff" font-size="12" font-weight="600">Page Objects</text>
+      <text x="175" y="421" text-anchor="middle" fill="#6e7681" font-size="10">output/page/*.ts</text>
 
-    <!-- ── Arrows: Claude Code → outputs ── -->
-    <!-- → Playwright Page Objects -->
-    <path d="M350,250 Q240,300 175,358" fill="none" stroke="#8957e5" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
-    <!-- → Traces -->
-    <path d="M430,250 Q540,305 675,358" fill="none" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow-yellow)"/>
+      <rect x="580" y="360" width="190" height="72" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1.5"/>
+      <text x="675" y="392" text-anchor="middle" fill="#e3b341" font-size="12" font-weight="600">Traces</text>
+      <text x="675" y="421" text-anchor="middle" fill="#6e7681" font-size="10">output/trace/*.zip</text>
 
-    <!-- ── Legend ── -->
-    <rect x="30" y="455" width="800" height="1" fill="#21262d"/>
-    <text x="30" y="480" fill="#6e7681" font-size="10">─── control flow</text>
-    <line x1="140" y1="476" x2="175" y2="476" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3"/>
-    <text x="180" y="480" fill="#6e7681" font-size="10">record-workflow only</text>
+      <path d="M350,250 Q240,300 175,358" fill="none" stroke="#8957e5" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+      <path d="M430,250 Q540,305 675,358" fill="none" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow-yellow)"/>
 
-  </svg>
+      <rect x="30" y="455" width="800" height="1" fill="#21262d"/>
+      <text x="30" y="480" fill="#6e7681" font-size="10">─── control flow</text>
+      <line x1="140" y1="476" x2="175" y2="476" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text x="180" y="480" fill="#6e7681" font-size="10">record-workflow only</text>
+    </svg>
 
-  <h2>Mode 2 — Session (Extension)</h2>
+    <h2>Mode 2 — Session (Extension)</h2>
 
-  <svg viewBox="0 0 860 500" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif">
+    <svg viewBox="0 0 860 500" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif">
 
-    <defs>
-      <marker id="s-arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-        <path d="M0,0 L0,6 L8,3 z" fill="#388bfd"/>
-      </marker>
-      <marker id="s-arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-        <path d="M0,0 L0,6 L8,3 z" fill="#3fb950"/>
-      </marker>
-      <marker id="s-arrow-yellow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-        <path d="M0,0 L0,6 L8,3 z" fill="#d29922"/>
-      </marker>
-      <marker id="s-arrow-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-        <path d="M0,0 L0,6 L8,3 z" fill="#8957e5"/>
-      </marker>
-      <marker id="s-arrow-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-        <path d="M0,0 L0,6 L8,3 z" fill="#f0883e"/>
-      </marker>
-    </defs>
+      <defs>
+        <marker id="s-arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#388bfd"/></marker>
+        <marker id="s-arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3fb950"/></marker>
+        <marker id="s-arrow-yellow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#d29922"/></marker>
+        <marker id="s-arrow-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8957e5"/></marker>
+        <marker id="s-arrow-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#f0883e"/></marker>
+      </defs>
 
-    <!-- ── User Prompt ── -->
-    <rect x="20" y="158" width="130" height="64" rx="8" fill="#161b22" stroke="#388bfd" stroke-width="1.5"/>
-    <text x="85" y="184" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="600">User Prompt</text>
-    <text x="85" y="204" text-anchor="middle" fill="#8b949e" font-size="11">describe scenario</text>
+      <rect x="20" y="158" width="130" height="64" rx="8" fill="#161b22" stroke="#388bfd" stroke-width="1.5"/>
+      <text x="85" y="184" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="600">User Prompt</text>
+      <text x="85" y="204" text-anchor="middle" fill="#8b949e" font-size="11">describe scenario</text>
 
-    <!-- ── Claude Code / MCP Server ── -->
-    <rect x="210" y="110" width="185" height="140" rx="8" fill="#161b22" stroke="#58a6ff" stroke-width="2"/>
-    <text x="302" y="138" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="700">Claude Code</text>
-    <line x1="220" y1="148" x2="385" y2="148" stroke="#21262d" stroke-width="1"/>
-    <text x="302" y="168" text-anchor="middle" fill="#8b949e" font-size="11">agent loop</text>
-    <text x="302" y="186" text-anchor="middle" fill="#8b949e" font-size="11">MCP server</text>
-    <text x="302" y="204" text-anchor="middle" fill="#f0883e" font-size="11">WS server :3456</text>
-    <text x="302" y="222" text-anchor="middle" fill="#8b949e" font-size="11">generate code</text>
+      <rect x="210" y="110" width="185" height="140" rx="8" fill="#161b22" stroke="#58a6ff" stroke-width="2"/>
+      <text x="302" y="138" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="700">Claude Code</text>
+      <line x1="220" y1="148" x2="385" y2="148" stroke="#21262d" stroke-width="1"/>
+      <text x="302" y="168" text-anchor="middle" fill="#8b949e" font-size="11">agent loop</text>
+      <text x="302" y="186" text-anchor="middle" fill="#8b949e" font-size="11">MCP server</text>
+      <text x="302" y="204" text-anchor="middle" fill="#f0883e" font-size="11">WS server :3456</text>
+      <text x="302" y="222" text-anchor="middle" fill="#8b949e" font-size="11">generate code</text>
 
-    <!-- ── Chrome Extension ── -->
-    <rect x="455" y="110" width="185" height="140" rx="8" fill="#161b22" stroke="#f0883e" stroke-width="1.5"/>
-    <text x="547" y="138" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="700">Extension</text>
-    <line x1="465" y1="148" x2="630" y2="148" stroke="#21262d" stroke-width="1"/>
-    <text x="547" y="168" text-anchor="middle" fill="#8b949e" font-size="11">background.ts</text>
-    <text x="547" y="186" text-anchor="middle" fill="#8b949e" font-size="11">playwright-crx</text>
-    <text x="547" y="204" text-anchor="middle" fill="#8b949e" font-size="11">chrome.debugger</text>
-    <text x="547" y="222" text-anchor="middle" fill="#f0883e" font-size="11">WS client :3456</text>
+      <rect x="455" y="110" width="185" height="140" rx="8" fill="#161b22" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="547" y="138" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="700">Extension</text>
+      <line x1="465" y1="148" x2="630" y2="148" stroke="#21262d" stroke-width="1"/>
+      <text x="547" y="168" text-anchor="middle" fill="#8b949e" font-size="11">background.ts</text>
+      <text x="547" y="186" text-anchor="middle" fill="#8b949e" font-size="11">playwright-crx</text>
+      <text x="547" y="204" text-anchor="middle" fill="#8b949e" font-size="11">chrome.debugger</text>
+      <text x="547" y="222" text-anchor="middle" fill="#f0883e" font-size="11">WS client :3456</text>
 
-    <!-- ── Real Chrome ── -->
-    <rect x="698" y="110" width="148" height="140" rx="8" fill="#161b22" stroke="#3fb950" stroke-width="1.5"/>
-    <text x="772" y="138" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="700">Chrome</text>
-    <line x1="708" y1="148" x2="836" y2="148" stroke="#21262d" stroke-width="1"/>
-    <text x="772" y="168" text-anchor="middle" fill="#8b949e" font-size="11">your profile</text>
-    <text x="772" y="186" text-anchor="middle" fill="#56d364" font-size="11">logged in</text>
-    <text x="772" y="204" text-anchor="middle" fill="#8b949e" font-size="11">real cookies</text>
-    <text x="772" y="222" text-anchor="middle" fill="#8b949e" font-size="11">active tab</text>
+      <rect x="698" y="110" width="148" height="140" rx="8" fill="#161b22" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="772" y="138" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="700">Chrome</text>
+      <line x1="708" y1="148" x2="836" y2="148" stroke="#21262d" stroke-width="1"/>
+      <text x="772" y="168" text-anchor="middle" fill="#8b949e" font-size="11">your profile</text>
+      <text x="772" y="186" text-anchor="middle" fill="#56d364" font-size="11">logged in</text>
+      <text x="772" y="204" text-anchor="middle" fill="#8b949e" font-size="11">real cookies</text>
+      <text x="772" y="222" text-anchor="middle" fill="#8b949e" font-size="11">active tab</text>
 
-    <!-- ── Arrow: User → Claude Code ── -->
-    <line x1="150" y1="190" x2="208" y2="190" stroke="#388bfd" stroke-width="1.5" marker-end="url(#s-arrow-blue)"/>
+      <line x1="150" y1="190" x2="208" y2="190" stroke="#388bfd" stroke-width="1.5" marker-end="url(#s-arrow-blue)"/>
 
-    <!-- ── Arrow: Claude Code → Extension (commands, upper) ── -->
-    <line x1="395" y1="168" x2="453" y2="168" stroke="#f0883e" stroke-width="1.5" marker-end="url(#s-arrow-orange)"/>
-    <text x="424" y="158" text-anchor="middle" fill="#f0883e" font-size="10">commands</text>
+      <line x1="395" y1="168" x2="453" y2="168" stroke="#f0883e" stroke-width="1.5" marker-end="url(#s-arrow-orange)"/>
+      <text x="424" y="158" text-anchor="middle" fill="#f0883e" font-size="10">commands</text>
 
-    <!-- ── Arrow: Extension → Claude Code (results, lower) ── -->
-    <line x1="453" y1="212" x2="395" y2="212" stroke="#d29922" stroke-width="1.5" marker-end="url(#s-arrow-yellow)"/>
-    <text x="424" y="232" text-anchor="middle" fill="#d29922" font-size="10">results</text>
+      <line x1="453" y1="212" x2="395" y2="212" stroke="#d29922" stroke-width="1.5" marker-end="url(#s-arrow-yellow)"/>
+      <text x="424" y="232" text-anchor="middle" fill="#d29922" font-size="10">results</text>
 
-    <!-- ── Arrow: Extension → Chrome (actions, upper) ── -->
-    <line x1="640" y1="168" x2="696" y2="168" stroke="#3fb950" stroke-width="1.5" marker-end="url(#s-arrow-green)"/>
-    <text x="668" y="158" text-anchor="middle" fill="#3fb950" font-size="10">navigate / click</text>
+      <line x1="640" y1="168" x2="696" y2="168" stroke="#3fb950" stroke-width="1.5" marker-end="url(#s-arrow-green)"/>
+      <text x="668" y="158" text-anchor="middle" fill="#3fb950" font-size="10">navigate / click</text>
 
-    <!-- ── Arrow: Chrome → Extension (observations, lower) ── -->
-    <line x1="696" y1="212" x2="640" y2="212" stroke="#d29922" stroke-width="1.5" marker-end="url(#s-arrow-yellow)"/>
-    <text x="668" y="232" text-anchor="middle" fill="#d29922" font-size="10">tree / snapshots</text>
+      <line x1="696" y1="212" x2="640" y2="212" stroke="#d29922" stroke-width="1.5" marker-end="url(#s-arrow-yellow)"/>
+      <text x="668" y="232" text-anchor="middle" fill="#d29922" font-size="10">tree / snapshots</text>
 
-    <!-- ── Output boxes ── -->
-    <rect x="80" y="360" width="190" height="72" rx="8" fill="#161b22" stroke="#8957e5" stroke-width="1.5"/>
-    <text x="175" y="385" text-anchor="middle" fill="#d2a8ff" font-size="12" font-weight="600">Playwright</text>
-    <text x="175" y="403" text-anchor="middle" fill="#d2a8ff" font-size="12" font-weight="600">Page Objects</text>
-    <text x="175" y="421" text-anchor="middle" fill="#6e7681" font-size="10">output/page/*.ts</text>
+      <rect x="80" y="360" width="190" height="72" rx="8" fill="#161b22" stroke="#8957e5" stroke-width="1.5"/>
+      <text x="175" y="385" text-anchor="middle" fill="#d2a8ff" font-size="12" font-weight="600">Playwright</text>
+      <text x="175" y="403" text-anchor="middle" fill="#d2a8ff" font-size="12" font-weight="600">Page Objects</text>
+      <text x="175" y="421" text-anchor="middle" fill="#6e7681" font-size="10">output/page/*.ts</text>
 
-    <rect x="580" y="360" width="190" height="72" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1.5"/>
-    <text x="675" y="392" text-anchor="middle" fill="#e3b341" font-size="12" font-weight="600">Traces</text>
-    <text x="675" y="421" text-anchor="middle" fill="#6e7681" font-size="10">output/trace/*.zip</text>
+      <rect x="580" y="360" width="190" height="72" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1.5"/>
+      <text x="675" y="392" text-anchor="middle" fill="#e3b341" font-size="12" font-weight="600">Traces</text>
+      <text x="675" y="421" text-anchor="middle" fill="#6e7681" font-size="10">output/trace/*.zip</text>
 
-    <!-- ── Arrows: Claude Code → outputs ── -->
-    <path d="M260,250 Q200,305 175,358" fill="none" stroke="#8957e5" stroke-width="1.5" marker-end="url(#s-arrow-purple)"/>
-    <path d="M340,250 Q510,305 675,358" fill="none" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#s-arrow-yellow)"/>
+      <path d="M260,250 Q200,305 175,358" fill="none" stroke="#8957e5" stroke-width="1.5" marker-end="url(#s-arrow-purple)"/>
+      <path d="M340,250 Q510,305 675,358" fill="none" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#s-arrow-yellow)"/>
 
-    <!-- ── Legend ── -->
-    <rect x="30" y="455" width="800" height="1" fill="#21262d"/>
-    <line x1="30" y1="476" x2="65" y2="476" stroke="#f0883e" stroke-width="1.5"/>
-    <text x="70" y="480" fill="#6e7681" font-size="10">WebSocket channel</text>
-    <line x1="210" y1="476" x2="245" y2="476" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3"/>
-    <text x="250" y="480" fill="#6e7681" font-size="10">record-workflow only</text>
-    <circle cx="430" cy="476" r="4" fill="#56d364"/>
-    <text x="440" y="480" fill="#6e7681" font-size="10">real login state preserved</text>
+      <rect x="30" y="455" width="800" height="1" fill="#21262d"/>
+      <line x1="30" y1="476" x2="65" y2="476" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="70" y="480" fill="#6e7681" font-size="10">WebSocket channel</text>
+      <line x1="210" y1="476" x2="245" y2="476" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text x="250" y="480" fill="#6e7681" font-size="10">record-workflow only</text>
+      <circle cx="430" cy="476" r="4" fill="#56d364"/>
+      <text x="440" y="480" fill="#6e7681" font-size="10">real login state preserved</text>
+    </svg>
 
-  </svg>
+  </main>
+
+  <footer class="site-footer">
+    brow-use · a Claude Code plugin · <a href="https://github.com/brow-use/spike" target="_blank" rel="noopener">source</a>
+  </footer>
 
 </body>
 </html>

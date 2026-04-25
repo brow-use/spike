@@ -2,20 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>record-workflow</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>record-workflow — brow-use</title>
+  <link rel="stylesheet" href="assets/site.css">
   <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 24px 60px; line-height: 1.7; background: #0d1117; color: #c9d1d9; }
-    h1 { font-size: 1.6rem; border-bottom: 1px solid #21262d; padding-bottom: 14px; margin-bottom: 8px; color: #e6edf3; }
-    h2 { font-size: 1.1rem; margin-top: 44px; margin-bottom: 10px; color: #e6edf3; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.8rem; }
-    p { margin: 10px 0; }
-    ul { margin: 8px 0; padding-left: 22px; }
-    li { margin: 4px 0; }
-    code { font-family: ui-monospace, monospace; font-size: 0.875em; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 6px; color: #d2a8ff; }
-    pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 18px 20px; overflow-x: auto; margin: 14px 0; }
-    pre code { background: none; border: none; padding: 0; color: #c9d1d9; font-size: 0.85em; }
-    .subtitle { color: #8b949e; font-size: 0.95rem; margin-top: 4px; }
-    .section-divider { border: none; border-top: 1px solid #21262d; margin: 40px 0; }
     .tool-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 14px 0; }
     .chip { font-family: ui-monospace, monospace; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; border: 1px solid; }
     .chip-perception { background: #1f3a5f; border-color: #388bfd; color: #79c0ff; }
@@ -23,120 +13,127 @@
     .chip-trace { background: #2d2a1f; border-color: #d29922; color: #e3b341; }
     .chip-output { background: #2d1f4e; border-color: #8957e5; color: #d2a8ff; }
     .chip-group-label { font-size: 0.65rem; color: #8b949e; margin-top: 8px; margin-bottom: 2px; width: 100%; }
-    a { color: #58a6ff; }
-    nav { margin-bottom: 32px; font-size: 0.85rem; color: #8b949e; }
-    nav a { color: #58a6ff; text-decoration: none; }
   </style>
 </head>
 <body>
 
-  <nav><a href="index.html">← docs</a></nav>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html"><span class="brand-mark"></span> brow-use</a>
+      <nav class="site-nav">
+        <a href="index.html">Product</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="user-guide.html" class="active">User guide</a>
+        <a href="developer-guide.html">Developer guide</a>
+        <a class="gh" href="https://github.com/brow-use/spike" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
 
-  <h1>record-workflow</h1>
-  <p class="subtitle">Record a reusable workflow function by performing steps live in the browser</p>
+  <main class="page">
 
-  <hr class="section-divider">
+    <div class="eyebrow"><a href="user-guide.html" style="color: inherit;">← User guide</a></div>
+    <h1><code>/bu:record-workflow</code></h1>
+    <p class="subtitle">Record a reusable workflow function by performing steps live in the browser.</p>
 
-  <h2>Overview</h2>
-  <p>
-    This skill records a user-described sequence of browser interactions and writes it as a reusable
-    TypeScript <code>async</code> function. Unlike <a href="record-page-objects.html">record-page-objects</a>,
-    which captures the structure of pages, this skill captures a <em>flow</em> — a named sequence of
-    actions that can be called from any test.
-  </p>
-  <p>
-    The agent loop, MCP server, and browser automation mechanism are the same as described in
-    <a href="record-page-objects.html">record-page-objects</a>. What differs is the purpose of the run
-    and what gets written at the end.
-  </p>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>Overview</h2>
+    <p>
+      This skill records a user-described sequence of browser interactions and writes it as a
+      reusable TypeScript <code>async</code> function. Unlike
+      <a href="record-page-objects.html">record-page-objects</a>, which captures the structure
+      of pages, this skill captures a <em>flow</em> — a named sequence of actions that can be
+      called from any test.
+    </p>
+    <p>
+      The agent loop, MCP server, and browser automation mechanism are the same as described in
+      <a href="record-page-objects.html">record-page-objects</a>. What differs is the purpose
+      of the run and what gets written at the end.
+    </p>
 
-  <h2>What makes it different</h2>
-  <p>
-    record-page-objects maps the <em>structure</em> of an app — what pages exist and what elements are on them.
-    record-workflow maps a <em>behaviour</em> — a specific sequence of steps a user performs to accomplish something.
-    The output is not a class but a function: self-contained, parameterised for variable inputs
-    (credentials, search terms, item names), and importable directly into a test.
-  </p>
-  <p>
-    Workflows are also the composition layer between page objects and tests. The generated function
-    imports and uses page object classes from <code>../page/</code>, so page objects define the vocabulary
-    and workflows define the sentences.
-  </p>
+    <hr class="section-divider">
 
-  <h2>When to use this skill vs writing the function directly</h2>
-  <p>
-    Once page objects are in place, a workflow is largely a sequence of method calls. Claude Code can
-    write that function from a plain description without running the browser — and for straightforward,
-    well-understood flows that is often the faster path.
-  </p>
-  <p>
-    This skill earns its place in two situations:
-  </p>
-  <ul>
-    <li>
-      <strong>The flow is not fully understood.</strong> Live execution discovers things a description
-      won't capture — redirects, intermediate loading states, unexpected modals, conditional UI.
-      The skill writes what actually happens in the browser, not what you think happens.
-    </li>
-    <li>
-      <strong>You want a reference trace.</strong> The trace produced during recording is a snapshot of
-      a known-good run. When a test fails later, you can compare the failure against the original trace
-      to see exactly where the behaviour diverged. Writing the function by hand produces no such artefact.
-    </li>
-  </ul>
-  <p>
-    If the flow is simple, the page objects cover it fully, and debugging traceability is not a concern —
-    asking Claude Code to write the function directly is the right call.
-  </p>
+    <h2>What makes it different</h2>
+    <p>
+      record-page-objects maps the <em>structure</em> of an app — what pages exist and what
+      elements are on them. record-workflow maps a <em>behaviour</em> — a specific sequence of
+      steps a user performs to accomplish something. The output is not a class but a function:
+      self-contained, parameterised for variable inputs (credentials, search terms, item names),
+      and importable directly into a test.
+    </p>
+    <p>
+      Workflows are also the composition layer between page objects and tests. The generated
+      function imports and uses page object classes from <code>../page/</code>, so page objects
+      define the vocabulary and workflows define the sentences.
+    </p>
 
-  <hr class="section-divider">
+    <h2>When to use this vs writing the function directly</h2>
+    <p>
+      Once page objects are in place, a workflow is largely a sequence of method calls. Claude
+      Code can write that function from a plain description without running the browser — and
+      for straightforward, well-understood flows that is often the faster path.
+    </p>
+    <p>This skill earns its place in two situations:</p>
+    <ul>
+      <li><strong>The flow is not fully understood.</strong> Live execution discovers things a description won't capture — redirects, intermediate loading states, unexpected modals, conditional UI. The skill writes what actually happens in the browser, not what you think happens.</li>
+      <li><strong>You want a reference trace.</strong> The trace produced during recording is a snapshot of a known-good run. When a test fails later, you can compare the failure against the original trace to see exactly where the behaviour diverged. Writing the function by hand produces no such artefact.</li>
+    </ul>
+    <p>If the flow is simple, the page objects cover it fully, and debugging traceability is not a concern — asking Claude Code to write the function directly is the right call.</p>
 
-  <h2>Tracing</h2>
-  <p>
-    The skill wraps the entire browser session in a Playwright trace. Before the first step,
-    <code>start_trace</code> begins recording — capturing screenshots, DOM snapshots, and network activity
-    at every interaction. When the scenario is complete, <code>stop_trace</code> saves the trace as a
-    <code>.zip</code> to <code>output/trace/</code>.
-  </p>
-  <p>
-    The trace is a debugging artefact. It lets you replay exactly what the agent did step by step,
-    inspect the DOM at any point, and verify that the recorded workflow reflects what actually happened
-    in the browser.
-  </p>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>Tracing</h2>
+    <p>
+      The skill wraps the entire browser session in a Playwright trace. Before the first step,
+      <code>start_trace</code> begins recording — capturing screenshots, DOM snapshots, and
+      network activity at every interaction. When the scenario is complete,
+      <code>stop_trace</code> saves the trace as a <code>.zip</code> to <code>output/trace/</code>.
+    </p>
+    <p>
+      The trace is a debugging artefact. It lets you replay exactly what the agent did step by
+      step, inspect the DOM at any point, and verify that the recorded workflow reflects what
+      actually happened in the browser.
+    </p>
 
-  <h2>Tools used</h2>
-  <div class="tool-chips">
-    <span class="chip-group-label">perception</span>
-    <span class="chip chip-perception">get_accessibility_tree</span>
-    <span class="chip chip-perception">snapshot</span>
-    <span class="chip-group-label">action</span>
-    <span class="chip chip-action">navigate</span>
-    <span class="chip chip-action">click</span>
-    <span class="chip chip-action">type</span>
-    <span class="chip-group-label">trace</span>
-    <span class="chip chip-trace">start_trace</span>
-    <span class="chip chip-trace">stop_trace</span>
-    <span class="chip-group-label">output</span>
-    <span class="chip chip-output">write_workflow</span>
-  </div>
-  <p>
-    <code>snapshot</code> is used here in addition to <code>get_accessibility_tree</code>. Where the
-    accessibility tree gives structure for choosing selectors, snapshot captures a visual state after
-    significant changes — useful for verifying that an action had the expected effect before proceeding.
-  </p>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>Tools used</h2>
+    <div class="tool-chips">
+      <span class="chip-group-label">perception</span>
+      <span class="chip chip-perception">get_accessibility_tree</span>
+      <span class="chip chip-perception">snapshot</span>
+      <span class="chip-group-label">action</span>
+      <span class="chip chip-action">navigate</span>
+      <span class="chip chip-action">click</span>
+      <span class="chip chip-action">type</span>
+      <span class="chip-group-label">trace</span>
+      <span class="chip chip-trace">start_trace</span>
+      <span class="chip chip-trace">stop_trace</span>
+      <span class="chip-group-label">output</span>
+      <span class="chip chip-output">write_workflow</span>
+    </div>
+    <p>
+      <code>snapshot</code> is used here in addition to <code>get_accessibility_tree</code>.
+      Where the accessibility tree gives structure for choosing selectors, snapshot captures a
+      visual state after significant changes — useful for verifying that an action had the
+      expected effect before proceeding.
+    </p>
 
-  <h2>Output</h2>
-  <pre><code>output/
+    <hr class="section-divider">
+
+    <h2>Output</h2>
+    <pre><code>output/
   workflow/
     login-workflow.ts
   trace/
     login-workflow-1234567890.zip</code></pre>
+
+  </main>
+
+  <footer class="site-footer">
+    brow-use · a Claude Code plugin · <a href="https://github.com/brow-use/spike" target="_blank" rel="noopener">source</a>
+  </footer>
 
 </body>
 </html>

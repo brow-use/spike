@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>User guide — brow-use</title>
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html"><span class="brand-mark"></span> brow-use</a>
+      <nav class="site-nav">
+        <a href="index.html">Product</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="user-guide.html" class="active">User guide</a>
+        <a href="developer-guide.html">Developer guide</a>
+        <a class="gh" href="https://github.com/brow-use/spike" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+
+    <div class="eyebrow">User guide</div>
+    <h1>Day-to-day workflow</h1>
+    <p class="subtitle">Every command, what it does, and the order to run them in.</p>
+
+    <hr class="section-divider">
+
+    <h2>Before you start</h2>
+
+    <h3>1 — Install the plugin</h3>
+    <p>
+      brow-use ships as a Claude Code plugin. The MCP server runs as a child process of Claude
+      Code; the Chrome extension is optional and only required for <a href="session-mode.html">session mode</a>.
+      See the <a href="developer-guide.html#install">developer guide</a> for setup steps.
+    </p>
+
+    <h3>2 — Pick a mode</h3>
+    <p>
+      <strong>Default (Playwright)</strong> launches a fresh Chromium window each time. Use it
+      for public pages, demos, and anything where login state isn't needed.
+    </p>
+    <p>
+      <strong>Session mode</strong> routes commands through the brow-use Chrome extension into
+      your real, logged-in Chrome tab. Use it for anything behind authentication.
+    </p>
+    <ul>
+      <li><code>/bu:use-managed-browser</code> — switch to default Playwright mode.</li>
+      <li><code>/bu:use-session</code> — switch to session mode (will list tabs and ask which one to pin).</li>
+    </ul>
+
+    <h3>3 — Register an app</h3>
+    <p>
+      Most commands start by reading <code>.brow-use/apps.json</code> for the currently active
+      app — its URL, name, and functional description. Run <code>/bu:apps</code> once to register
+      it; the description is used as exploration bias and as context for everything that follows.
+    </p>
+    <ul>
+      <li><code>/bu:apps</code> — conversational catalogue: list, create, delete, set current.</li>
+      <li><code>/bu:health</code> — quick check that the MCP server, extension, and tab are wired up.</li>
+      <li><code>/bu:setup-project</code> — scaffold a Playwright TypeScript project in the current directory.</li>
+    </ul>
+
+    <hr class="section-divider">
+
+    <h2>The recommended path</h2>
+    <p>
+      For an app you've never automated before, run these commands in order. Each step builds on
+      the artifacts produced by the previous one.
+    </p>
+
+    <pre><code>/bu:apps                                 register the app, set it as current
+/bu:explore                              walk it autonomously
+make extract SESSION=&lt;sessionId&gt;         post-process the trace into aria log + screenshots
+/bu:document                             generate plain-language feature docs
+/bu:generate-page-objects                generate typed Playwright POMs
+/bu:do                                   run a plain-English intent, grounded in everything above</code></pre>
+
+    <hr class="section-divider">
+
+    <h2>The commands</h2>
+
+    <h3 id="explore"><span class="layer-pill layer-1">Layer 1</span> &nbsp; <code>/bu:explore</code></h3>
+    <p>
+      Drives the agent through your app breadth-first. Captures one aria-tree entry per page,
+      detects loops via perceptual hashing of the screen plus an aria-tree hash, and records the
+      whole run as a single Playwright trace.
+    </p>
+    <p>
+      Asks for three budgets up front (with sensible defaults): <code>maxSteps</code>,
+      <code>maxLoopHits</code>, <code>phashThreshold</code>. The exploration policy enforces
+      "every top-level module before deepening any branch" — so the trace covers the surface
+      area of the app, not just one module.
+    </p>
+    <p>
+      <strong>Outputs:</strong> trace zip in <code>output/trace/</code>, run row in
+      <code>.brow-use/runs.json</code>, reasoning log in <code>output/reasoning/&lt;id&gt;.jsonl</code>.
+      The aria-tree log and per-step screenshots are produced by the next step.
+    </p>
+    <p>
+      <strong>Then run:</strong> <code>make extract SESSION=&lt;id&gt;</code> to extract the aria
+      log and screenshots from the trace. Extraction is intentionally separate so it can be re-run
+      whenever the trace format or extraction heuristics change, without re-driving the browser.
+    </p>
+
+    <h3 id="document"><span class="layer-pill layer-3">Layer 3</span> &nbsp; <code>/bu:document</code></h3>
+    <p>
+      Read-only over an explore run. Groups pages into features (by URL prefix and aria summary),
+      embeds screenshots from the trace, and writes one feature doc per cluster plus a single
+      <code>page-transitions.md</code> index.
+    </p>
+    <p>
+      Navigation edges come from <code>read_observed_edges</code>, which correlates the
+      trace's action sidecar with the aria log to produce ground-truth transitions — every click
+      and navigate the agent actually performed. Phrases like "select Save" appear identically
+      in the feature narrative and in the page-transitions table, so the docs stay internally
+      consistent.
+    </p>
+    <p>
+      <strong>Outputs:</strong> <code>output/docs/&lt;id&gt;/README.md</code>,
+      <code>page-transitions.md</code>, and one <code>&lt;feature&gt;.md</code> per cluster.
+    </p>
+
+    <h3 id="generate-page-objects"><span class="layer-pill layer-3">Layer 3</span> &nbsp; <code>/bu:generate-page-objects</code></h3>
+    <p>
+      Generates Playwright Page Object Model classes from an explore run's aria log. No browser
+      needed — works entirely from captured data.
+    </p>
+    <p>
+      Two passes: first, an in-memory name map with one entry per unique URL (class name,
+      file name, elements, navigation edges). Second, generation — for every page either creates
+      a new file via <code>write_page_object</code> or merges into an existing matching one.
+      Navigation edges from <code>read_observed_edges</code> drive typed return types: a method
+      that clicks <em>Save</em> on <code>EditPage</code> returns <code>DetailsPage</code> when the
+      sidecar saw that exact transition.
+    </p>
+    <p>
+      <strong>Outputs:</strong> TypeScript files in <code>output/page/</code>, one per page reached.
+      Idempotent — re-running merges new locators into existing classes without overwriting work.
+    </p>
+    <p>For more on the two-pass strategy, see <a href="record-page-objects.html">record-page-objects</a> (uses the same approach).</p>
+
+    <h3 id="do"><span class="layer-pill layer-4">Layer 4</span> &nbsp; <code>/bu:do</code></h3>
+    <p>
+      Carries out a plain-English intent ("Export every Excavating Machine as CSV") against the
+      current app. Loads the explore-run docs, aria log, POMs, and workflows as a knowledge stack,
+      then drives the browser to satisfy the intent.
+    </p>
+    <p>
+      Output format defaults to markdown but accepts <code>csv</code>, <code>json</code>, or
+      <code>txt</code>. Refuses destructive intents at the parsing stage. Has a hard step budget
+      (50 browser actions) so it can't wander away from the goal.
+    </p>
+    <p>
+      <strong>Outputs:</strong> <code>output/results/&lt;id&gt;/result.&lt;ext&gt;</code> with the
+      structured data, plus <code>how.md</code> describing in plain language which pages were
+      visited and how the data was collected.
+    </p>
+
+    <h3 id="run"><span class="layer-pill layer-1">Layer 1</span> &nbsp; <code>/bu:run</code></h3>
+    <p>
+      One-off intent execution with a recording. No knowledge stack, no docs reference — useful
+      for ad-hoc tasks where you just want the agent to <em>do the thing</em> and leave behind a
+      trace. Different from <code>/bu:do</code> in that it doesn't ground in earlier docs.
+    </p>
+
+    <h3 id="record-page-objects"><span class="layer-pill layer-1">Layer 1</span> &nbsp; <code>/bu:record-page-objects</code></h3>
+    <p>
+      Walks a user-described scenario in the browser and emits POMs as the run finishes. Use this
+      when you want POMs for a specific flow rather than the whole app.
+    </p>
+    <p>For full detail on the agent loop, two-pass strategy, and merge behaviour, see <a href="record-page-objects.html">the dedicated page</a>.</p>
+
+    <h3 id="record-workflow"><span class="layer-pill layer-1">Layer 1</span> &nbsp; <code>/bu:record-workflow</code></h3>
+    <p>
+      Records a sequence of browser interactions and writes it as a parameterised TypeScript
+      <code>async</code> function. The workflow imports POM classes from <code>output/page/</code>
+      and is the composition layer between Page Objects and tests.
+    </p>
+    <p>For when to record vs write the function directly by hand, see <a href="record-workflow.html">the dedicated page</a>.</p>
+
+    <h3 id="run-workflow"><span class="layer-pill layer-4">Layer 4</span> &nbsp; <code>/bu:run-workflow</code></h3>
+    <p>
+      Re-runs an existing workflow function against the live app — execution only, no recording.
+      Useful for sanity-checking that a workflow still works against the current app state.
+    </p>
+
+    <h3 id="apps">App management</h3>
+    <p>
+      <code>/bu:apps</code> manages everything in <code>.brow-use/apps.json</code>: list,
+      create, delete, set current. The "current app" is the one all subsequent commands operate
+      against — its URL is the entry point, its description is the exploration bias.
+    </p>
+    <p>For the file shape and full conversational behaviour, see <a href="app-management.html">App management</a>.</p>
+
+    <hr class="section-divider">
+
+    <h2>Mode commands</h2>
+    <div class="cmd-list">
+      <div class="cmd-row">
+        <div class="cmd-name">/bu:use-managed-browser</div>
+        <div class="cmd-desc">Switch to <strong>Mode 1</strong> — fresh Chromium launched by Playwright. No login state. Default.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">/bu:use-session</div>
+        <div class="cmd-desc">Switch to <strong>Mode 2</strong> — automate your real Chrome via the brow-use extension. Lists tabs and asks you to pin one.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">/bu:health</div>
+        <div class="cmd-desc">Diagnose the MCP server, the extension, and the active tab. Each issue comes with a one-line remedy.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">/bu:setup-project</div>
+        <div class="cmd-desc">Scaffold a Playwright TypeScript project in the current directory — adds missing config, dependencies, and output folders.</div>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <h2>Patterns</h2>
+
+    <h3>Re-running over the same app</h3>
+    <p>
+      Run <code>/bu:explore</code> once and reuse it. Every Layer 3 / Layer 4 command takes a
+      sessionId at the top, so you can document, generate POMs, and run intents against the same
+      explore output many times. When the app changes, run <code>/bu:explore</code> again to
+      capture a new baseline.
+    </p>
+
+    <h3>Iterating on a single feature</h3>
+    <p>
+      For a focused flow (e.g. signing in, completing checkout) prefer
+      <code>/bu:record-page-objects</code> and <code>/bu:record-workflow</code> directly. They
+      stop at the end of the scenario instead of trying to cover the whole app.
+    </p>
+
+    <h3>Auditing a run</h3>
+    <p>
+      Every recorded run lands in <code>.brow-use/runs.json</code>. The viewer
+      (<code>npm run viewer:dev</code>) stitches the trace, sidecar, reasoning log, and aria
+      log into a navigable timeline. Use it when something looked odd and you need to understand
+      <em>why</em> the agent took a particular path.
+    </p>
+
+    <h3>Idempotent merges</h3>
+    <p>
+      Every <code>write_*</code> tool that writes user-facing artifacts is idempotent. Re-running
+      a Layer 3 command over a Layer 1 run will overwrite that run's outputs cleanly without
+      touching unrelated files; Page Objects merge new locators in without dropping existing
+      ones.
+    </p>
+
+  </main>
+
+  <footer class="site-footer">
+    brow-use · a Claude Code plugin · <a href="https://github.com/brow-use/spike" target="_blank" rel="noopener">source</a>
+  </footer>
+
+</body>
+</html>

@@ -2,69 +2,90 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>App management</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 24px 60px; line-height: 1.7; background: #0d1117; color: #c9d1d9; }
-    h1 { font-size: 1.6rem; border-bottom: 1px solid #21262d; padding-bottom: 14px; margin-bottom: 8px; color: #e6edf3; }
-    h2 { font-size: 0.8rem; margin-top: 44px; margin-bottom: 10px; color: #e6edf3; text-transform: uppercase; letter-spacing: 0.06em; }
-    p { margin: 10px 0; }
-    code { font-family: ui-monospace, monospace; font-size: 0.875em; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 6px; color: #d2a8ff; }
-    .subtitle { color: #8b949e; font-size: 0.95rem; margin-top: 4px; }
-    .section-divider { border: none; border-top: 1px solid #21262d; margin: 40px 0; }
-    nav { margin-bottom: 32px; font-size: 0.85rem; color: #8b949e; }
-    nav a { color: #58a6ff; text-decoration: none; }
-    .skill-list { display: flex; flex-direction: column; gap: 1px; margin-top: 16px; border: 1px solid #21262d; border-radius: 8px; overflow: hidden; }
-    .skill { background: #161b22; padding: 16px 20px; }
-    .skill:hover { background: #1c2128; }
-    .skill-header { display: flex; align-items: baseline; gap: 16px; }
-    .skill-name { font-family: ui-monospace, monospace; font-size: 0.9rem; font-weight: 600; color: #e6edf3; }
-    .skill-desc { font-size: 0.85rem; color: #8b949e; margin-top: 6px; }
-    .skill-detail { font-size: 0.82rem; color: #6e7681; margin-top: 4px; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>App management — brow-use</title>
+  <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
 
-  <nav><a href="index.html">← docs</a></nav>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html"><span class="brand-mark"></span> brow-use</a>
+      <nav class="site-nav">
+        <a href="index.html">Product</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="user-guide.html" class="active">User guide</a>
+        <a href="developer-guide.html">Developer guide</a>
+        <a class="gh" href="https://github.com/brow-use/spike" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
 
-  <h1>App management</h1>
-  <p class="subtitle">Register and switch between web applications before recording</p>
+  <main class="page">
 
-  <hr class="section-divider">
+    <div class="eyebrow"><a href="user-guide.html" style="color: inherit;">← User guide</a></div>
+    <h1>App management</h1>
+    <p class="subtitle">Register and switch between web applications before recording.</p>
 
-  <h2>Overview</h2>
-  <p>
-    All recording commands — <code>record-page-objects</code> and <code>record-workflow</code> — start by
-    reading the currently active app to know which URL to work with and what the app does.
-    Use <code>/bu:apps</code> to register applications and set which one is active.
-  </p>
-  <p>
-    Apps are persisted locally in <code>.brow-use/apps.json</code>. You register an app once and switch
-    between them as needed — you do not need to re-register every session.
-  </p>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>Overview</h2>
+    <p>
+      All recording commands — <code>record-page-objects</code>, <code>record-workflow</code>,
+      <code>explore</code>, <code>do</code>, <code>run</code> — start by reading the currently
+      active app to know which URL to work with and what the app does. Use
+      <code>/bu:apps</code> to register applications and set which one is active.
+    </p>
+    <p>
+      Apps are persisted locally in <code>.brow-use/apps.json</code>. You register an app once
+      and switch between them as needed — you do not need to re-register every session.
+    </p>
 
-  <h2>Command</h2>
-  <div class="skill-list">
+    <hr class="section-divider">
 
-    <div class="skill">
-      <div class="skill-header">
-        <span class="skill-name">/bu:apps</span>
+    <h2>Command</h2>
+    <div class="cmd-list">
+      <div class="cmd-row">
+        <div class="cmd-name">/bu:apps</div>
+        <div class="cmd-desc">Manage all saved apps in one conversational command. Supports list, create, delete, and set current. Run this and describe what you want to do — Claude will ask for any missing details and update <code>.brow-use/apps.json</code> directly. Setting the current app only updates the active app record; it does not open a browser.</div>
       </div>
-      <div class="skill-desc">Manage all saved apps in one conversational command. Supports list, create, delete, and set current.</div>
-      <div class="skill-detail">Run this and describe what you want to do — Claude will ask for any missing details and update <code>.brow-use/apps.json</code> directly. Setting the current app only updates the active app record; it does not open a browser.</div>
     </div>
 
-  </div>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>File shape</h2>
+    <pre><code>{
+  "currentAppId": "&lt;id or null&gt;",
+  "apps": [
+    {
+      "id": "uuid-...",
+      "name": "Avni — Field App",
+      "description": "Mobile-first form-driven data collection app...",
+      "url": "https://staging.avniproject.org",
+      "createdAt": "2025-04-22T10:14:00.000Z"
+    }
+  ]
+}</code></pre>
+    <p>
+      The <code>description</code> is more than metadata — it's used as exploration bias in
+      <code>/bu:explore</code> and as grounding context in <code>/bu:do</code>. A specific
+      description ("registers visits for community health workers") leads to better-focused runs
+      than a generic one ("a web app").
+    </p>
 
-  <h2>Typical setup sequence</h2>
-  <p>For a new application:</p>
-  <pre style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:18px 20px;overflow-x:auto;margin:14px 0;"><code style="font-family:ui-monospace,monospace;font-size:0.85em;color:#c9d1d9;">/bu:apps  ← register the app and set it as current
-/bu:record-page-objects</code></pre>
-  <p>In subsequent sessions, run <code>/bu:apps</code> again to set the current app — it is already registered.</p>
+    <hr class="section-divider">
+
+    <h2>Typical setup sequence</h2>
+    <p>For a new application:</p>
+    <pre><code>/bu:apps                    register the app and set it as current
+/bu:explore                 walk it autonomously</code></pre>
+    <p>In subsequent sessions, run <code>/bu:apps</code> again to set the current app — it is already registered.</p>
+
+  </main>
+
+  <footer class="site-footer">
+    brow-use · a Claude Code plugin · <a href="https://github.com/brow-use/spike" target="_blank" rel="noopener">source</a>
+  </footer>
 
 </body>
 </html>

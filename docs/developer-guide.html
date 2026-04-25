@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Developer guide — brow-use</title>
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html"><span class="brand-mark"></span> brow-use</a>
+      <nav class="site-nav">
+        <a href="index.html">Product</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="user-guide.html">User guide</a>
+        <a href="developer-guide.html" class="active">Developer guide</a>
+        <a class="gh" href="https://github.com/brow-use/spike" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+
+    <div class="eyebrow">Developer guide</div>
+    <h1>Hack on brow-use</h1>
+    <p class="subtitle">How the repo is laid out, how to build it, and how to add new tools, commands, or extension capabilities.</p>
+
+    <hr class="section-divider">
+
+    <h2>Repository layout</h2>
+    <table class="spec">
+      <thead>
+        <tr><th style="width: 200px;">Path</th><th>Contents</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>mcp/</td><td>MCP server entry (<code>index.ts</code>) and the WebSocket bridge (<code>crx-client.ts</code>) that talks to the extension.</td></tr>
+        <tr><td>tool/</td><td>One file per MCP tool — browser tools, file-only tools, pure-compute tools. Each tool exports a <code>Tool</code> conforming to <code>tool.ts</code>.</td></tr>
+        <tr><td>extension/</td><td>Chrome MV3 extension: <code>background.ts</code>, <code>content.ts</code>, popup &amp; sidepanel, manifest. Built with Vite.</td></tr>
+        <tr><td>plugin/</td><td>Plugin manifest plus <code>commands/*.md</code> — every <code>/bu:&lt;name&gt;</code> command is a markdown file Claude executes verbatim.</td></tr>
+        <tr><td>viewer/</td><td>React + Vite app for browsing recorded runs (trace + sidecar + reasoning + aria log on a timeline).</td></tr>
+        <tr><td>scripts/</td><td>Build &amp; dev helpers: <code>extract-trace.ts</code>, <code>watch-extension.ts</code>, <code>generate-icons.ts</code>.</td></tr>
+        <tr><td>config/</td><td>Default app template (<code>app.json</code>). User apps live in <code>.brow-use/apps.json</code> at runtime.</td></tr>
+        <tr><td>output/</td><td>Generated artifacts (page/, workflow/, trace/, docs/, exploration/, reasoning/, results/). Created on first run.</td></tr>
+        <tr><td>Makefile</td><td>One-shot tasks: <code>make build</code>, <code>make install</code>, <code>make extract SESSION=&lt;id&gt;</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <hr class="section-divider">
+
+    <h2 id="install">Build &amp; install</h2>
+
+    <h3>Prerequisites</h3>
+    <ul>
+      <li>Node ≥ 20 (matches the <code>@types/node</code> dev dependency).</li>
+      <li>Chrome (for session mode and extension dev).</li>
+      <li>Claude Code with plugin support enabled.</li>
+    </ul>
+
+    <h3>One-time setup</h3>
+    <pre><code>git clone &lt;repo&gt; brow-use && cd brow-use/spike
+npm install
+make build              # builds dist/mcp/ and dist/extension/
+make install            # registers the marketplace and installs the bu plugin into Claude Code</code></pre>
+
+    <h3>Reinstall after changes</h3>
+    <p>The Makefile collapses the uninstall/install dance:</p>
+    <pre><code>make reinstall</code></pre>
+    <p>For pure MCP-server iteration without going through Claude Code, run the server directly:</p>
+    <pre><code>make dev-mcp            # npx tsx mcp/index.ts</code></pre>
+
+    <hr class="section-divider">
+
+    <h2>Running tests</h2>
+    <p>
+      Tests live next to the code they cover (<code>tool/foo.ts</code> →
+      <code>tool/foo.test.ts</code>) and run via the built-in node test runner:
+    </p>
+    <pre><code>npm test</code></pre>
+    <p>
+      Most tool tests use real fixtures from <code>output/</code> (existing trace zips, aria
+      logs) so they exercise the same paths the live commands do. They <code>t.skip()</code>
+      automatically when fixtures aren't present, so a fresh clone passes without manual setup.
+    </p>
+
+    <hr class="section-divider">
+
+    <h2>Anatomy of a tool</h2>
+    <p>
+      Every MCP tool is a TypeScript module exporting a single <code>Tool</code>. The interface
+      lives in <code>tool/tool.ts</code>:
+    </p>
+    <pre><code>interface Tool {
+  name: string
+  description: string
+  inputSchema: { type: 'object'; properties: Record&lt;string, unknown&gt;; required?: string[] }
+  execute(input: Record&lt;string, unknown&gt;, ctx: ToolContext): Promise&lt;string | ToolResultContent[]&gt;
+}</code></pre>
+    <p>
+      Three kinds of tools, each routed differently in <code>mcp/index.ts</code>:
+    </p>
+    <ul>
+      <li><strong>Browser tools</strong> — drive the page (navigate, click, type, get_accessibility_tree, snapshot…). In session mode, the call is forwarded to the extension over WebSocket; in default mode, it runs against a Playwright <code>Page</code>.</li>
+      <li><strong>File-only tools</strong> — read or write files in <code>output/</code> or <code>.brow-use/</code> (<code>write_page_object</code>, <code>write_feature_doc</code>, <code>read_observed_edges</code>, <code>record_run</code>). Always run on the Node side.</li>
+      <li><strong>Pure-compute tools</strong> — neither browser nor disk (<code>compare_fingerprint</code>). Pure functions exposed as MCP tools because the agent calls them.</li>
+    </ul>
+
+    <h3>Adding a new tool</h3>
+    <ol>
+      <li>Create <code>tool/&lt;name&gt;.ts</code> exporting a <code>Tool</code>.</li>
+      <li>Import and register it in <code>mcp/index.ts</code> (<code>browserTools</code> array).</li>
+      <li>If file-only, add the tool name to the <code>fileOnlyTools</code> set in the same file. If pure-compute, add it to <code>pureComputeTools</code>.</li>
+      <li>Add a <code>tool/&lt;name&gt;.test.ts</code> — the existing tests are the best reference for fixture handling and skip behaviour.</li>
+    </ol>
+    <p>If your tool needs to be callable from a slash command, also list it in the <code>allowed-tools</code> frontmatter of the relevant <code>plugin/commands/*.md</code> file as <code>MCP(bu/&lt;name&gt;)</code>.</p>
+
+    <hr class="section-divider">
+
+    <h2>Anatomy of a command</h2>
+    <p>
+      Slash commands are markdown files in <code>plugin/commands/</code>. Each one starts with
+      YAML frontmatter and is followed by free-form instructions Claude reads as the agent's
+      brief for the duration of the command. The frontmatter looks like this:
+    </p>
+    <pre><code>---
+disable-model-invocation: true
+description: One-line summary that shows up in Claude Code's command picker
+allowed-tools: Read, Glob, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click)
+---</code></pre>
+    <p>
+      <code>allowed-tools</code> is the security boundary. The agent cannot call MCP tools that
+      aren't listed here, even if they're registered on the server.
+      <code>disable-model-invocation: true</code> means the command runs only when the user
+      explicitly invokes it.
+    </p>
+
+    <h3>Adding a new command</h3>
+    <ol>
+      <li>Create <code>plugin/commands/&lt;name&gt;.md</code>.</li>
+      <li>Decide which MCP tools it needs and list them in <code>allowed-tools</code>.</li>
+      <li>Write the body as instructions to Claude — preflight, inputs, execution, outputs, failure modes. Use the existing commands (<code>explore.md</code>, <code>document.md</code>, <code>do.md</code>) as references.</li>
+      <li><code>make reinstall</code> picks up the new command.</li>
+    </ol>
+
+    <hr class="section-divider">
+
+    <h2>Working on the extension</h2>
+
+    <h3>Build &amp; load</h3>
+    <pre><code>npm run build:extension</code></pre>
+    <p>Then in Chrome:</p>
+    <ol>
+      <li>Open <code>chrome://extensions</code></li>
+      <li>Enable <strong>Developer mode</strong> (top-right toggle)</li>
+      <li><strong>Load unpacked</strong> → select <code>dist/extension/</code></li>
+    </ol>
+    <p>This is a one-time step; Chrome remembers the extension across restarts.</p>
+
+    <h3>Watch mode</h3>
+    <p>Start Chrome with remote debugging so the watcher can trigger reloads over CDP:</p>
+    <pre><code>npm run chrome             # opens Chrome with --remote-debugging-port=9222
+npm run dev:extension      # rebuilds + reloads on every save in extension/</code></pre>
+    <p>
+      If Chrome was already open, quit it first — <code>--remote-debugging-port</code> is a startup
+      flag and is ignored on a running instance.
+    </p>
+
+    <h3>Adding an extension command</h3>
+    <p>
+      The extension's <code>background.ts</code> dispatches incoming WebSocket messages to
+      handlers backed by <code>playwright-crx</code>. Adding a new command is three steps:
+    </p>
+    <ol>
+      <li>Add a case to the dispatcher in <code>extension/background.ts</code>.</li>
+      <li>Add a corresponding wrapper in <code>mcp/crx-client.ts</code> (or just call <code>crxClient.execute(name, args)</code> directly from the tool).</li>
+      <li>Implement the tool on the Node side (so the same tool works in default Playwright mode too).</li>
+    </ol>
+    <p>For full extension docs see <a href="chrome-extension.html">Chrome extension</a> and <a href="session-mode.html">Session mode</a>.</p>
+
+    <hr class="section-divider">
+
+    <h2>Working on the viewer</h2>
+    <p>
+      The viewer is a React + Vite app that turns a recorded run into a navigable timeline.
+      It reads from a small JSON database produced by <code>viewer/ingest.ts</code>.
+    </p>
+    <pre><code>npm run viewer:ingest      # ingests every run from .brow-use/runs.json
+npm run viewer:dev         # starts vite dev server</code></pre>
+    <p>
+      The ingester correlates the trace zip's action stream with the aria log, the reasoning
+      log, and per-step screenshots, then emits a single JSON file the React app loads on the
+      client. Re-run <code>viewer:ingest</code> after a new <code>/bu:explore</code> or
+      <code>/bu:do</code> run to refresh the data.
+    </p>
+
+    <hr class="section-divider">
+
+    <h2>Coding conventions</h2>
+    <ul>
+      <li><strong>File naming:</strong> kebab-case for TS/JS files, one module per concept.</li>
+      <li><strong>Folders:</strong> singular by component name (<code>tool/</code>, <code>repository/</code>, <code>domain/</code>), grouped by responsibility per the layered conventions in <code>CLAUDE.md</code>.</li>
+      <li><strong>Comments:</strong> default to none. Add only when the <em>why</em> is non-obvious.</li>
+      <li><strong>Defensive code:</strong> avoid null/undefined guards in internal code. Validate at the system boundary (tool inputs, network responses) only.</li>
+      <li><strong>Tests:</strong> live next to source as <code>*.test.ts</code>. Use real artifacts from <code>output/</code> via <code>fs.symlinkSync</code> when possible — fixture-free tests are unrealistic.</li>
+    </ul>
+
+    <hr class="section-divider">
+
+    <h2>Common dev workflows</h2>
+
+    <h3>Iterating on a tool</h3>
+    <p>
+      Edit <code>tool/&lt;name&gt;.ts</code> → run <code>npm test</code> for fast feedback. When
+      ready end-to-end, restart Claude Code (or run <code>make reinstall</code>) so the MCP
+      server is rebuilt.
+    </p>
+
+    <h3>Iterating on a command</h3>
+    <p>
+      Edit the markdown file in <code>plugin/commands/</code>. Restart Claude Code so the new
+      file is picked up. No build required for command changes — they're plain markdown.
+    </p>
+
+    <h3>Iterating on the extension</h3>
+    <p>
+      <code>npm run chrome</code> then <code>npm run dev:extension</code> in a separate terminal.
+      Save → reload happens automatically. The extension's WebSocket auto-reconnects every 3s
+      so the MCP server can come and go independently.
+    </p>
+
+    <h3>Iterating on the viewer</h3>
+    <p>
+      <code>npm run viewer:dev</code>. Re-run <code>npm run viewer:ingest</code> when the
+      underlying run data changes.
+    </p>
+
+    <hr class="section-divider">
+
+    <h2>Where to look next</h2>
+    <div class="card-grid">
+      <a class="card" href="architecture.html">
+        <div class="card-title">Architecture</div>
+        <p class="card-desc">Layer model, mode comparison, and the run database schema.</p>
+      </a>
+      <a class="card" href="chrome-extension.html">
+        <div class="card-title">Chrome extension internals</div>
+        <p class="card-desc">Permissions, supported commands, connection lifecycle.</p>
+      </a>
+      <a class="card" href="session-mode.html">
+        <div class="card-title">Session mode internals</div>
+        <p class="card-desc">WebSocket bridge, mode switching, tracing in CRX mode.</p>
+      </a>
+      <a class="card" href="user-guide.html">
+        <div class="card-title">User guide</div>
+        <p class="card-desc">Use the plugin end-to-end before touching the source.</p>
+      </a>
+    </div>
+
+  </main>
+
+  <footer class="site-footer">
+    brow-use · a Claude Code plugin · <a href="https://github.com/brow-use/spike" target="_blank" rel="noopener">source</a>
+  </footer>
+
+</body>
+</html>

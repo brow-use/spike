@@ -2,134 +2,123 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Chrome extension — brow-use docs</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 24px 60px; line-height: 1.7; background: #0d1117; color: #c9d1d9; }
-    h1 { font-size: 1.6rem; border-bottom: 1px solid #21262d; padding-bottom: 14px; margin-bottom: 8px; color: #e6edf3; }
-    h2 { font-size: 0.8rem; margin-top: 44px; margin-bottom: 10px; color: #e6edf3; text-transform: uppercase; letter-spacing: 0.06em; }
-    p { margin: 10px 0; color: #8b949e; font-size: 0.95rem; }
-    ul { margin: 8px 0; padding-left: 22px; color: #8b949e; font-size: 0.95rem; }
-    li { margin: 6px 0; }
-    code { font-family: ui-monospace, monospace; font-size: 0.875em; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 6px; color: #d2a8ff; }
-    pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 18px 20px; overflow-x: auto; margin: 14px 0; }
-    pre code { background: none; border: none; padding: 0; color: #c9d1d9; font-size: 0.85em; }
-    .subtitle { color: #8b949e; font-size: 0.95rem; margin-top: 4px; }
-    .section-divider { border: none; border-top: 1px solid #21262d; margin: 40px 0; }
-    a { color: #58a6ff; }
-    nav { margin-bottom: 32px; font-size: 0.85rem; color: #8b949e; }
-    nav a { color: #58a6ff; text-decoration: none; }
-    .callout { background: #161b22; border: 1px solid #30363d; border-left: 3px solid #d29922; border-radius: 6px; padding: 14px 18px; margin: 16px 0; font-size: 0.875rem; color: #8b949e; }
-    .step { display: flex; gap: 14px; margin: 14px 0; }
-    .step-num { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #388bfd; color: #0d1117; font-size: 0.75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
-    .step-body { flex: 1; font-size: 0.9rem; color: #8b949e; }
-    .step-body strong { color: #c9d1d9; }
-    .command-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.875rem; }
-    .command-table th { text-align: left; padding: 8px 14px; background: #161b22; color: #8b949e; font-weight: 500; border-bottom: 1px solid #30363d; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    .command-table td { padding: 10px 14px; border-bottom: 1px solid #21262d; color: #8b949e; vertical-align: top; }
-    .command-table td:first-child { font-family: ui-monospace, monospace; font-size: 0.825rem; color: #c9d1d9; white-space: nowrap; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chrome extension — brow-use</title>
+  <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
 
-  <nav><a href="index.html">← docs</a></nav>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html"><span class="brand-mark"></span> brow-use</a>
+      <nav class="site-nav">
+        <a href="index.html">Product</a>
+        <a href="architecture.html" class="active">Architecture</a>
+        <a href="user-guide.html">User guide</a>
+        <a href="developer-guide.html">Developer guide</a>
+        <a class="gh" href="https://github.com/brow-use/spike" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
 
-  <h1>Chrome extension</h1>
-  <p class="subtitle">MV3 WebSocket proxy that routes Playwright commands into your real Chrome session</p>
+  <main class="page">
 
-  <hr class="section-divider">
+    <div class="eyebrow"><a href="architecture.html" style="color: inherit;">← Architecture</a></div>
+    <h1>Chrome extension</h1>
+    <p class="subtitle">MV3 WebSocket proxy that routes Playwright commands into your real Chrome session.</p>
 
-  <h2>What it does</h2>
-  <p>
-    The brow-use extension is a Manifest V3 Chrome extension that connects your real Chrome browser to the brow-use MCP server. It opens a persistent WebSocket connection to the server on port <code>3456</code> and listens for browser commands. When a command arrives, it executes it against your active Chrome tab using <a href="https://github.com/ruifigueira/playwright-crx" target="_blank">playwright-crx</a> — a full Playwright API backed by <code>chrome.debugger</code> instead of a separate browser process.
-  </p>
-  <p>
-    This is what makes <a href="session-mode.html">session mode</a> possible: commands run inside your existing Chrome profile with your login state, cookies, and storage intact.
-  </p>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>What it does</h2>
+    <p>
+      The brow-use extension is a Manifest V3 Chrome extension that connects your real Chrome
+      browser to the brow-use MCP server. It opens a persistent WebSocket connection to the
+      server on port <code>3456</code> and listens for browser commands. When a command arrives,
+      it executes it against your active Chrome tab using
+      <a href="https://github.com/ruifigueira/playwright-crx" target="_blank" rel="noopener">playwright-crx</a> —
+      a full Playwright API backed by <code>chrome.debugger</code> instead of a separate browser
+      process.
+    </p>
+    <p>
+      This is what makes <a href="session-mode.html">session mode</a> possible: commands run
+      inside your existing Chrome profile with your login state, cookies, and storage intact.
+    </p>
 
-  <h2>Permissions</h2>
-  <ul>
-    <li><code>activeTab</code> — act on the currently focused tab</li>
-    <li><code>scripting</code> — inject command dispatch into page context</li>
-    <li><code>tabs</code> — query tab state and attach to specific tabs</li>
-    <li><code>debugger</code> — required by playwright-crx to attach the Playwright protocol</li>
-    <li><code>&lt;all_urls&gt;</code> — operate on any page regardless of origin</li>
-  </ul>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>Permissions</h2>
+    <ul>
+      <li><code>activeTab</code> — act on the currently focused tab</li>
+      <li><code>scripting</code> — inject command dispatch into page context</li>
+      <li><code>tabs</code> — query tab state and attach to specific tabs</li>
+      <li><code>debugger</code> — required by playwright-crx to attach the Playwright protocol</li>
+      <li><code>&lt;all_urls&gt;</code> — operate on any page regardless of origin</li>
+    </ul>
 
-  <h2>Supported commands</h2>
-  <table class="command-table">
-    <thead>
-      <tr>
-        <th>Command type</th>
-        <th>What it does</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr><td>navigate</td><td>Navigate the active tab to a URL, waits for <code>domcontentloaded</code></td></tr>
-      <tr><td>click</td><td>Click an element by CSS selector</td></tr>
-      <tr><td>type</td><td>Fill an input field by CSS selector</td></tr>
-      <tr><td>get_accessibility_tree</td><td>Return an ARIA snapshot of the page body</td></tr>
-      <tr><td>snapshot</td><td>Capture a PNG screenshot, returned as base64</td></tr>
-      <tr><td>start_trace</td><td>Begin a Playwright trace (screenshots, DOM snapshots, sources)</td></tr>
-      <tr><td>stop_trace</td><td>Stop the trace and send the <code>.zip</code> bytes back to the server</td></tr>
-      <tr><td>clear_session</td><td>Clear cookies, localStorage, and sessionStorage for the active tab</td></tr>
-    </tbody>
-  </table>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>Supported commands</h2>
+    <table class="spec">
+      <thead>
+        <tr><th style="width: 220px;">Command</th><th>What it does</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>navigate</td><td>Navigate the active tab to a URL, waits for <code>domcontentloaded</code></td></tr>
+        <tr><td>click</td><td>Click an element by CSS selector</td></tr>
+        <tr><td>type</td><td>Fill an input field by CSS selector</td></tr>
+        <tr><td>get_accessibility_tree</td><td>Return an ARIA snapshot of the page body</td></tr>
+        <tr><td>snapshot</td><td>Capture a PNG screenshot, returned as base64</td></tr>
+        <tr><td>start_trace</td><td>Begin a Playwright trace (screenshots, DOM snapshots, sources)</td></tr>
+        <tr><td>stop_trace</td><td>Stop the trace and send the <code>.zip</code> bytes back to the server</td></tr>
+        <tr><td>clear_session</td><td>Clear cookies, localStorage, and sessionStorage for the active tab</td></tr>
+      </tbody>
+    </table>
 
-  <h2>Connection lifecycle</h2>
-  <p>
-    The extension's service worker connects to <code>ws://localhost:3456</code> on startup. If the connection drops — because the MCP server hasn't started yet or restarted — it retries automatically every 3 seconds. No manual reconnect is needed.
-  </p>
-  <p>
-    The popup shows connection status: <strong>Connected to brow-use server</strong> when the WebSocket handshake succeeds, or <strong>Server not running</strong> if the MCP server is not reachable.
-  </p>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>Connection lifecycle</h2>
+    <p>
+      The extension's service worker connects to <code>ws://localhost:3456</code> on startup. If
+      the connection drops — because the MCP server hasn't started yet or restarted — it retries
+      automatically every 3 seconds. No manual reconnect is needed.
+    </p>
+    <p>
+      The popup shows connection status: <strong>Connected to brow-use server</strong> when the
+      WebSocket handshake succeeds, or <strong>Server not running</strong> if the MCP server is
+      not reachable.
+    </p>
 
-  <h2>Build and load</h2>
+    <hr class="section-divider">
 
-  <h2>1 — Build</h2>
-  <pre><code>npm run build</code></pre>
-  <p>Outputs the compiled extension to <code>dist/extension/</code>.</p>
+    <h2>Build and load</h2>
 
-  <h2>2 — Load in Chrome</h2>
-  <div class="step">
-    <div class="step-num">1</div>
-    <div class="step-body">Open <strong>chrome://extensions</strong></div>
-  </div>
-  <div class="step">
-    <div class="step-num">2</div>
-    <div class="step-body">Enable <strong>Developer mode</strong> (toggle, top-right)</div>
-  </div>
-  <div class="step">
-    <div class="step-num">3</div>
-    <div class="step-body">Click <strong>Load unpacked</strong> and select the <code>dist/extension/</code> directory</div>
-  </div>
-  <div class="callout">
-    This is a one-time step. Chrome remembers the extension across restarts.
-  </div>
+    <h3>1 — Build</h3>
+    <pre><code>npm run build</code></pre>
+    <p>Outputs the compiled extension to <code>dist/extension/</code>.</p>
 
-  <h2>Development — watch mode</h2>
-  <p>
-    Enable remote debugging so the watcher can trigger reloads over CDP:
-  </p>
-  <pre><code>npm run chrome</code></pre>
-  <p>
-    If Chrome is already open, quit it first — <code>--remote-debugging-port</code> is a startup flag and is ignored if Chrome is already running.
-  </p>
-  <p>
-    Then in a second terminal, start the watcher:
-  </p>
-  <pre><code>npm run dev:extension</code></pre>
-  <p>
-    On each <code>.ts</code> save in <code>extension/</code>, the watcher rebuilds and calls <code>chrome.runtime.reload()</code> via CDP — no manual refresh at <code>chrome://extensions</code>.
-  </p>
+    <h3>2 — Load in Chrome</h3>
+    <ol>
+      <li>Open <strong>chrome://extensions</strong></li>
+      <li>Enable <strong>Developer mode</strong> (toggle, top-right)</li>
+      <li>Click <strong>Load unpacked</strong> and select <code>dist/extension/</code></li>
+    </ol>
+    <div class="callout info">
+      This is a one-time step. Chrome remembers the extension across restarts.
+    </div>
+
+    <h3>Watch mode</h3>
+    <p>Enable remote debugging so the watcher can trigger reloads over CDP:</p>
+    <pre><code>npm run chrome</code></pre>
+    <p>If Chrome is already open, quit it first — <code>--remote-debugging-port</code> is a startup flag and is ignored if Chrome is already running.</p>
+    <p>Then in a second terminal, start the watcher:</p>
+    <pre><code>npm run dev:extension</code></pre>
+    <p>On each <code>.ts</code> save in <code>extension/</code>, the watcher rebuilds and calls <code>chrome.runtime.reload()</code> via CDP — no manual refresh at <code>chrome://extensions</code>.</p>
+
+  </main>
+
+  <footer class="site-footer">
+    brow-use · a Claude Code plugin · <a href="https://github.com/brow-use/spike" target="_blank" rel="noopener">source</a>
+  </footer>
 
 </body>
 </html>

@@ -2,217 +2,174 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Session mode — brow-use docs</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 24px 60px; line-height: 1.7; background: #0d1117; color: #c9d1d9; }
-    h1 { font-size: 1.6rem; border-bottom: 1px solid #21262d; padding-bottom: 14px; margin-bottom: 8px; color: #e6edf3; }
-    h2 { font-size: 0.8rem; margin-top: 44px; margin-bottom: 10px; color: #e6edf3; text-transform: uppercase; letter-spacing: 0.06em; }
-    p { margin: 10px 0; color: #8b949e; font-size: 0.95rem; }
-    ul, ol { margin: 8px 0; padding-left: 22px; color: #8b949e; font-size: 0.95rem; }
-    li { margin: 6px 0; }
-    code { font-family: ui-monospace, monospace; font-size: 0.875em; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 6px; color: #d2a8ff; }
-    pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 18px 20px; overflow-x: auto; margin: 14px 0; }
-    pre code { background: none; border: none; padding: 0; color: #c9d1d9; font-size: 0.85em; }
-    .subtitle { color: #8b949e; font-size: 0.95rem; margin-top: 4px; }
-    .section-divider { border: none; border-top: 1px solid #21262d; margin: 40px 0; }
-    a { color: #58a6ff; }
-    nav { margin-bottom: 32px; font-size: 0.85rem; color: #8b949e; }
-    nav a { color: #58a6ff; text-decoration: none; }
-    .comparison-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.875rem; }
-    .comparison-table th { text-align: left; padding: 8px 14px; background: #161b22; color: #8b949e; font-weight: 500; border-bottom: 1px solid #30363d; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    .comparison-table td { padding: 10px 14px; border-bottom: 1px solid #21262d; color: #8b949e; vertical-align: top; }
-    .comparison-table td:first-child { font-family: ui-monospace, monospace; font-size: 0.825rem; color: #c9d1d9; white-space: nowrap; }
-    .yes { color: #56d364; }
-    .no { color: #f85149; }
-    .partial { color: #e3b341; }
-    .callout { background: #161b22; border: 1px solid #30363d; border-left: 3px solid #d29922; border-radius: 6px; padding: 14px 18px; margin: 16px 0; font-size: 0.875rem; color: #8b949e; }
-    .callout code { font-size: 0.8em; }
-    .step { display: flex; gap: 14px; margin: 14px 0; }
-    .step-num { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #388bfd; color: #0d1117; font-size: 0.75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
-    .step-body { flex: 1; font-size: 0.9rem; color: #8b949e; }
-    .step-body strong { color: #c9d1d9; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Session mode — brow-use</title>
+  <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
 
-  <nav><a href="index.html">← docs</a></nav>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html"><span class="brand-mark"></span> brow-use</a>
+      <nav class="site-nav">
+        <a href="index.html">Product</a>
+        <a href="architecture.html" class="active">Architecture</a>
+        <a href="user-guide.html">User guide</a>
+        <a href="developer-guide.html">Developer guide</a>
+        <a class="gh" href="https://github.com/brow-use/spike" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
 
-  <h1>Session mode</h1>
-  <p class="subtitle">Automate your real Chrome session — logged-in state, cookies, real profile</p>
+  <main class="page">
 
-  <hr class="section-divider">
+    <div class="eyebrow"><a href="architecture.html" style="color: inherit;">← Architecture</a></div>
+    <h1>Session mode</h1>
+    <p class="subtitle">Automate your real Chrome session — logged-in state, cookies, real profile.</p>
 
-  <h2>The problem it solves</h2>
-  <p>
-    By default, brow-use launches a fresh Chromium instance managed by Playwright. That browser has
-    no cookies, no saved credentials, and no extensions. Every run starts from a blank slate. For
-    publicly accessible pages this is fine. For anything behind a login it means re-authenticating
-    on every run — or building a login workflow before you can test anything else.
-  </p>
-  <p>
-    Session mode solves this by routing automation through your real Chrome browser via the brow-use
-    extension and <a href="https://github.com/ruifigueira/playwright-crx" target="_blank">playwright-crx</a>.
-    The extension attaches Playwright to your existing tab using
-    <code>chrome.debugger</code>. You are already logged in. Cookies, storage, and profile state are
-    all present. The agent operates on the same browser you use every day.
-  </p>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>The problem it solves</h2>
+    <p>
+      By default, brow-use launches a fresh Chromium instance managed by Playwright. That browser
+      has no cookies, no saved credentials, and no extensions. Every run starts from a blank
+      slate. For publicly accessible pages this is fine. For anything behind a login it means
+      re-authenticating on every run — or building a login workflow before you can test
+      anything else.
+    </p>
+    <p>
+      Session mode solves this by routing automation through your real Chrome browser via the
+      brow-use extension and
+      <a href="https://github.com/ruifigueira/playwright-crx" target="_blank" rel="noopener">playwright-crx</a>.
+      The extension attaches Playwright to your existing tab using <code>chrome.debugger</code>.
+      You are already logged in. Cookies, storage, and profile state are all present. The agent
+      operates on the same browser you use every day.
+    </p>
 
-  <h2>Mode comparison</h2>
-  <table class="comparison-table">
-    <thead>
-      <tr>
-        <th>Capability</th>
-        <th>Mode 1 — default</th>
-        <th>Mode 2 — session</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Browser</td>
-        <td>Fresh Chromium launched by Playwright</td>
-        <td>Your real Chrome with your profile</td>
-      </tr>
-      <tr>
-        <td>Login state</td>
-        <td class="no">None — must authenticate each run</td>
-        <td class="yes">Present — already logged in</td>
-      </tr>
-      <tr>
-        <td>Cookies &amp; storage</td>
-        <td class="no">Empty</td>
-        <td class="yes">Your real session data</td>
-      </tr>
-      <tr>
-        <td>Playwright trace fidelity</td>
-        <td class="yes">Full — action attribution, DOM snapshots, network</td>
-        <td class="yes">Full — same format, same viewer</td>
-      </tr>
-      <tr>
-        <td>Accessibility tree</td>
-        <td class="yes">Full</td>
-        <td class="yes">Full</td>
-      </tr>
-      <tr>
-        <td>Agent harness</td>
-        <td>Claude Code (unchanged)</td>
-        <td>Claude Code (unchanged)</td>
-      </tr>
-      <tr>
-        <td>Visible indicator</td>
-        <td>Separate browser window appears</td>
-        <td>Yellow "DevTools is debugging" banner</td>
-      </tr>
-    </tbody>
-  </table>
-  <p>
-    The agent harness, MCP tools, and output format are identical in both modes. The only difference
-    is where the automation runs and what session state is available.
-  </p>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>Mode comparison</h2>
+    <table class="spec">
+      <thead>
+        <tr>
+          <th style="width: 180px;">Capability</th>
+          <th>Mode 1 — default</th>
+          <th>Mode 2 — session</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Browser</td>
+          <td>Fresh Chromium launched by Playwright</td>
+          <td>Your real Chrome with your profile</td>
+        </tr>
+        <tr>
+          <td>Login state</td>
+          <td class="no">None — must authenticate each run</td>
+          <td class="yes">Present — already logged in</td>
+        </tr>
+        <tr>
+          <td>Cookies &amp; storage</td>
+          <td class="no">Empty</td>
+          <td class="yes">Your real session data</td>
+        </tr>
+        <tr>
+          <td>Trace fidelity</td>
+          <td class="yes">Full — action attribution, DOM snapshots, network</td>
+          <td class="yes">Full — same format, same viewer</td>
+        </tr>
+        <tr>
+          <td>Accessibility tree</td>
+          <td class="yes">Full</td>
+          <td class="yes">Full</td>
+        </tr>
+        <tr>
+          <td>Visible indicator</td>
+          <td>Separate browser window appears</td>
+          <td>Yellow "DevTools is debugging" banner</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>The agent harness, MCP tools, and output format are identical in both modes. The only difference is where the automation runs and what session state is available.</p>
 
-  <h2>How it works</h2>
-  <p>
-    The MCP server runs a WebSocket server on port <code>3456</code>. The brow-use Chrome extension
-    connects to it as a client. When session mode is active, browser tool calls are routed to the
-    extension over this WebSocket rather than to a Playwright-controlled browser.
-  </p>
-  <p>
-    Inside the extension, <a href="https://github.com/ruifigueira/playwright-crx" target="_blank">playwright-crx</a>
-    provides a full Playwright API backed by <code>chrome.debugger</code> instead of the normal
-    Playwright transport. The extension executes each command — click, type, navigate, accessibility
-    tree, screenshot, trace start/stop — on the active Chrome tab and returns the result over
-    WebSocket.
-  </p>
-  <p>
-    File-writing tools (<code>write_page_object</code>, <code>write_workflow</code>, <code>write_test</code>)
-    always run on the Node.js side regardless of mode.
-  </p>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>How it works</h2>
+    <p>
+      The MCP server runs a WebSocket server on port <code>3456</code>. The brow-use Chrome
+      extension connects to it as a client. When session mode is active, browser tool calls are
+      routed to the extension over this WebSocket rather than to a Playwright-controlled browser.
+    </p>
+    <p>
+      Inside the extension,
+      <a href="https://github.com/ruifigueira/playwright-crx" target="_blank" rel="noopener">playwright-crx</a>
+      provides a full Playwright API backed by <code>chrome.debugger</code> instead of the
+      normal Playwright transport. The extension executes each command — click, type, navigate,
+      accessibility tree, screenshot, trace start/stop — on the active Chrome tab and returns
+      the result over WebSocket.
+    </p>
+    <p>File-writing tools (<code>write_page_object</code>, <code>write_workflow</code>, <code>write_test</code>) always run on the Node.js side regardless of mode.</p>
 
-  <h2>Setup</h2>
+    <hr class="section-divider">
 
-  <h2>1 — Build the extension</h2>
-  <pre><code>npm run build</code></pre>
-  <p>
-    This builds both the MCP server (<code>dist/mcp/</code>) and the extension
-    (<code>dist/extension/</code>) in a single step.
-  </p>
+    <h2>Setup</h2>
 
-  <h2>2 — Load the extension in Chrome</h2>
-  <div class="step">
-    <div class="step-num">1</div>
-    <div class="step-body">Open <strong>chrome://extensions</strong></div>
-  </div>
-  <div class="step">
-    <div class="step-num">2</div>
-    <div class="step-body">Enable <strong>Developer mode</strong> (toggle, top-right)</div>
-  </div>
-  <div class="step">
-    <div class="step-num">3</div>
-    <div class="step-body">Click <strong>Load unpacked</strong> and select the <code>dist/extension/</code> directory</div>
-  </div>
-  <div class="step">
-    <div class="step-num">4</div>
-    <div class="step-body">The brow-use icon appears in the toolbar. Click it — it should show <strong>"Connected to brow-use server"</strong> once the MCP server is running.</div>
-  </div>
+    <h3>1 — Build the extension</h3>
+    <pre><code>npm run build</code></pre>
+    <p>This builds both the MCP server (<code>dist/mcp/</code>) and the extension (<code>dist/extension/</code>) in a single step.</p>
 
-  <div class="callout">
-    The extension only needs to be loaded once. After that it reconnects automatically each time the
-    MCP server starts.
-  </div>
+    <h3>2 — Load the extension in Chrome</h3>
+    <ol>
+      <li>Open <strong>chrome://extensions</strong></li>
+      <li>Enable <strong>Developer mode</strong> (toggle, top-right)</li>
+      <li>Click <strong>Load unpacked</strong> and select the <code>dist/extension/</code> directory</li>
+      <li>The brow-use icon appears in the toolbar. Click it — it should show <strong>"Connected to brow-use server"</strong> once the MCP server is running.</li>
+    </ol>
+    <div class="callout info">
+      The extension only needs to be loaded once. After that it reconnects automatically each time the MCP server starts.
+    </div>
 
-  <h2>3 — Switch to session mode</h2>
-  <p>Run the skill from Claude Code:</p>
-  <pre><code>/bu:use-session</code></pre>
-  <p>Or call the tool directly:</p>
-  <pre><code>set_mode({ mode: "crx" })</code></pre>
-  <p>To return to the default Playwright mode:</p>
-  <pre><code>set_mode({ mode: "playwright" })</code></pre>
+    <h3>3 — Switch to session mode</h3>
+    <p>Run the skill from Claude Code:</p>
+    <pre><code>/bu:use-session</code></pre>
+    <p>Or call the tool directly:</p>
+    <pre><code>set_mode({ mode: "crx" })</code></pre>
+    <p>To return to the default Playwright mode:</p>
+    <pre><code>set_mode({ mode: "playwright" })</code></pre>
+    <div class="callout">
+      Mode is per-session. It resets to <code>playwright</code> each time the MCP server restarts.
+    </div>
 
-  <div class="callout">
-    Mode is per-session. It resets to <code>playwright</code> each time the MCP server restarts.
-  </div>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>Tracing in session mode</h2>
+    <p>
+      Traces captured in session mode are identical in format to Mode 1 traces — full action
+      attribution, DOM snapshots at every step, network activity, and screenshots. The trace
+      file is written to <code>output/trace/</code> and is compatible with
+      <code>npx playwright show-trace</code>.
+    </p>
+    <p>
+      The difference: the extension captures the trace internally using playwright-crx, then
+      sends the <code>.zip</code> bytes back to the Node.js server over WebSocket, which writes
+      the file to disk. The result is indistinguishable from a Mode 1 trace.
+    </p>
+    <pre><code>npx playwright show-trace output/trace/&lt;name&gt;-&lt;timestamp&gt;.zip</code></pre>
 
-  <h2>Tracing in session mode</h2>
-  <p>
-    Traces captured in session mode are identical in format to Mode 1 traces — full action attribution,
-    DOM snapshots at every step, network activity, and screenshots. The trace file is written to
-    <code>output/trace/</code> and is compatible with <code>npx playwright show-trace</code>.
-  </p>
-  <p>
-    The difference: the extension captures the trace internally using playwright-crx, then sends the
-    <code>.zip</code> bytes back to the Node.js server over WebSocket, which writes the file to disk.
-    The result is indistinguishable from a Mode 1 trace.
-  </p>
-  <pre><code>npx playwright show-trace output/trace/&lt;name&gt;-&lt;timestamp&gt;.zip</code></pre>
+    <hr class="section-divider">
 
-  <hr class="section-divider">
+    <h2>Notes</h2>
+    <ul>
+      <li><strong>DevTools banner.</strong> Chrome displays a yellow "DevTools is debugging this browser" banner while session mode is active. This is a Chrome security indicator — it is expected and cannot be suppressed.</li>
+      <li><strong>Active tab.</strong> When you run <code>/bu:use-session</code>, the command lists all open tabs and asks you to select one. That tab is pinned for all subsequent automation until you switch modes or select a different tab.</li>
+      <li><strong>Extension rebuild.</strong> If you modify <code>extension/background.ts</code>, re-run <code>npm run build:extension</code> then reload the extension at <code>chrome://extensions</code>.</li>
+    </ul>
 
-  <h2>Notes</h2>
-  <ul>
-    <li>
-      <strong>DevTools banner.</strong> Chrome displays a yellow "DevTools is debugging this browser"
-      banner while session mode is active. This is a Chrome security indicator — it is expected and
-      cannot be suppressed.
-    </li>
-    <li>
-      <strong>Active tab.</strong> When you run <code>/bu:use-session</code>, the command lists all open
-      tabs and asks you to select one. That tab is pinned for all subsequent automation until you switch
-      modes or select a different tab.
-    </li>
-    <li>
-      <strong>Extension rebuild.</strong> If you modify <code>extension/background.ts</code>,
-      re-run <code>npm run build:extension</code> then reload the extension at
-      <code>chrome://extensions</code>.
-    </li>
-  </ul>
+  </main>
+
+  <footer class="site-footer">
+    brow-use · a Claude Code plugin · <a href="https://github.com/brow-use/spike" target="_blank" rel="noopener">source</a>
+  </footer>
 
 </body>
 </html>

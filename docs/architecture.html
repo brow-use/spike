@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Architecture — brow-use</title>
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html"><span class="brand-mark"></span> brow-use</a>
+      <nav class="site-nav">
+        <a href="index.html">Product</a>
+        <a href="architecture.html" class="active">Architecture</a>
+        <a href="user-guide.html">User guide</a>
+        <a href="developer-guide.html">Developer guide</a>
+        <a class="gh" href="https://github.com/brow-use/spike" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+
+    <div class="eyebrow">Architecture</div>
+    <h1>How a prompt becomes browser automation</h1>
+    <p class="subtitle">The agent loop, the MCP server, two execution modes, and the layered command system.</p>
+
+    <hr class="section-divider">
+
+    <h2>The four moving parts</h2>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-eyebrow">claude-code</div>
+        <div class="card-title">Agent</div>
+        <p class="card-desc">Reasons about the scenario, calls MCP tools, observes results, decides the next step. Every command is a markdown file Claude executes verbatim.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">mcp/</div>
+        <div class="card-title">MCP server</div>
+        <p class="card-desc">Long-running Node.js process. Owns the live browser session, exposes ~25 tools, and routes calls to either Playwright or the extension based on mode.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">tool/</div>
+        <div class="card-title">Tools</div>
+        <p class="card-desc">Browser tools (navigate, click, get_accessibility_tree…) and file-only tools (write_page_object, write_feature_doc, record_run…). Each tool is a single TypeScript module.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">extension/</div>
+        <div class="card-title">Chrome extension</div>
+        <p class="card-desc">MV3 extension. Connects to the MCP server via WebSocket and proxies commands into your real Chrome tab using <code>playwright-crx</code>.</p>
+      </div>
+    </div>
+
+    <h2>The agent loop</h2>
+    <p>
+      Every brow-use command is a loop, not a script. Claude reads the current page state via
+      the accessibility tree, decides what to do next based on the command's instructions and the
+      user's intent, calls an action tool, then snapshots the result. The MCP server keeps the
+      browser alive across calls, so each step picks up exactly where the last one left off.
+    </p>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="label">Perceive</div>
+        <div class="name">get_accessibility_tree</div>
+        <div class="detail">Live ARIA snapshot of the current page</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="label">Reason</div>
+        <div class="name">Claude</div>
+        <div class="detail">Pick the next action based on intent + current state</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="label">Act</div>
+        <div class="name">click / type / navigate</div>
+        <div class="detail">Browser state changes</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="label">Record</div>
+        <div class="name">trace + write_*</div>
+        <div class="detail">Trace event recorded; artifacts written when ready</div>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <h2>Two execution modes</h2>
+    <p>
+      The same agent, the same tools, the same outputs — but two different ways the browser
+      commands actually reach a browser.
+    </p>
+
+    <table class="spec">
+      <thead>
+        <tr>
+          <th style="width: 180px;">Capability</th>
+          <th>Mode 1 — Playwright</th>
+          <th>Mode 2 — Session</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Browser</td>
+          <td>Fresh Chromium launched by Playwright</td>
+          <td>Your real Chrome with your profile</td>
+        </tr>
+        <tr>
+          <td>Login state</td>
+          <td class="no">None — must authenticate per run</td>
+          <td class="yes">Already logged in</td>
+        </tr>
+        <tr>
+          <td>Cookies &amp; storage</td>
+          <td class="no">Empty</td>
+          <td class="yes">Real session data</td>
+        </tr>
+        <tr>
+          <td>Trace fidelity</td>
+          <td class="yes">Full</td>
+          <td class="yes">Full — same format, same viewer</td>
+        </tr>
+        <tr>
+          <td>Visible indicator</td>
+          <td>Separate browser window appears</td>
+          <td>Yellow "DevTools is debugging" banner</td>
+        </tr>
+        <tr>
+          <td>Setup</td>
+          <td>Nothing — default mode</td>
+          <td>Build &amp; load the Chrome extension once</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      In session mode the MCP server runs a WebSocket server on port <code>3456</code>. The
+      brow-use extension connects to it as a client. Every browser tool call is forwarded over
+      the socket; the extension executes it via <a href="https://github.com/ruifigueira/playwright-crx" target="_blank" rel="noopener">playwright-crx</a>
+      (a full Playwright API backed by <code>chrome.debugger</code>) and returns the result.
+      File-writing tools always run on the Node side regardless of mode.
+    </p>
+
+    <p>
+      For the architectural diagram of both modes side-by-side, see <a href="diagram.html">the diagram page</a>.
+      For details on the extension itself, see <a href="chrome-extension.html">Chrome extension</a>.
+      For session mode setup, see <a href="session-mode.html">Session mode</a>.
+    </p>
+
+    <hr class="section-divider">
+
+    <h2>The command layers</h2>
+    <p>
+      Commands are organised into layers. Each layer builds on the artifacts produced by the
+      one below it, but every layer is independently runnable — you don't have to do
+      <code>/bu:explore</code> to use <code>/bu:record-page-objects</code>, and you don't have to
+      generate Page Objects to run <code>/bu:do</code>.
+    </p>
+
+    <h3><span class="layer-pill layer-1">Layer 1</span> &nbsp; Live capture</h3>
+    <p>
+      Drive the browser to capture raw artifacts: traces, aria-tree logs, screenshots. The user
+      describes intent; the agent executes it.
+    </p>
+    <ul>
+      <li><code>/bu:explore</code> — walk the app autonomously, breadth-first, with loop detection.</li>
+      <li><code>/bu:run</code> — carry out a one-off plain-English intent and record it.</li>
+      <li><code>/bu:record-page-objects</code> — walk a specific scenario and emit POMs as the run finishes.</li>
+      <li><code>/bu:record-workflow</code> — record a flow and write it as a reusable function.</li>
+    </ul>
+
+    <h3><span class="layer-pill layer-2">Layer 2</span> &nbsp; Deterministic post-processing</h3>
+    <p>
+      Read trace zips and turn them into queryable artifacts. No browser, no LLM — pure shell
+      and TypeScript so the same trace always produces the same output.
+    </p>
+    <ul>
+      <li><code>make extract SESSION=&lt;id&gt;</code> — extract aria-tree log + per-step screenshots from a trace.</li>
+      <li>The viewer ingester — turns trace + sidecar + reasoning logs into the run-viewer database.</li>
+    </ul>
+
+    <h3><span class="layer-pill layer-3">Layer 3</span> &nbsp; Knowledge generation</h3>
+    <p>
+      Take Layer 1 + Layer 2 artifacts and produce human and machine knowledge: docs the user
+      reads and Page Objects tests can import.
+    </p>
+    <ul>
+      <li><code>/bu:document</code> — feature docs + a page-transitions index, scoped per explore run.</li>
+      <li><code>/bu:generate-page-objects</code> — typed POMs from the aria log; uses observed-edges to type navigation methods.</li>
+    </ul>
+
+    <h3><span class="layer-pill layer-4">Layer 4</span> &nbsp; Grounded execution</h3>
+    <p>
+      With docs and POMs in place, run business-level intents against the app — grounded in the
+      knowledge layer below, falling back to the raw artifacts when needed.
+    </p>
+    <ul>
+      <li><code>/bu:do</code> — extract data, follow a flow, satisfy an intent. Output in the format you ask for.</li>
+      <li><code>/bu:run-workflow</code> — run a recorded workflow function against the live app.</li>
+    </ul>
+
+    <hr class="section-divider">
+
+    <h2>The run database</h2>
+    <p>
+      Every command that drives the browser ends with a <code>record_run</code> call. The result
+      is appended to <code>.brow-use/runs.json</code> — a flat JSON array, one entry per run, that
+      captures:
+    </p>
+    <ul>
+      <li><strong>Identity</strong> — sessionId, command, app, mode, timestamps.</li>
+      <li><strong>Outcome</strong> — pages visited, termination reason, records extracted, intent.</li>
+      <li><strong>Artifacts</strong> — paths to the trace, aria log, docs folder, result file.</li>
+    </ul>
+    <p>
+      Downstream commands like <code>/bu:document</code> and <code>/bu:generate-page-objects</code>
+      read <code>runs.json</code> as their list of available source runs. The user picks one and
+      the command resolves all paths from the entry.
+    </p>
+
+    <h2>Observability</h2>
+    <p>
+      Every long-running command additionally writes to <code>output/reasoning/&lt;sessionId&gt;.jsonl</code>
+      via the <code>log_reasoning</code> tool — one line per non-obvious decision (<em>plan</em>,
+      <em>decision</em>, <em>observation</em>, <em>error</em>). This is the audit trail you read
+      after the fact to understand <em>why</em> the agent did what it did, separate from the
+      trace's <em>what</em>.
+    </p>
+    <p>
+      The <code>viewer/</code> app stitches all of this together: trace + sidecar +
+      reasoning + aria log → a navigable timeline of the run with screenshots, decisions, and
+      navigation edges side by side.
+    </p>
+
+    <hr class="section-divider">
+
+    <h2>Dive deeper</h2>
+    <div class="card-grid">
+      <a class="card" href="diagram.html">
+        <div class="card-title">Architecture diagrams</div>
+        <p class="card-desc">SVG flow for both execution modes — agent, MCP server, browser, outputs.</p>
+      </a>
+      <a class="card" href="chrome-extension.html">
+        <div class="card-title">Chrome extension</div>
+        <p class="card-desc">The MV3 extension that proxies Playwright calls into your real Chrome tab.</p>
+      </a>
+      <a class="card" href="session-mode.html">
+        <div class="card-title">Session mode</div>
+        <p class="card-desc">Deeper detail on the WebSocket bridge, mode comparison, and tracing in CRX mode.</p>
+      </a>
+      <a class="card" href="developer-guide.html">
+        <div class="card-title">Developer guide</div>
+        <p class="card-desc">Build, run, and extend the MCP server, the extension, or the command set.</p>
+      </a>
+    </div>
+
+  </main>
+
+  <footer class="site-footer">
+    brow-use · a Claude Code plugin · <a href="https://github.com/brow-use/spike" target="_blank" rel="noopener">source</a>
+  </footer>
+
+</body>
+</html>

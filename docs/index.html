@@ -2,74 +2,179 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>brow-use docs</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 24px 60px; line-height: 1.7; background: #0d1117; color: #c9d1d9; }
-    h1 { font-size: 1.6rem; border-bottom: 1px solid #21262d; padding-bottom: 14px; margin-bottom: 8px; color: #e6edf3; }
-    h2 { font-size: 0.8rem; margin-top: 44px; margin-bottom: 10px; color: #e6edf3; text-transform: uppercase; letter-spacing: 0.06em; }
-    p { margin: 10px 0; color: #8b949e; font-size: 0.95rem; }
-    .subtitle { color: #8b949e; font-size: 0.95rem; margin-top: 4px; }
-    .section-divider { border: none; border-top: 1px solid #21262d; margin: 40px 0; }
-    .card-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
-    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 18px 22px; text-decoration: none; color: inherit; display: block; transition: border-color 0.15s; }
-    .card:hover { border-color: #58a6ff; }
-    .card-title { font-size: 1rem; font-weight: 600; color: #e6edf3; font-family: ui-monospace, monospace; }
-    .card-desc { font-size: 0.85rem; color: #8b949e; margin-top: 4px; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>brow-use — Browser automation & test generation for Claude Code</title>
+  <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
 
-  <h1>brow-use</h1>
-  <p class="subtitle">Browser automation plugin for Claude Code</p>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html"><span class="brand-mark"></span> brow-use</a>
+      <nav class="site-nav">
+        <a href="index.html" class="active">Product</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="user-guide.html">User guide</a>
+        <a href="developer-guide.html">Developer guide</a>
+        <a class="gh" href="https://github.com/brow-use/spike" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
 
-  <hr class="section-divider">
+  <main class="page">
 
-  <h2>What it solves</h2>
-  <p>Writing Playwright tests requires Page Object Model classes — one per page, with locators and action methods for every interactive element. Writing these by hand means opening the app, inspecting the DOM, copying selectors, and structuring the class yourself. It is mechanical work that takes time and produces results that vary in quality.</p>
-  <p>This plugin replaces that process. You describe a scenario, the agent walks through it in a real browser, reads the accessibility tree at every step, and generates the page object classes for you — with stable accessible selectors, typed navigation between pages, and idempotent updates when you run it again.</p>
+    <section class="hero">
+      <div class="eyebrow">Claude Code plugin</div>
+      <h1>Drive a real browser. Generate the tests.</h1>
+      <p class="lead">
+        brow-use is a plugin for Claude Code that turns plain-English scenarios into Playwright
+        Page Objects, reusable workflow functions, and human-readable feature documentation —
+        by walking the application live in a real browser and recording everything it sees.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="user-guide.html">Get started →</a>
+        <a class="btn btn-ghost" href="architecture.html">How it works</a>
+      </div>
+    </section>
 
-  <hr class="section-divider">
+    <hr class="section-divider">
 
-  <h2>Overview</h2>
-  <div class="card-list">
-    <a class="card" href="diagram.html">
-      <div class="card-title">Architecture diagram</div>
-      <div class="card-desc">How a user prompt flows through Claude Code, Playwright, and into generated code.</div>
-    </a>
-  </div>
+    <h2>The problem</h2>
+    <p>
+      Writing browser tests is mostly mechanical. You open the app, inspect the DOM, copy
+      selectors, write a Page Object, write a workflow that uses it, write the test that uses
+      that. Each layer is straightforward in isolation but tedious to assemble — and the result
+      is brittle: a refactor renames a CSS class and a hundred selectors break.
+    </p>
+    <p>
+      LLM coding assistants can write the code, but they can't see the application. They guess
+      selectors from screenshots or stale documentation, and the gap between "looks plausible"
+      and "actually works in the browser" is exactly where time gets lost.
+    </p>
 
-  <h2>Extension</h2>
-  <div class="card-list">
-    <a class="card" href="chrome-extension.html">
-      <div class="card-title">Chrome extension</div>
-      <div class="card-desc">MV3 extension that proxies Playwright commands into your real Chrome session over WebSocket — enables session mode and carries your login state.</div>
-    </a>
-  </div>
+    <h2>What brow-use does</h2>
+    <p>
+      brow-use closes that gap. It gives Claude Code a set of MCP tools that drive a real browser,
+      read the live accessibility tree at every step, and write artifacts to disk. The agent
+      reasons about what to do next using the same accessibility tree your users (and screen
+      readers) see — so the selectors it picks are stable, semantic, and survive UI changes.
+    </p>
 
-  <h2>Execution modes</h2>
-  <div class="card-list">
-    <a class="card" href="session-mode.html">
-      <div class="card-title">Session mode</div>
-      <div class="card-desc">Automate your real Chrome browser with logged-in state, cookies, and real profile — using playwright-crx and the brow-use extension.</div>
-    </a>
-  </div>
+    <div class="card-grid">
 
-  <h2>Commands</h2>
-  <div class="card-list">
-    <a class="card" href="app-management.html">
-      <div class="card-title">App management</div>
-      <div class="card-desc">Register applications, switch the active app, and manage the app catalogue.</div>
-    </a>
-    <a class="card" href="record-page-objects.html">
-      <div class="card-title">/bu:record-page-objects</div>
-      <div class="card-desc">Walk a scenario in the browser and generate typed Page Object Model classes for every page encountered.</div>
-    </a>
-    <a class="card" href="record-workflow.html">
-      <div class="card-title">/bu:record-workflow</div>
-      <div class="card-desc">Record a sequence of browser interactions and write it as a reusable TypeScript async function.</div>
-    </a>
-  </div>
+      <a class="card" href="user-guide.html#explore">
+        <div class="card-eyebrow">/bu:explore</div>
+        <div class="card-title">Map the app autonomously</div>
+        <p class="card-desc">The agent walks the app breadth-first, captures an aria-tree log per page, and records the whole run as a Playwright trace.</p>
+      </a>
+
+      <a class="card" href="user-guide.html#document">
+        <div class="card-eyebrow">/bu:document</div>
+        <div class="card-title">Generate plain-language docs</div>
+        <p class="card-desc">From a single explore run, produce one feature doc per cluster of pages — with embedded screenshots and a page-transitions index.</p>
+      </a>
+
+      <a class="card" href="user-guide.html#generate-page-objects">
+        <div class="card-eyebrow">/bu:generate-page-objects</div>
+        <div class="card-title">Typed Playwright POMs</div>
+        <p class="card-desc">Turn captured exploration data into Page Object Model classes with accessible selectors and typed navigation between pages.</p>
+      </a>
+
+      <a class="card" href="user-guide.html#do">
+        <div class="card-eyebrow">/bu:do</div>
+        <div class="card-title">Execute plain-English intents</div>
+        <p class="card-desc">"Export every Excavating Machine as CSV." The agent grounds in earlier docs/POMs/workflows, drives the browser, and writes the result.</p>
+      </a>
+
+      <a class="card" href="record-page-objects.html">
+        <div class="card-eyebrow">/bu:record-page-objects</div>
+        <div class="card-title">Scenario-driven page objects</div>
+        <p class="card-desc">Walk a specific scenario in the browser; emit one POM per page reached. Idempotent — re-running merges new elements into existing files.</p>
+      </a>
+
+      <a class="card" href="record-workflow.html">
+        <div class="card-eyebrow">/bu:record-workflow</div>
+        <div class="card-title">Reusable workflow functions</div>
+        <p class="card-desc">Record a sequence of interactions as a parameterised TypeScript async function — the composition layer between POMs and tests.</p>
+      </a>
+
+    </div>
+
+    <hr class="section-divider">
+
+    <h2>Why it's different</h2>
+
+    <div class="feature-row">
+      <div class="feature-num">01</div>
+      <div class="feature-body">
+        <h3>Grounded in the live accessibility tree</h3>
+        <p>Every action and every recorded selector is derived from the page's ARIA structure, not from speculation. The output uses <code>getByRole</code>, <code>getByLabel</code>, <code>getByPlaceholder</code> — selectors that survive UI refactors.</p>
+      </div>
+    </div>
+
+    <div class="feature-row">
+      <div class="feature-num">02</div>
+      <div class="feature-body">
+        <h3>Two execution modes — fresh Chromium or your real Chrome</h3>
+        <p>Default mode launches a clean Chromium session via Playwright. <a href="session-mode.html">Session mode</a> routes commands through a Chrome extension into your real, logged-in browser — no test login flow required.</p>
+      </div>
+    </div>
+
+    <div class="feature-row">
+      <div class="feature-num">03</div>
+      <div class="feature-body">
+        <h3>Forensic by default</h3>
+        <p>Every run gets a Playwright trace, an aria-tree log, a per-step screencast, and a row in <code>.brow-use/runs.json</code>. You can audit what the agent actually did, replay it in <code>npx playwright show-trace</code>, or feed it back into a later command.</p>
+      </div>
+    </div>
+
+    <div class="feature-row">
+      <div class="feature-num">04</div>
+      <div class="feature-body">
+        <h3>Idempotent and layered</h3>
+        <p>Commands compose. An <code>/bu:explore</code> run feeds <code>/bu:document</code> and <code>/bu:generate-page-objects</code>. Their outputs feed <code>/bu:do</code> and <code>/bu:record-workflow</code>. Re-running over the same scenario merges results instead of overwriting them.</p>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <h2>What you get</h2>
+    <table class="spec">
+      <thead>
+        <tr><th style="width: 200px;">Artifact</th><th>What it contains</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>output/page/*.ts</td><td>Typed Playwright Page Object classes, one per page reached.</td></tr>
+        <tr><td>output/workflow/*.ts</td><td>Reusable async TypeScript functions for recorded user flows.</td></tr>
+        <tr><td>output/docs/&lt;run&gt;/</td><td>Plain-language feature docs + a <code>page-transitions</code> index.</td></tr>
+        <tr><td>output/exploration/&lt;run&gt;.jsonl</td><td>Aria-tree log — one JSON line per page reached.</td></tr>
+        <tr><td>output/exploration/&lt;run&gt;/page-*.jpg</td><td>Per-step screenshots extracted from the trace screencast.</td></tr>
+        <tr><td>output/trace/*.zip</td><td>Playwright trace (DOM snapshots, screencast, network, action attribution).</td></tr>
+        <tr><td>output/results/&lt;run&gt;/result.&lt;ext&gt;</td><td>Structured data extracted by <code>/bu:do</code> in the format you asked for.</td></tr>
+        <tr><td>.brow-use/runs.json</td><td>Run database — one row per command invocation, with paths to all artifacts.</td></tr>
+      </tbody>
+    </table>
+
+    <hr class="section-divider">
+
+    <h2>Get started</h2>
+    <p>brow-use installs as a plugin into Claude Code. From there, every workflow starts the same way:</p>
+    <pre><code>/bu:apps                    register an app, point it at a URL
+/bu:explore                 walk the app autonomously
+/bu:document                feature docs from the exploration
+/bu:generate-page-objects   typed POMs from the exploration
+/bu:do                      run plain-English intents grounded in the above</code></pre>
+    <p>
+      The <a href="user-guide.html">user guide</a> walks each step end-to-end. If you want to
+      see how the pieces fit together first, head to the
+      <a href="architecture.html">architecture page</a>.
+    </p>
+
+  </main>
+
+  <footer class="site-footer">
+    brow-use · a Claude Code plugin · <a href="https://github.com/brow-use/spike" target="_blank" rel="noopener">source</a>
+  </footer>
 
 </body>
 </html>
