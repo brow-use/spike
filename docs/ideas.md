@@ -29,9 +29,14 @@
 
 ### Level 3
 - do (Depends on the documentation, and falls back to source run data if documentation is not sufficient, and executes user provided instructions)
-- generate-workflow-functions (Generates workflow functions from the documentation and run data. It can also interconnect workflows based on action taken.)
+- generate-workflow-functions (Generates workflow functions from the documentation, run data, and user instructions.)
 
 ## Applications
 - Download website data (e.g. loyalty points statement, airlines booking history, tax returns)
 - Automated functional tests
 - Generate video with screenshots and transcript
+
+## To Do
+- generate page object should interconnect pages based on navigation actions. also should be captured as run data for now.
+- what does where you went next means
+- fix record-workflow-run to support generate workflow functions

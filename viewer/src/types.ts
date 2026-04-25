@@ -55,6 +55,18 @@ export interface Edge {
   isRevisit: boolean
 }
 
+export interface DocEntry {
+  slug: string
+  title: string
+  summary: string
+  content: string
+}
+
+export interface DocsBundle {
+  readme: string
+  entries: DocEntry[]
+}
+
 export interface Bundle {
   sessionId: string
   command: string
@@ -67,6 +79,7 @@ export interface Bundle {
   stats: { eventsByKind: Record<string, number> }
   events: TimelineEvent[]
   edges: Edge[]
+  docs: DocsBundle | null
 }
 
 export interface IndexEntry {

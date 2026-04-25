@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import type { Bundle, IndexEntry, TimelineEvent } from './types.js'
 import { SessionPicker } from './SessionPicker.js'
 import { StepView } from './StepView.js'
+import { DocsView } from './DocsView.js'
 import { DetailPane } from './DetailPane.js'
 import { AriaDiff } from './renderers/AriaDiff.js'
 
@@ -10,6 +11,8 @@ interface SelectedEventRef {
   eventIdx: number
 }
 
+type ViewMode = 'steps' | 'docs'
+
 export default function App() {
   const [index, setIndex] = useState<IndexEntry[] | null>(null)
   const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([])
@@ -17,6 +20,7 @@ export default function App() {
   const [loadingBundles, setLoadingBundles] = useState(false)
   const [selectedEventRef, setSelectedEventRef] = useState<SelectedEventRef | null>(null)
   const [diffPair, setDiffPair] = useState<{ prev: TimelineEvent; curr: TimelineEvent } | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('steps')
 
   useEffect(() => {
     fetch('/data/_index.json')
@@ -37,6 +41,7 @@ export default function App() {
 
   useEffect(() => {
     setSelectedEventRef(null)
+    setViewMode('steps')
     if (selectedSessionIds.length === 0) {
       setBundles([])
       return
@@ -128,11 +133,26 @@ export default function App() {
           </div>
         )}
         {!loadingBundles && bundles.length > 0 && (
-          <StepView
-            bundle={bundles[0]}
-            onSelectEvent={handleEventSelect}
-            selectedKey={selectedKey}
-          />
+          <>
+            <ViewSwitcher
+              mode={viewMode}
+              onChange={setViewMode}
+              hasDocs={!!bundles[0].docs}
+            />
+            {viewMode === 'steps' ? (
+              <StepView
+                bundle={bundles[0]}
+                onSelectEvent={handleEventSelect}
+                selectedKey={selectedKey}
+              />
+            ) : bundles[0].docs ? (
+              <DocsView docs={bundles[0].docs} sessionId={bundles[0].sessionId} />
+            ) : (
+              <div style={{ padding: 16, color: '#888' }}>
+                No docs for this run. Run <code>/bu:document</code> then <code>npm run viewer:ingest</code>.
+              </div>
+            )}
+          </>
         )}
         {!loadingBundles && bundles.length === 0 && selectedSessionIds.length > 0 && (
           <div style={{ padding: 16 }}>
@@ -145,7 +165,7 @@ export default function App() {
           </div>
         )}
       </main>
-      {bundles.length > 0 && (
+      {bundles.length > 0 && viewMode === 'steps' && (
         <DetailPane
           event={selectedEvent}
           eventIdx={selectedEventRef?.eventIdx ?? null}
@@ -171,5 +191,75 @@ export default function App() {
         />
       )}
     </div>
+  )
+}
+
+function ViewSwitcher({
+  mode,
+  onChange,
+  hasDocs,
+}: {
+  mode: ViewMode
+  onChange: (m: ViewMode) => void
+  hasDocs: boolean
+}) {
+  return (
+    <div style={{
+      padding: '8px 16px',
+      borderBottom: '1px solid #eee',
+      background: 'white',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+    }}>
+      <div style={{
+        display: 'inline-flex',
+        border: '1px solid #ccc',
+        borderRadius: 6,
+        overflow: 'hidden',
+      }}>
+        <ViewSwitchButton active={mode === 'steps'} onClick={() => onChange('steps')} divider>Steps</ViewSwitchButton>
+        <ViewSwitchButton
+          active={mode === 'docs'}
+          onClick={() => onChange('docs')}
+          disabled={!hasDocs}
+          title={hasDocs ? '' : 'No docs found for this run — run /bu:document then re-ingest.'}
+        >Docs</ViewSwitchButton>
+      </div>
+    </div>
+  )
+}
+
+function ViewSwitchButton({
+  active,
+  disabled,
+  onClick,
+  title,
+  divider,
+  children,
+}: {
+  active: boolean
+  disabled?: boolean
+  onClick: () => void
+  title?: string
+  divider?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      style={{
+        padding: '5px 14px',
+        border: 'none',
+        borderRight: divider ? '1px solid #ccc' : 'none',
+        background: active ? '#1565c0' : 'white',
+        color: active ? 'white' : (disabled ? '#aaa' : '#333'),
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        fontSize: 13,
+        fontWeight: active ? 600 : 400,
+      }}
+    >{children}</button>
   )
 }

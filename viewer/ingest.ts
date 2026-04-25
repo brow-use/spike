@@ -107,6 +107,18 @@ interface Edge {
   isRevisit: boolean
 }
 
+interface DocEntry {
+  slug: string
+  title: string
+  summary: string
+  content: string
+}
+
+interface DocsBundle {
+  readme: string
+  entries: DocEntry[]
+}
+
 interface Bundle {
   sessionId: string
   command: string
@@ -121,6 +133,7 @@ interface Bundle {
   }
   events: TimelineEvent[]
   edges: Edge[]
+  docs: DocsBundle | null
 }
 
 // ---------- helpers ----------
@@ -551,6 +564,52 @@ function buildDocWriteEvents(run: Run, sessionDataDir: string): TimelineEvent[] 
   return out
 }
 
+function parseReadmeToc(readme: string): { slug: string; title: string; summary: string }[] {
+  const entries: { slug: string; title: string; summary: string }[] = []
+  for (const line of readme.split('\n')) {
+    const m = line.match(/^\|\s*\[([^\]]+)\]\(\.\/([^)]+)\.md\)\s*\|\s*(.*?)\s*\|\s*$/)
+    if (m) entries.push({ title: m[1], slug: m[2], summary: m[3] })
+  }
+  return entries
+}
+
+function readDocsBundle(run: Run, sessionDataDir: string): DocsBundle | null {
+  if (run.command !== 'explore') return null
+  const docsDir = path.join(OUTPUT, 'docs', run.sessionId)
+  if (!fs.existsSync(docsDir)) return null
+
+  const readmePath = path.join(docsDir, 'README.md')
+  if (!fs.existsSync(readmePath)) return null
+
+  // Also mirror raw .md files under public/data/<sessionId>/docs/ so direct links work.
+  const destDir = path.join(sessionDataDir, 'docs')
+  fs.mkdirSync(destDir, { recursive: true })
+  for (const name of fs.readdirSync(docsDir)) {
+    if (name.endsWith('.md')) {
+      copyFileSafe(path.join(docsDir, name), path.join(destDir, name))
+    }
+  }
+
+  const readmeRaw = fs.readFileSync(readmePath, 'utf-8')
+  const toc = parseReadmeToc(readmeRaw)
+
+  const entries: DocEntry[] = []
+  for (const { slug, title, summary } of toc) {
+    const filePath = path.join(docsDir, `${slug}.md`)
+    if (!fs.existsSync(filePath)) continue
+    const raw = fs.readFileSync(filePath, 'utf-8')
+    // Rewrite exploration-relative image paths (written by /bu:document) to the
+    // viewer's served route; ingest already copies screenshots into this path.
+    const content = raw.replace(
+      /\.\.\/\.\.\/exploration\/([^/]+)\/(page-\d+\.[a-z]+)/g,
+      (_full, sid, file) => `/data/${sid}/screenshots/${file}`,
+    )
+    entries.push({ slug, title, summary, content })
+  }
+
+  return { readme: readmeRaw, entries }
+}
+
 function buildResultWriteEvents(run: Run, sessionDataDir: string): TimelineEvent[] {
   if (run.command !== 'do') return []
   const resultsDir = path.join(OUTPUT, 'results', run.sessionId)
@@ -881,6 +940,8 @@ async function buildBundle(run: Run, apps: App[]): Promise<Bundle> {
   const eventsByKind: Record<string, number> = {}
   for (const e of events) eventsByKind[e.kind] = (eventsByKind[e.kind] ?? 0) + 1
 
+  const docs = readDocsBundle(run, sessionDataDir)
+
   return {
     sessionId: run.sessionId,
     command: run.command,
@@ -893,6 +954,7 @@ async function buildBundle(run: Run, apps: App[]): Promise<Bundle> {
     stats: { eventsByKind },
     events,
     edges,
+    docs,
   }
 }
 
