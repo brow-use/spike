@@ -5,6 +5,100 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>User guide — brow-use</title>
   <link rel="stylesheet" href="assets/site.css">
+  <style>
+    .userflow {
+      max-width: 560px;
+      margin: 0 auto;
+    }
+    .ufl {
+      border: 1px solid;
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .ufl-1 { background: rgba(56, 139, 253, 0.06); border-color: rgba(56, 139, 253, 0.4); }
+    .ufl-2 { background: rgba(63, 185, 80, 0.06); border-color: rgba(63, 185, 80, 0.4); }
+    .ufl-3 { background: rgba(210, 153, 34, 0.06); border-color: rgba(210, 153, 34, 0.4); }
+    .ufl-4 { background: rgba(137, 87, 229, 0.06); border-color: rgba(137, 87, 229, 0.4); }
+    .ufl-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+    .ufl-title { font-weight: 600; font-size: 0.95rem; color: #e6edf3; }
+    .ufl-desc { color: #8b949e; font-size: 0.8rem; margin: 0 0 10px 0; line-height: 1.5; }
+    .ufl-cmds { display: flex; flex-direction: column; gap: 4px; }
+    .ufl-cmd {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 4px 0;
+      line-height: 1.4;
+    }
+    .ufl-cmd code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.82rem;
+      background: rgba(110, 118, 129, 0.15);
+      border: 1px solid rgba(110, 118, 129, 0.3);
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: #e6edf3;
+      white-space: nowrap;
+    }
+    .ufl-cmd-note { color: #8b949e; font-size: 0.78rem; }
+    .ufl-cross {
+      margin-top: 6px;
+      padding-top: 8px;
+      border-top: 1px dashed rgba(110, 118, 129, 0.3);
+      color: #8b949e;
+      font-size: 0.75rem;
+    }
+    .ufl-cross code {
+      font-family: ui-monospace, monospace;
+      font-size: 0.72rem;
+      color: #c9d1d9;
+    }
+    .ufl-arrow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 0;
+    }
+    .ufl-arrow-line {
+      width: 2px;
+      height: 14px;
+      background: rgba(110, 118, 129, 0.4);
+    }
+    .ufl-arrow-mark { color: #8b949e; font-size: 1rem; line-height: 1; }
+    .ufl-arrow-label {
+      color: #8b949e;
+      font-size: 0.72rem;
+      background: #0d1117;
+      padding: 2px 8px;
+      margin-top: -2px;
+      margin-bottom: -2px;
+      border: 1px solid rgba(110, 118, 129, 0.3);
+      border-radius: 4px;
+    }
+    .ufl-bypass {
+      max-width: 560px;
+      margin: 16px auto 0;
+      padding: 10px 14px;
+      border: 1px dashed rgba(56, 139, 253, 0.4);
+      border-radius: 8px;
+      background: rgba(56, 139, 253, 0.04);
+      color: #8b949e;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+    .ufl-bypass code {
+      font-family: ui-monospace, monospace;
+      font-size: 0.78rem;
+      color: #79c0ff;
+    }
+  </style>
 </head>
 <body>
 
@@ -66,22 +160,93 @@
 
     <hr class="section-divider">
 
-    <h2>The recommended path</h2>
+    <h2>How the commands fit together</h2>
     <p>
-      For an app you've never automated before, run these commands in order. Each step builds on
-      the artifacts produced by the previous one.
+      Commands are organised into four layers. Each layer consumes what the layer below produces.
+      Browse the diagram first, then read the reference for any command you want to use.
     </p>
 
-    <pre><code>/bu:apps                                 register the app, set it as current
-/bu:explore                              walk it autonomously
-make extract SESSION=&lt;sessionId&gt;         post-process the trace into aria log + screenshots
-/bu:document                             generate plain-language feature docs
-/bu:generate-page-objects                generate typed Playwright POMs
-/bu:do                                   run a plain-English intent, grounded in everything above</code></pre>
+    <div class="userflow">
+
+      <div class="ufl ufl-1">
+        <div class="ufl-head">
+          <span class="layer-pill layer-1">Layer 1</span>
+          <span class="ufl-title">Live capture</span>
+        </div>
+        <p class="ufl-desc">Drive the browser. Capture raw artifacts: traces and aria logs.</p>
+        <div class="ufl-cmds">
+          <div class="ufl-cmd"><code>/bu:explore</code><span class="ufl-cmd-note">— autonomous breadth-first walk</span></div>
+          <div class="ufl-cmd"><code>/bu:explore-guided</code><span class="ufl-cmd-note">— one-off intent, ad-hoc</span></div>
+        </div>
+      </div>
+
+      <div class="ufl-arrow">
+        <div class="ufl-arrow-line"></div>
+        <div class="ufl-arrow-label">trace zip</div>
+        <div class="ufl-arrow-line"></div>
+        <div class="ufl-arrow-mark">▼</div>
+      </div>
+
+      <div class="ufl ufl-2">
+        <div class="ufl-head">
+          <span class="layer-pill layer-2">Layer 2</span>
+          <span class="ufl-title">Post-processing</span>
+        </div>
+        <p class="ufl-desc">Deterministic shell scripts. No browser, no LLM. Same trace in → same artifacts out.</p>
+        <div class="ufl-cmds">
+          <div class="ufl-cmd"><code>make extract SESSION=&lt;id&gt;</code><span class="ufl-cmd-note">— trace → aria log + screenshots</span></div>
+          <div class="ufl-cmd"><code>npm run viewer:ingest</code><span class="ufl-cmd-note">— run viewer database build</span></div>
+        </div>
+      </div>
+
+      <div class="ufl-arrow">
+        <div class="ufl-arrow-line"></div>
+        <div class="ufl-arrow-label">aria log + screenshots</div>
+        <div class="ufl-arrow-line"></div>
+        <div class="ufl-arrow-mark">▼</div>
+      </div>
+
+      <div class="ufl ufl-3">
+        <div class="ufl-head">
+          <span class="layer-pill layer-3">Layer 3</span>
+          <span class="ufl-title">Knowledge generation</span>
+        </div>
+        <p class="ufl-desc">Turn captured data into human-readable docs and machine-readable Page Objects.</p>
+        <div class="ufl-cmds">
+          <div class="ufl-cmd"><code>/bu:document</code><span class="ufl-cmd-note">— feature docs + page-transitions index</span></div>
+          <div class="ufl-cmd"><code>/bu:generate-page-objects</code><span class="ufl-cmd-note">— typed POMs from aria log</span></div>
+        </div>
+      </div>
+
+      <div class="ufl-arrow">
+        <div class="ufl-arrow-line"></div>
+        <div class="ufl-arrow-label">docs + Page Objects + workflows</div>
+        <div class="ufl-arrow-line"></div>
+        <div class="ufl-arrow-mark">▼</div>
+      </div>
+
+      <div class="ufl ufl-4">
+        <div class="ufl-head">
+          <span class="layer-pill layer-4">Layer 4</span>
+          <span class="ufl-title">Grounded execution</span>
+        </div>
+        <p class="ufl-desc">Carry out plain-English intents. Optionally grounded in everything above.</p>
+        <div class="ufl-cmds">
+          <div class="ufl-cmd"><code>/bu:run-instruction</code><span class="ufl-cmd-note">— extract data, follow a flow, satisfy an intent</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="ufl-bypass">
+      <strong>Shortcut:</strong> for a one-off task you don't want to ground in earlier docs,
+      just run <code>/bu:explore-guided</code> directly. It bypasses Layers 2–4 entirely and
+      leaves a trace behind.
+    </p>
 
     <hr class="section-divider">
 
-    <h2>The commands</h2>
+    <h2>Command reference</h2>
 
     <h3 id="explore"><span class="layer-pill layer-1">Layer 1</span> &nbsp; <code>/bu:explore</code></h3>
     <p>
@@ -105,6 +270,22 @@ make extract SESSION=&lt;sessionId&gt;         post-process the trace into aria 
       log and screenshots from the trace. Extraction is intentionally separate so it can be re-run
       whenever the trace format or extraction heuristics change, without re-driving the browser.
     </p>
+
+    <h3 id="explore-guided"><span class="layer-pill layer-1">Layer 1</span> &nbsp; <code>/bu:explore-guided</code></h3>
+    <p>
+      One-off intent execution with a recording. No knowledge stack, no docs reference — useful
+      for ad-hoc tasks where you just want the agent to <em>do the thing</em> and leave behind a
+      trace. Unlike <code>/bu:run-instruction</code>, it never asks about grounding and goes
+      straight to execution.
+    </p>
+
+    <h3 id="extract"><span class="layer-pill layer-2">Layer 2</span> &nbsp; <code>make extract SESSION=&lt;id&gt;</code></h3>
+    <p>
+      Post-processes a trace zip into the per-step aria log and screenshots that Layer 3 commands
+      consume. No browser, no LLM — pure shell + TypeScript, so the same trace always produces
+      the same output. Re-runnable any time the extraction heuristics change.
+    </p>
+    <p><strong>Outputs:</strong> <code>output/exploration/&lt;id&gt;.jsonl</code> and <code>output/exploration/&lt;id&gt;/page-*.jpg</code>.</p>
 
     <h3 id="document"><span class="layer-pill layer-3">Layer 3</span> &nbsp; <code>/bu:document</code></h3>
     <p>
@@ -141,13 +322,14 @@ make extract SESSION=&lt;sessionId&gt;         post-process the trace into aria 
       <strong>Outputs:</strong> TypeScript files in <code>output/page/</code>, one per page reached.
       Idempotent — re-running merges new locators into existing classes without overwriting work.
     </p>
-    <p>For more on the two-pass strategy, see <a href="record-page-objects.html">record-page-objects</a> (uses the same approach).</p>
 
-    <h3 id="do"><span class="layer-pill layer-4">Layer 4</span> &nbsp; <code>/bu:do</code></h3>
+    <h3 id="run-instruction"><span class="layer-pill layer-4">Layer 4</span> &nbsp; <code>/bu:run-instruction</code></h3>
     <p>
       Carries out a plain-English intent ("Export every Excavating Machine as CSV") against the
-      current app. Loads the explore-run docs, aria log, POMs, and workflows as a knowledge stack,
-      then drives the browser to satisfy the intent.
+      current app. On launch it reads <code>.brow-use/runs.json</code> and, if earlier explore
+      runs exist, offers to ground in one — loading docs, aria log, POMs, and workflows as a
+      knowledge stack. If you skip grounding or no explore runs are present, it executes the
+      intent directly from the live page.
     </p>
     <p>
       Output format defaults to markdown but accepts <code>csv</code>, <code>json</code>, or
@@ -158,34 +340,6 @@ make extract SESSION=&lt;sessionId&gt;         post-process the trace into aria 
       <strong>Outputs:</strong> <code>output/results/&lt;id&gt;/result.&lt;ext&gt;</code> with the
       structured data, plus <code>how.md</code> describing in plain language which pages were
       visited and how the data was collected.
-    </p>
-
-    <h3 id="run"><span class="layer-pill layer-1">Layer 1</span> &nbsp; <code>/bu:run</code></h3>
-    <p>
-      One-off intent execution with a recording. No knowledge stack, no docs reference — useful
-      for ad-hoc tasks where you just want the agent to <em>do the thing</em> and leave behind a
-      trace. Different from <code>/bu:do</code> in that it doesn't ground in earlier docs.
-    </p>
-
-    <h3 id="record-page-objects"><span class="layer-pill layer-1">Layer 1</span> &nbsp; <code>/bu:record-page-objects</code></h3>
-    <p>
-      Walks a user-described scenario in the browser and emits POMs as the run finishes. Use this
-      when you want POMs for a specific flow rather than the whole app.
-    </p>
-    <p>For full detail on the agent loop, two-pass strategy, and merge behaviour, see <a href="record-page-objects.html">the dedicated page</a>.</p>
-
-    <h3 id="record-workflow"><span class="layer-pill layer-1">Layer 1</span> &nbsp; <code>/bu:record-workflow</code></h3>
-    <p>
-      Records a sequence of browser interactions and writes it as a parameterised TypeScript
-      <code>async</code> function. The workflow imports POM classes from <code>output/page/</code>
-      and is the composition layer between Page Objects and tests.
-    </p>
-    <p>For when to record vs write the function directly by hand, see <a href="record-workflow.html">the dedicated page</a>.</p>
-
-    <h3 id="run-workflow"><span class="layer-pill layer-4">Layer 4</span> &nbsp; <code>/bu:run-workflow</code></h3>
-    <p>
-      Re-runs an existing workflow function against the live app — execution only, no recording.
-      Useful for sanity-checking that a workflow still works against the current app state.
     </p>
 
     <h3 id="apps">App management</h3>
@@ -228,13 +382,6 @@ make extract SESSION=&lt;sessionId&gt;         post-process the trace into aria 
       sessionId at the top, so you can document, generate POMs, and run intents against the same
       explore output many times. When the app changes, run <code>/bu:explore</code> again to
       capture a new baseline.
-    </p>
-
-    <h3>Iterating on a single feature</h3>
-    <p>
-      For a focused flow (e.g. signing in, completing checkout) prefer
-      <code>/bu:record-page-objects</code> and <code>/bu:record-workflow</code> directly. They
-      stop at the end of the scenario instead of trying to cover the whole app.
     </p>
 
     <h3>Auditing a run</h3>

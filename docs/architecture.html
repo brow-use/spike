@@ -124,20 +124,18 @@
     <p>
       Commands are organised into four layers. Each layer builds on the artifacts produced by
       the one below it, but every layer is independently runnable — you don't have to do
-      <code>/bu:explore</code> to use <code>/bu:record-page-objects</code>, and you don't have
-      to generate Page Objects to run <code>/bu:do</code>.
+      <code>/bu:explore</code> first to run <code>/bu:explore-guided</code>, and you don't have
+      to generate Page Objects to run <code>/bu:run-instruction</code>.
     </p>
 
     <h3><span class="layer-pill layer-1">Layer 1</span> &nbsp; Live capture</h3>
     <p>
-      Drive the browser to capture raw artifacts: traces, aria-tree logs, screenshots. The user
-      describes intent; the agent executes it.
+      Drive the browser to capture raw artifacts: traces and aria-tree logs. The user describes
+      intent; the agent executes it.
     </p>
     <ul>
       <li><code>/bu:explore</code> — walk the app autonomously, breadth-first, with loop detection.</li>
-      <li><code>/bu:run</code> — carry out a one-off plain-English intent and record it.</li>
-      <li><code>/bu:record-page-objects</code> — walk a specific scenario and emit POMs as the run finishes.</li>
-      <li><code>/bu:record-workflow</code> — record a flow and write it as a reusable function.</li>
+      <li><code>/bu:explore-guided</code> — carry out a one-off plain-English intent and record it.</li>
     </ul>
 
     <h3><span class="layer-pill layer-2">Layer 2</span> &nbsp; Deterministic post-processing</h3>
@@ -166,8 +164,7 @@
       knowledge layer below, falling back to the raw artifacts when needed.
     </p>
     <ul>
-      <li><code>/bu:do</code> — extract data, follow a flow, satisfy an intent. Output in the format you ask for.</li>
-      <li><code>/bu:run-workflow</code> — run a recorded workflow function against the live app.</li>
+      <li><code>/bu:run-instruction</code> — extract data, follow a flow, satisfy an intent. Optionally grounded in an earlier explore run. Output in the format you ask for.</li>
     </ul>
 
     <p class="section-bridge">Layers 1, 3, and 4 each run the same agent loop — the shape stays constant; only the inputs and outputs change. That's the next section.</p>
@@ -303,7 +300,7 @@
       <div class="archflow-link">
         <div class="archflow-link-row archflow-link-down"><span class="archflow-arrow">↓</span> navigate / click / type</div>
         <div class="archflow-link-row archflow-link-up"><span class="archflow-arrow">↑</span> accessibility tree / snapshots</div>
-        <div class="archflow-link-row archflow-link-up archflow-link-dashed"><span class="archflow-arrow">↑</span> traces (record-workflow only)</div>
+        <div class="archflow-link-row archflow-link-up"><span class="archflow-arrow">↑</span> trace zip (on stop)</div>
       </div>
 
       <div class="archflow-node archflow-node-runtime">

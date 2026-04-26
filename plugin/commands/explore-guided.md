@@ -1,6 +1,6 @@
 ---
 disable-model-invocation: true
-description: Run the user's intention in the browser using whichever execution mode is currently active. The run is recorded (Playwright trace + per-step aria-tree log + runs.json entry) so it is forensically reviewable afterwards.
+description: Execute a user-described intention in the browser with a recording. No prior explore run needed — the agent navigates live, carries out the task, and leaves behind a Playwright trace and aria log.
 allowed-tools: Read, MCP(bu/health_check), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/page_fingerprint), MCP(bu/record_run), MCP(bu/log_reasoning)
 ---
 
@@ -15,7 +15,7 @@ If the file does not exist or `currentAppId` is null, tell the user to run `/bu:
 
 Before asking the user for their intent:
 
-1. Derive `sessionId = "run-<UNIX-millis>"` once.
+1. Derive `sessionId = "explore-guided-<UNIX-millis>"` once.
 2. Call `start_trace`.
 
 The trace is the source of truth. You do NOT need to maintain an in-memory `visited` array, compute fingerprints, or save per-step screenshots during execution — the trace captures every `get_accessibility_tree` call, every navigation, and a screencast. Downstream artifacts (aria-tree log, per-step screenshots) are produced by the shell command `make extract SESSION=<sessionId>` afterwards, not by this command.
@@ -57,7 +57,7 @@ When the intention is complete:
 2. Call `stop_trace` with `name = sessionId`. Keep the returned `tracePath`.
 3. Call `record_run` with:
    - `sessionId`
-   - `command: "run"`
+   - `command: "explore-guided"`
    - `startedAt` — ISO timestamp derived from the unix-ms portion of `sessionId`.
    - `endedAt` — ISO timestamp of now.
    - `appId` — `currentAppId` from `.brow-use/apps.json`.

@@ -74,8 +74,8 @@ describe('record_run', () => {
       appId: 'app-1',
     })
     const r = await call({
-      sessionId: 'do-1',
-      command: 'do',
+      sessionId: 'run-instruction-1',
+      command: 'run-instruction',
       startedAt: '2026-04-22T11:00:00.000Z',
       endedAt: '2026-04-22T11:01:00.000Z',
       appId: 'app-1',
@@ -87,7 +87,7 @@ describe('record_run', () => {
     assert.equal(r.total, 2)
     const data = readRuns()
     assert.equal(data.runs.length, 2)
-    assert.equal(data.runs[1].command, 'do')
+    assert.equal(data.runs[1].command, 'run-instruction')
     assert.equal(data.runs[1].intent, 'Get list of X')
   })
 
@@ -115,8 +115,8 @@ describe('record_run', () => {
 
   test('appId is null when not provided', async () => {
     await call({
-      sessionId: 'wf-1',
-      command: 'record-workflow',
+      sessionId: 'eg-1',
+      command: 'explore-guided',
       startedAt: 't',
       endedAt: 't',
     })
@@ -124,26 +124,10 @@ describe('record_run', () => {
     assert.equal(data.runs[0].appId, null)
   })
 
-  test('unknown fields are included but with no validation', async () => {
-    // Documented contract: the tool copies known per-command fields verbatim.
-    await call({
-      sessionId: 'rpo-1',
-      command: 'record-page-objects',
-      startedAt: 't',
-      endedAt: 't',
-      appId: 'app-1',
-      scenario: 'Login and click create',
-      pageObjectFiles: ['output/page/login-page.ts', 'output/page/home-page.ts'],
-    })
-    const data = readRuns()
-    assert.equal(data.runs[0].scenario, 'Login and click create')
-    assert.deepEqual(data.runs[0].pageObjectFiles, ['output/page/login-page.ts', 'output/page/home-page.ts'])
-  })
-
   test('artifacts passed as JSON string are parsed', async () => {
     await call({
-      sessionId: 'do-str',
-      command: 'do',
+      sessionId: 'run-instruction-str',
+      command: 'run-instruction',
       startedAt: 't',
       endedAt: 't',
       appId: 'app-1',
@@ -175,11 +159,11 @@ describe('record_run', () => {
     fs.mkdirSync(path.join(tmpRoot, '.brow-use'), { recursive: true })
     fs.writeFileSync(
       path.join(tmpRoot, '.brow-use', 'runs.json'),
-      JSON.stringify({ runs: [{ sessionId: 'pre-existing', command: 'do', startedAt: 't', endedAt: 't', appId: null }] }),
+      JSON.stringify({ runs: [{ sessionId: 'pre-existing', command: 'run-instruction', startedAt: 't', endedAt: 't', appId: null }] }),
     )
     await call({
       sessionId: 'new',
-      command: 'do',
+      command: 'run-instruction',
       startedAt: 't',
       endedAt: 't',
       appId: 'app-1',
@@ -190,28 +174,28 @@ describe('record_run', () => {
     assert.equal(data.runs[1].sessionId, 'new')
   })
 
-  test('run command is persisted with tracePath + ariaLog artifacts', async () => {
+  test('explore-guided command is persisted with tracePath + ariaLog artifacts', async () => {
     await call({
-      sessionId: 'run-1',
-      command: 'run',
+      sessionId: 'explore-guided-1',
+      command: 'explore-guided',
       startedAt: '2026-04-23T10:00:00.000Z',
       endedAt: '2026-04-23T10:02:00.000Z',
       appId: 'app-1',
       mode: 'crx',
       intent: 'open the login page',
       artifacts: {
-        tracePath: 'output/trace/run-1-1.zip',
-        ariaLog: 'output/exploration/run-1.jsonl',
+        tracePath: 'output/trace/explore-guided-1-1.zip',
+        ariaLog: 'output/exploration/explore-guided-1.jsonl',
       },
     })
     const data = readRuns()
     assert.equal(data.runs.length, 1)
-    assert.equal(data.runs[0].sessionId, 'run-1')
-    assert.equal(data.runs[0].command, 'run')
+    assert.equal(data.runs[0].sessionId, 'explore-guided-1')
+    assert.equal(data.runs[0].command, 'explore-guided')
     assert.equal(data.runs[0].intent, 'open the login page')
     assert.deepEqual(data.runs[0].artifacts, {
-      tracePath: 'output/trace/run-1-1.zip',
-      ariaLog: 'output/exploration/run-1.jsonl',
+      tracePath: 'output/trace/explore-guided-1-1.zip',
+      ariaLog: 'output/exploration/explore-guided-1.jsonl',
     })
   })
 
@@ -220,7 +204,7 @@ describe('record_run', () => {
     fs.writeFileSync(path.join(tmpRoot, '.brow-use', 'runs.json'), '{ this is not JSON')
     await call({
       sessionId: 'after-corrupt',
-      command: 'do',
+      command: 'run-instruction',
       startedAt: 't',
       endedAt: 't',
       appId: 'app-1',

@@ -31,10 +31,10 @@
 
     <h2>Overview</h2>
     <p>
-      All recording commands — <code>record-page-objects</code>, <code>record-workflow</code>,
-      <code>explore</code>, <code>do</code>, <code>run</code> — start by reading the currently
-      active app to know which URL to work with and what the app does. Use
-      <code>/bu:apps</code> to register applications and set which one is active.
+      All recording commands — <code>explore</code>, <code>explore-guided</code>,
+      <code>run-instruction</code> — start by reading the currently active app to know which URL
+      to work with and what the app does. Use <code>/bu:apps</code> to register applications and
+      set which one is active.
     </p>
     <p>
       Apps are persisted locally in <code>.brow-use/apps.json</code>. You register an app once
@@ -68,7 +68,7 @@
 }</code></pre>
     <p>
       The <code>description</code> is more than metadata — it's used as exploration bias in
-      <code>/bu:explore</code> and as grounding context in <code>/bu:do</code>. A specific
+      <code>/bu:explore</code> and as grounding context in <code>/bu:run-instruction</code>. A specific
       description ("registers visits for community health workers") leads to better-focused runs
       than a generic one ("a web app").
     </p>

@@ -106,7 +106,7 @@ At the very end, call `record_run` to register this run in the brow-use run data
 - `mode` — `"crx"` or `"playwright"`, whichever was active (check `health_check`'s `mode` field at preflight).
 - `pagesVisited` — `visited.length` at termination.
 - `terminationReason` — `"frontier-empty"` | `"maxSteps"` | `"maxLoopHits"`.
-- `artifacts` — object with `tracePath` and `ariaLog` = `"output/exploration/<sessionId>.jsonl"`. The ariaLog path is predictable but the file will not exist until the user runs `make extract SESSION=<sessionId>`. Downstream consumers (`/bu:document`, `/bu:generate-page-objects`, `/bu:do`) check this path and stop with an instruction if the file is missing.
+- `artifacts` — object with `tracePath` and `ariaLog` = `"output/exploration/<sessionId>.jsonl"`. The ariaLog path is predictable but the file will not exist until the user runs `make extract SESSION=<sessionId>`. Downstream consumers (`/bu:document`, `/bu:generate-page-objects`, `/bu:run-instruction`) check this path and stop with an instruction if the file is missing.
 
 Do this regardless of success or partial completion — it is the audit trail for every run.
 

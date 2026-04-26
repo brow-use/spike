@@ -74,7 +74,7 @@ export function filterDestructive(items: InteractiveElement[]): InteractiveEleme
 
 export const enumerateInteractiveElements: Tool = {
   name: 'enumerate_interactive_elements',
-  description: 'Return a list of interactive elements on the current page (links, buttons, inputs, etc.), ready to add to an exploration frontier. By default, destructive-action names (delete, remove, drop, erase, destroy, deactivate, cancel account, close account) are stripped server-side — the agent cannot accidentally invoke what it cannot see. Pass includeDestructive:true to see them (marked destructive:true) when you need to RECORD them without clicking, e.g. for /bu:record-page-objects. Each item includes role, name, optional url (for links), depth, and a ready-to-use selector of the form role=<role>[name="..."].',
+  description: 'Return a list of interactive elements on the current page (links, buttons, inputs, etc.), ready to add to an exploration frontier. By default, destructive-action names (delete, remove, drop, erase, destroy, deactivate, cancel account, close account) are stripped server-side — the agent cannot accidentally invoke what it cannot see. Pass includeDestructive:true to see them (marked destructive:true) when you need to RECORD them without clicking. Each item includes role, name, optional url (for links), depth, and a ready-to-use selector of the form role=<role>[name="..."].',
   inputSchema: {
     type: 'object',
     properties: {

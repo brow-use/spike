@@ -113,7 +113,7 @@ function pickClosestFrame(frames: ScreencastFrame[], endTime: number): Screencas
 
 export const extractTrace: Tool = {
   name: 'extract_trace',
-  description: 'Post-process a Playwright trace zip to produce the downstream artifacts /bu:document, /bu:generate-page-objects, /bu:do, and the viewer consume: output/exploration/<sessionId>.jsonl (aria log), output/exploration/<sessionId>/page-<stepId>.{jpg|png} (per-step screenshots), and output/trace/<sessionId>-actions.jsonl (action sidecar, only written if not already present — CRX mode writes its own). Call this once at the end of /bu:explore and /bu:run, after stop_trace. No browser needed.',
+  description: 'Post-process a Playwright trace zip to produce the downstream artifacts /bu:document, /bu:generate-page-objects, /bu:run-instruction, and the viewer consume: output/exploration/<sessionId>.jsonl (aria log), output/exploration/<sessionId>/page-<stepId>.{jpg|png} (per-step screenshots), and output/trace/<sessionId>-actions.jsonl (action sidecar, only written if not already present — CRX mode writes its own). Call this once at the end of /bu:explore and /bu:explore-guided, after stop_trace. No browser needed.',
   inputSchema: {
     type: 'object',
     properties: {

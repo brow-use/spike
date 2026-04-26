@@ -37,7 +37,7 @@
 - generate-workflow-functions (Generates workflow functions from the documentation, run data, and user instructions.)
 
 ## Applications
-- Download website data (e.g. loyalty points statement, airlines booking history, tax returns)
+- Download website data (e.g. loyalty points statement, airlines booking history, tax returns, pet medical records - depending on one's preference)
 - Automated functional tests
 - Generate video with screenshots and transcript
 

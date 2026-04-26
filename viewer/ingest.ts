@@ -48,7 +48,7 @@ interface App {
 
 interface Run {
   sessionId: string
-  command: 'explore' | 'do' | 'record-page-objects' | 'record-workflow' | 'run'
+  command: 'explore' | 'explore-guided' | 'run-instruction'
   startedAt: string
   endedAt: string
   appId: string | null
@@ -61,11 +61,6 @@ interface Run {
   format?: string
   recordsExtracted?: number
   sourceExploreId?: string
-  scenario?: string
-  pageObjectFiles?: string[]
-  workflowName?: string
-  workflowPath?: string
-  inputs?: string[]
 }
 
 interface IndexEntry {
@@ -82,8 +77,6 @@ interface IndexEntry {
   intent?: string
   format?: string
   recordsExtracted?: number
-  scenario?: string
-  workflowName?: string
   eventCount?: number
 }
 
@@ -375,17 +368,17 @@ function findActionScreenshot(
 function buildRunStartEnd(run: Run): TimelineEvent[] {
   const label = run.command === 'explore'
     ? `Start explore — ${run.sessionId}`
-    : run.command === 'do'
-      ? `Start do — "${run.intent ?? ''}"`
-      : run.command === 'run'
-        ? `Start run — "${run.intent ?? ''}"`
+    : run.command === 'run-instruction'
+      ? `Start run-instruction — "${run.intent ?? ''}"`
+      : run.command === 'explore-guided'
+        ? `Start explore-guided — "${run.intent ?? ''}"`
         : `Start ${run.command}`
   const endLabel = run.command === 'explore'
     ? `End — ${run.terminationReason ?? 'complete'} (${run.pagesVisited ?? 0} pages)`
-    : run.command === 'do'
+    : run.command === 'run-instruction'
       ? `End — ${run.recordsExtracted ?? 0} records`
-      : run.command === 'run'
-        ? `End run`
+      : run.command === 'explore-guided'
+        ? `End explore-guided`
         : `End ${run.command}`
 
   return [
@@ -458,7 +451,7 @@ function buildVisitedPageEvents(
   offset: number,
   ariaLog: AriaLogLine[],
 ): TimelineEvent[] {
-  if (run.command !== 'explore' && run.command !== 'run') return []
+  if (run.command !== 'explore' && run.command !== 'explore-guided') return []
   // Index screenshots by stepId for direct match (page-0003.jpg → "0003").
   const screenshotByStep = new Map<string, string>()
   for (const s of screenshots) {
@@ -611,7 +604,7 @@ function readDocsBundle(run: Run, sessionDataDir: string): DocsBundle | null {
 }
 
 function buildResultWriteEvents(run: Run, sessionDataDir: string): TimelineEvent[] {
-  if (run.command !== 'do') return []
+  if (run.command !== 'run-instruction') return []
   const resultsDir = path.join(OUTPUT, 'results', run.sessionId)
   if (!fs.existsSync(resultsDir)) return []
 
@@ -960,7 +953,7 @@ async function buildBundle(run: Run, apps: App[]): Promise<Bundle> {
 
 function toIndexEntry(run: Run, apps: App[], eventCount: number | undefined): IndexEntry {
   const app = apps.find(a => a.id === run.appId) ?? null
-  const hasTimeline = run.command === 'explore' || run.command === 'do' || run.command === 'run'
+  const hasTimeline = run.command === 'explore' || run.command === 'run-instruction' || run.command === 'explore-guided'
   return {
     sessionId: run.sessionId,
     command: run.command,
@@ -975,8 +968,6 @@ function toIndexEntry(run: Run, apps: App[], eventCount: number | undefined): In
     intent: run.intent,
     format: run.format,
     recordsExtracted: run.recordsExtracted,
-    scenario: run.scenario,
-    workflowName: run.workflowName,
     eventCount,
   }
 }
@@ -999,7 +990,7 @@ async function main(): Promise<void> {
 
   for (const run of runsFile.runs) {
     let eventCount: number | undefined
-    if (run.command === 'explore' || run.command === 'do' || run.command === 'run') {
+    if (run.command === 'explore' || run.command === 'run-instruction' || run.command === 'explore-guided') {
       const bundle = await buildBundle(run, apps)
       writeJson(path.join(DATA_DIR, `${run.sessionId}.json`), bundle)
       eventCount = bundle.events.length

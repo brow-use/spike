@@ -52,7 +52,7 @@ function renderMarkdown(records: unknown, columns?: string[], title?: string): s
 
 export const writeResult: Tool = {
   name: 'write_result',
-  description: 'Write the extracted result from a /bu:do run to output/results/<sessionId>/result.<ext>. Pass structured records plus a format spec and the tool handles CSV quoting, JSON indentation, and Markdown table alignment. Use this instead of hand-formatting the result file via Write — eliminates escape bugs and format drift. Returns {path, format, records}.',
+  description: 'Write the extracted result from a /bu:run-instruction run to output/results/<sessionId>/result.<ext>. Pass structured records plus a format spec and the tool handles CSV quoting, JSON indentation, and Markdown table alignment. Use this instead of hand-formatting the result file via Write — eliminates escape bugs and format drift. Returns {path, format, records}.',
   inputSchema: {
     type: 'object',
     properties: {

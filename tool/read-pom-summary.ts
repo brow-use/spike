@@ -4,7 +4,7 @@ import type { Tool, ToolContext } from './tool.js'
 
 export const readPomSummary: Tool = {
   name: 'read_pom_summary',
-  description: 'Parse a Playwright Page Object Model TypeScript file and return a structured summary: className, locator property names (with selector hints where available), method names, any URL hints from goto() calls, and sibling imports. Use this during Pass 2 of /bu:record-page-objects to decide whether an existing file already covers a discovered page, without reading the full file contents into context.',
+  description: 'Parse a Playwright Page Object Model TypeScript file and return a structured summary: className, locator property names (with selector hints where available), method names, any URL hints from goto() calls, and sibling imports. Use this during Pass 2 of /bu:generate-page-objects to decide whether an existing file already covers a discovered page, without reading the full file contents into context.',
   inputSchema: {
     type: 'object',
     properties: {

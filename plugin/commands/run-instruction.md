@@ -1,6 +1,6 @@
 ---
 disable-model-invocation: true
-description: Carry out a plain-English user intention against the current app, grounded in docs/exploration/POM/workflow artifacts from an earlier run. Extracts data and presents it in the requested format plus a short plain-language narrative of how it was obtained. The whole run is recorded as a Playwright trace.
+description: Carry out a plain-English user intention against the current app. Optionally grounds in docs/exploration/POM/workflow artifacts from an earlier explore run. Extracts data and presents it in the requested format plus a short plain-language narrative of how it was obtained. The whole run is recorded as a Playwright trace.
 allowed-tools: Read, Glob, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/enumerate_interactive_elements), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/write_result), MCP(bu/record_run), MCP(bu/log_reasoning)
 ---
 
@@ -11,13 +11,21 @@ allowed-tools: Read, Glob, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu
 
 ## Inputs
 
-Ask the user for three things (if they have not already stated them):
+Ask the user for two things (if they have not already stated them):
 
 1. **Intent** (required, plain text). The business-level goal — e.g. *"Export the full list of Excavating Machines with registration date and address as CSV."* Do NOT ask them for detailed steps; the agent decides how to achieve the intent.
-2. **Run id** (required). The bare Unix-ms portion of an earlier `/bu:explore` session, e.g. `1745296800000`. Do NOT auto-pick. If the user does not know an id, run `Glob` on `output/docs/*/` and list the available session folders. If none exist, tell the user to run `/bu:explore` followed by `/bu:document` first and stop.
-3. **Output format** (optional). One of `markdown` | `csv` | `json` | `txt`. Default: `markdown`. If the user's intent text already implies a format (e.g. "as CSV"), use that and skip asking.
+2. **Output format** (optional). One of `markdown` | `csv` | `json` | `txt`. Default: `markdown`. If the user's intent text already implies a format (e.g. "as CSV"), use that and skip asking.
 
-## Resolution
+## Grounding (optional)
+
+Read `.brow-use/runs.json`. Filter for entries with `command: "explore"`. If any exist, list them (id, app name, date) and ask the user:
+
+> "I found earlier explore runs for this app. Would you like me to ground this task in one of them? It gives me docs, aria logs, and page objects to work from. Reply with the run id or skip to proceed without grounding."
+
+If the user picks a run id, proceed to the **Resolution** section and build a knowledge stack.
+If the user skips, or if no explore runs exist, proceed directly to **Execution** without loading any grounding artifacts.
+
+## Resolution (grounded path only)
 
 Resolve the user's `<id>` to the artifacts on disk:
 
@@ -27,9 +35,11 @@ Resolve the user's `<id>` to the artifacts on disk:
 
 Page objects (`output/page/*.ts`) and workflows (`output/workflow/*.ts`) are not id-scoped — read them regardless.
 
-Derive this run's own `sessionId = "do-<UNIX-millis>"`. Call `start_trace` after successful resolution.
+## Session setup
 
-## Knowledge stack
+Derive `sessionId = "run-instruction-<UNIX-millis>"`. Call `start_trace` after preflight (grounded path: after successful resolution; ungrounded path: after the user skips grounding).
+
+## Knowledge stack (grounded path only)
 
 Build up app understanding in this order. Treat everything as a **hint**, not a fact — verify with `get_accessibility_tree` when live state looks inconsistent with the recorded knowledge.
 
@@ -39,7 +49,7 @@ Build up app understanding in this order. Treat everything as a **hint**, not a 
 4. **Workflows** — read every `.ts` in `output/workflow/`. If any workflow's function name or inputs match the user's intent, follow its steps rather than improvising. Name the matched workflow in `how.md` at the end.
 5. **Screenshots** — do not preload. If aria + docs + POM together are not enough to decide a specific step, `Read` the single relevant screenshot in `output/exploration/explore-<id>/page-<stepId>.{jpg,png}`.
 
-After reading, state the execution plan aloud to the user in one or two sentences — the concrete sequence you intend to take. Example: *"I'll go to the Data Entry App, search Excavating Machine with no filters, open each row for the registration date, and write the result as CSV."* This keeps intent visible before you click anything.
+After reading, state the execution plan aloud to the user in one or two sentences. This keeps intent visible before you click anything.
 
 ## Reasoning log (call sparingly)
 
@@ -47,13 +57,13 @@ Call `log_reasoning` with the run's `sessionId` only at **non-obvious** decision
 
 Required call sites:
 
-1. **Plan** — once, after the knowledge stack is loaded, before `start_trace`. Payload: the one- to two-sentence plan narration (same text you state to the user). `kind: "plan"`.
+1. **Plan** — once, after inputs are resolved, before `start_trace`. `kind: "plan"`.
 2. **Decision** — only for judgment calls a reader couldn't infer from the action sequence alone. Examples:
    - Picking between two plausible selectors/paths (say which you picked and why).
    - Re-running a search because the first query returned too few/many rows.
    - Skipping a step because the knowledge-stack POM/workflow didn't match and you fell back to ad-hoc aria scraping.
    `kind: "decision"`.
-3. **Observation** — once, at termination, just before `record_run`. Payload: termination reason + a one-liner on what was retrieved (or why nothing was). `kind: "observation"`.
+3. **Observation** — once, at termination, just before `record_run`. `kind: "observation"`.
 4. **Error** — on refusal (destructive intent), step-budget hit, extension disconnect, or any unrecoverable error. `kind: "error"`.
 
 Do NOT call on every navigate/click/type or to narrate routine steps.
@@ -76,7 +86,7 @@ Even if the user's intent appears to request a delete/remove, refuse at the inte
 2. Work through your stated plan using `navigate`, `click`, `type`, `enumerate_interactive_elements`, `get_accessibility_tree`, `snapshot`. Guidelines:
    - For picking *what to click* on the current page, prefer `enumerate_interactive_elements` — it returns a filtered, already-selector-ready list of safe interactive items.
    - Use `get_accessibility_tree` when you need the full page content (e.g. reading table cells for extraction), not for picking actions.
-   - Prefer POM-class selectors when a matching page object exists. Otherwise use the `selector` field from `enumerate_interactive_elements`. Fall back to CSS only as a last resort.
+   - Grounded path: prefer POM-class selectors when a matching page object exists. Otherwise use the `selector` field from `enumerate_interactive_elements`. Fall back to CSS only as a last resort.
    - For paginated tables, iterate pages until you have all rows the intent requires.
 3. Extract the data incrementally as you find it. Keep a simple in-memory structure: an array of flat objects keyed by the column names the user cares about.
 4. Stop as soon as the intent is satisfied. Do not wander into unrelated parts of the app.
@@ -98,9 +108,10 @@ Write two files. Use the dedicated tools — do NOT hand-format the result file 
    The tool writes `output/results/<sessionId>/result.<ext>`, handling CSV quoting, JSON indentation, and Markdown table alignment.
 
 2. **`how.md`** — use the `Write` tool for this one (short prose, 5–15 lines). Contents:
-   - Which pages you visited (e.g. "the Data Entry App search page").
+   - Which pages you visited.
    - Which filters or inputs you applied.
    - How many records you collected.
+   - Whether grounding was used and which explore run (or "no grounding — worked from live aria tree only").
    - If you followed a recorded workflow, name it.
    - If you fell back to ad-hoc aria scraping because no POM covered the page, say so.
    - No code, no selectors, no jargon.
@@ -112,15 +123,15 @@ Then call `stop_trace` with `name = sessionId`. The trace zip lands at `output/t
 
 After writing result + how.md and stopping the trace, call `record_run` to register this run in `.brow-use/runs.json`:
 
-- `sessionId` — this run's id (the `do-<unix-ms>` one).
-- `command: "do"`.
+- `sessionId` — this run's id.
+- `command: "run-instruction"`.
 - `startedAt`, `endedAt` — ISO timestamps.
 - `appId` — from `.brow-use/apps.json`.
 - `mode` — `"crx"` or `"playwright"`.
 - `intent` — the user's plain-text intent.
 - `format` — `"markdown"` | `"csv"` | `"json"` | `"txt"`.
 - `recordsExtracted` — the number of records in the result. `0` if the intent was refused or no data found.
-- `sourceExploreId` — the id the user supplied for grounding (e.g. `1745296800000`).
+- `sourceExploreId` — the explore run id used for grounding; omit if the user ran without grounding.
 - `artifacts` — object with `tracePath`, `resultPath`, `howPath`. Omit `resultPath` if no result file was written (refused/failed run).
 
 Call it regardless of outcome (success, refusal, partial). It is the audit trail.
@@ -149,7 +160,7 @@ Print, in order:
 
 ## Failure modes
 
-- **Unknown id** — list available ids from `output/docs/*/` and stop before starting a trace.
+- **Unknown id** (grounded path) — list available ids from `output/docs/*/` and stop before starting a trace.
 - **Missing docs for id** — same as unknown id.
 - **Destructive intent** — refuse per the hard block above.
 - **Page element cannot be located** — re-read the aria tree once, try a different selector strategy, and if still stuck, write `how.md` naming the step that failed and what the agent saw.
