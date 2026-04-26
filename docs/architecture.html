@@ -5,6 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Architecture — brow-use</title>
   <link rel="stylesheet" href="assets/site.css">
+  <style>
+    /* Architecture flow diagram — vertical, mobile-first */
+    .archflow { display: flex; flex-direction: column; max-width: 560px; margin: 28px auto; padding: 0 4px; }
+    .archflow-node { background: #0f141a; border: 1px solid #30363d; border-left-width: 3px; border-radius: 8px; padding: 14px 18px; }
+    .archflow-node + .archflow-link { margin-top: 0; }
+    .archflow-node-user { border-left-color: #388bfd; }
+    .archflow-node-claude { border-left-color: #58a6ff; background: #11161d; box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.18) inset; }
+    .archflow-node-runtime { border-left-color: #3fb950; }
+    .archflow-node-extension { border-left-color: #f0883e; }
+    .archflow-node-chrome { border-left-color: #3fb950; }
+    .archflow-eyebrow { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.7rem; color: #6e7681; margin-bottom: 4px; }
+    .archflow-title { font-size: 0.98rem; font-weight: 600; color: #e6edf3; line-height: 1.3; }
+    .archflow-detail { font-size: 0.85rem; color: #8b949e; margin-top: 4px; line-height: 1.5; }
+    .archflow-list { margin: 8px 0 0; padding-left: 18px; font-size: 0.85rem; color: #8b949e; line-height: 1.55; }
+    .archflow-list li { margin: 2px 0; }
+    .archflow-list li code { font-size: 0.78rem; padding: 0 4px; }
+    .archflow-subnode { margin-top: 10px; padding: 10px 14px; background: #0a0e13; border: 1px solid #21262d; border-radius: 6px; }
+    .archflow-subnode-title { font-size: 0.85rem; color: #c9d1d9; font-weight: 500; }
+    .archflow-subnode-detail { font-size: 0.78rem; color: #6e7681; margin-top: 4px; line-height: 1.5; }
+    .archflow-badge { display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: rgba(63, 185, 80, 0.14); color: #56d364; border: 1px solid rgba(63, 185, 80, 0.4); margin-left: 8px; vertical-align: middle; }
+
+    .archflow-link { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 10px 0; position: relative; }
+    .archflow-link::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: #21262d; transform: translateX(-50%); z-index: 0; }
+    .archflow-link-row { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; justify-content: center; padding: 3px 12px; background: #0d1117; font-size: 0.82rem; color: #8b949e; line-height: 1.4; }
+    .archflow-arrow { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; font-size: 0.65rem; font-weight: 700; flex-shrink: 0; background: #161b22; border: 1px solid #30363d; }
+    .archflow-link-down .archflow-arrow { color: #3fb950; border-color: rgba(63, 185, 80, 0.45); }
+    .archflow-link-up .archflow-arrow { color: #d29922; border-color: rgba(210, 153, 34, 0.45); }
+    .archflow-link-bus .archflow-arrow { color: #f0883e; border-color: rgba(240, 136, 62, 0.5); }
+    .archflow-link-dashed { color: #6e7681; font-style: italic; }
+    .archflow-link-dashed .archflow-arrow { border-style: dashed; }
+
+    .extension-callout { background: #0f141a; border: 1px solid #30363d; border-left: 3px solid #f0883e; border-radius: 8px; padding: 14px 18px; margin-top: 16px; font-size: 0.92rem; color: #c0c7cf; line-height: 1.6; }
+    .extension-callout strong { color: #e6edf3; }
+    .section-bridge { color: #6e7681; font-size: 0.92rem; font-style: italic; margin-top: 18px; }
+  </style>
 </head>
 <body>
 
@@ -25,11 +60,15 @@
 
     <div class="eyebrow">Architecture</div>
     <h1>How a prompt becomes browser automation</h1>
-    <p class="subtitle">The agent loop, the MCP server, two execution modes, and the layered command system.</p>
+    <p class="subtitle">Components, command layers, the agent loop, and two browser modes — and how they fit together.</p>
 
     <hr class="section-divider">
 
-    <h2>The four moving parts</h2>
+    <h2>The core parts</h2>
+    <p>
+      Three components are always involved, plus a fourth — the Chrome extension — that's used
+      only in <a href="#two-execution-modes">session mode</a>.
+    </p>
 
     <div class="card-grid">
       <div class="card">
@@ -47,255 +86,46 @@
         <div class="card-title">Tools</div>
         <p class="card-desc">Browser tools (navigate, click, get_accessibility_tree…) and file-only tools (write_page_object, write_feature_doc, record_run…). Each tool is a single TypeScript module.</p>
       </div>
-      <div class="card">
-        <div class="card-eyebrow">extension/</div>
-        <div class="card-title">Chrome extension</div>
-        <p class="card-desc">MV3 extension. Connects to the MCP server via WebSocket and proxies commands into your real Chrome tab using <code>playwright-crx</code>.</p>
-      </div>
     </div>
 
-    <h2>The agent loop</h2>
-    <p>
-      Every brow-use command is a loop, not a script. Claude reads the current page state via
-      the accessibility tree, decides what to do next based on the command's instructions and the
-      user's intent, calls an action tool, then snapshots the result. The MCP server keeps the
-      browser alive across calls, so each step picks up exactly where the last one left off.
-    </p>
-
-    <div class="flow">
-      <div class="flow-step">
-        <div class="label">Perceive</div>
-        <div class="name">get_accessibility_tree</div>
-        <div class="detail">Live ARIA snapshot of the current page</div>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step">
-        <div class="label">Reason</div>
-        <div class="name">Claude</div>
-        <div class="detail">Pick the next action based on intent + current state</div>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step">
-        <div class="label">Act</div>
-        <div class="name">click / type / navigate</div>
-        <div class="detail">Browser state changes</div>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step">
-        <div class="label">Record</div>
-        <div class="name">trace + write_*</div>
-        <div class="detail">Trace event recorded; artifacts written when ready</div>
-      </div>
+    <div class="extension-callout">
+      <strong>Optional fourth part — Chrome extension.</strong> An MV3 extension that connects
+      to the MCP server via WebSocket and proxies commands into your real Chrome tab using
+      <code>playwright-crx</code>. Loaded only when running in
+      <a href="#two-execution-modes">Mode 2 (session)</a>; ignored in the default Playwright
+      mode.
     </div>
+
+    <p class="section-bridge">The MCP server is the centre of gravity. It's worth a closer look before we describe how anything else works.</p>
 
     <hr class="section-divider">
 
-    <h2 id="two-execution-modes">Two execution modes</h2>
+    <h2>The MCP server</h2>
     <p>
-      The same agent, the same tools, the same outputs — but two different ways the browser
-      commands actually reach a browser.
+      The MCP server is the long-running process every other component talks to. Claude Code
+      launches it as a subprocess on demand, it exposes the brow-use tools as a single MCP
+      toolset, and it owns the live browser handle for the duration of the user's session — so
+      the browser stays open and in the same state between tool calls. That continuity is what
+      makes the agent loop possible: each step picks up exactly where the last one left off.
+    </p>
+    <p>
+      Two routing decisions live here. <strong>Mode</strong> — each browser tool call goes to
+      either Playwright (default) or the WebSocket bridge that talks to the extension
+      (session). <strong>Type</strong> — file-only tools (write a page object, write a feature
+      doc, record a run) always run on the Node side regardless of mode; pure-compute tools
+      (like fingerprint comparison) run with neither browser nor disk.
     </p>
 
-    <table class="spec">
-      <thead>
-        <tr>
-          <th style="width: 180px;">Capability</th>
-          <th>Mode 1 — Playwright</th>
-          <th>Mode 2 — Session</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Browser</td>
-          <td>Fresh Chromium launched by Playwright</td>
-          <td>Your real Chrome with your profile</td>
-        </tr>
-        <tr>
-          <td>Login state</td>
-          <td class="no">None — must authenticate per run</td>
-          <td class="yes">Already logged in</td>
-        </tr>
-        <tr>
-          <td>Cookies &amp; storage</td>
-          <td class="no">Empty</td>
-          <td class="yes">Real session data</td>
-        </tr>
-        <tr>
-          <td>Trace fidelity</td>
-          <td class="yes">Full</td>
-          <td class="yes">Full — same format, same viewer</td>
-        </tr>
-        <tr>
-          <td>Visible indicator</td>
-          <td>Separate browser window appears</td>
-          <td>Yellow "DevTools is debugging" banner</td>
-        </tr>
-        <tr>
-          <td>Setup</td>
-          <td>Nothing — default mode</td>
-          <td>Build &amp; load the Chrome extension once</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h3>Mode 1 — Default (Playwright)</h3>
-
-    <svg viewBox="0 0 860 500" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block;">
-
-      <defs>
-        <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#388bfd"/></marker>
-        <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3fb950"/></marker>
-        <marker id="arrow-yellow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#d29922"/></marker>
-        <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8957e5"/></marker>
-        <marker id="arrow-grey" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#484f58"/></marker>
-      </defs>
-
-      <rect x="30" y="148" width="138" height="64" rx="8" fill="#161b22" stroke="#388bfd" stroke-width="1.5"/>
-      <text x="99" y="174" text-anchor="middle" fill="#e6edf3" font-size="16" font-weight="600">User Prompt</text>
-      <text x="99" y="196" text-anchor="middle" fill="#8b949e" font-size="14">describe scenario</text>
-
-      <rect x="280" y="110" width="220" height="140" rx="8" fill="#161b22" stroke="#58a6ff" stroke-width="2"/>
-      <text x="390" y="138" text-anchor="middle" fill="#e6edf3" font-size="17" font-weight="700">Claude Code</text>
-      <line x1="290" y1="148" x2="490" y2="148" stroke="#21262d" stroke-width="1"/>
-      <text x="390" y="168" text-anchor="middle" fill="#8b949e" font-size="14">agent loop</text>
-      <text x="390" y="186" text-anchor="middle" fill="#8b949e" font-size="14">reason → act → observe</text>
-      <text x="390" y="204" text-anchor="middle" fill="#8b949e" font-size="14">build page name map</text>
-      <text x="390" y="222" text-anchor="middle" fill="#8b949e" font-size="14">generate code</text>
-
-      <rect x="620" y="100" width="200" height="160" rx="8" fill="#161b22" stroke="#3fb950" stroke-width="1.5"/>
-      <text x="720" y="128" text-anchor="middle" fill="#e6edf3" font-size="17" font-weight="700">Playwright</text>
-      <line x1="630" y1="138" x2="810" y2="138" stroke="#21262d" stroke-width="1"/>
-      <rect x="644" y="150" width="152" height="90" rx="6" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
-      <text x="720" y="172" text-anchor="middle" fill="#8b949e" font-size="14">Browser</text>
-      <text x="720" y="192" text-anchor="middle" fill="#6e7681" font-size="13">Chromium</text>
-      <text x="720" y="210" text-anchor="middle" fill="#6e7681" font-size="13">live session</text>
-      <text x="720" y="228" text-anchor="middle" fill="#6e7681" font-size="13">headless: false</text>
-
-      <line x1="168" y1="180" x2="278" y2="180" stroke="#388bfd" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
-
-      <line x1="500" y1="165" x2="618" y2="155" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrow-green)"/>
-      <text x="556" y="150" text-anchor="middle" fill="#3fb950" font-size="13">navigate / click / type</text>
-
-      <line x1="618" y1="205" x2="500" y2="215" stroke="#d29922" stroke-width="1.5" marker-end="url(#arrow-yellow)"/>
-      <text x="556" y="235" text-anchor="middle" fill="#d29922" font-size="13">accessibility tree / snapshots</text>
-
-      <line x1="618" y1="230" x2="500" y2="238" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow-yellow)"/>
-      <text x="556" y="262" text-anchor="middle" fill="#6e7681" font-size="13">traces (record-workflow only)</text>
-
-      <rect x="80" y="360" width="190" height="72" rx="8" fill="#161b22" stroke="#8957e5" stroke-width="1.5"/>
-      <text x="175" y="385" text-anchor="middle" fill="#d2a8ff" font-size="15" font-weight="600">Playwright</text>
-      <text x="175" y="403" text-anchor="middle" fill="#d2a8ff" font-size="15" font-weight="600">Page Objects</text>
-      <text x="175" y="422" text-anchor="middle" fill="#6e7681" font-size="13">output/page/*.ts</text>
-
-      <rect x="580" y="360" width="190" height="72" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1.5"/>
-      <text x="675" y="392" text-anchor="middle" fill="#e3b341" font-size="15" font-weight="600">Traces</text>
-      <text x="675" y="422" text-anchor="middle" fill="#6e7681" font-size="13">output/trace/*.zip</text>
-
-      <path d="M350,250 Q240,300 175,358" fill="none" stroke="#8957e5" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
-      <path d="M430,250 Q540,305 675,358" fill="none" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow-yellow)"/>
-
-      <rect x="30" y="455" width="800" height="1" fill="#21262d"/>
-      <text x="30" y="480" fill="#6e7681" font-size="13">─── control flow</text>
-      <line x1="155" y1="476" x2="190" y2="476" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3"/>
-      <text x="196" y="480" fill="#6e7681" font-size="13">record-workflow only</text>
-    </svg>
-
-    <h3>Mode 2 — Session (Extension)</h3>
-
-    <svg viewBox="0 0 860 500" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block;">
-
-      <defs>
-        <marker id="s-arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#388bfd"/></marker>
-        <marker id="s-arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3fb950"/></marker>
-        <marker id="s-arrow-yellow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#d29922"/></marker>
-        <marker id="s-arrow-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8957e5"/></marker>
-        <marker id="s-arrow-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#f0883e"/></marker>
-      </defs>
-
-      <rect x="20" y="158" width="130" height="64" rx="8" fill="#161b22" stroke="#388bfd" stroke-width="1.5"/>
-      <text x="85" y="184" text-anchor="middle" fill="#e6edf3" font-size="16" font-weight="600">User Prompt</text>
-      <text x="85" y="204" text-anchor="middle" fill="#8b949e" font-size="14">describe scenario</text>
-
-      <rect x="210" y="110" width="185" height="140" rx="8" fill="#161b22" stroke="#58a6ff" stroke-width="2"/>
-      <text x="302" y="138" text-anchor="middle" fill="#e6edf3" font-size="17" font-weight="700">Claude Code</text>
-      <line x1="220" y1="148" x2="385" y2="148" stroke="#21262d" stroke-width="1"/>
-      <text x="302" y="168" text-anchor="middle" fill="#8b949e" font-size="14">agent loop</text>
-      <text x="302" y="186" text-anchor="middle" fill="#8b949e" font-size="14">MCP server</text>
-      <text x="302" y="204" text-anchor="middle" fill="#f0883e" font-size="14">WS server :3456</text>
-      <text x="302" y="222" text-anchor="middle" fill="#8b949e" font-size="14">generate code</text>
-
-      <rect x="455" y="110" width="185" height="140" rx="8" fill="#161b22" stroke="#f0883e" stroke-width="1.5"/>
-      <text x="547" y="138" text-anchor="middle" fill="#e6edf3" font-size="17" font-weight="700">Extension</text>
-      <line x1="465" y1="148" x2="630" y2="148" stroke="#21262d" stroke-width="1"/>
-      <text x="547" y="168" text-anchor="middle" fill="#8b949e" font-size="14">background.ts</text>
-      <text x="547" y="186" text-anchor="middle" fill="#8b949e" font-size="14">playwright-crx</text>
-      <text x="547" y="204" text-anchor="middle" fill="#8b949e" font-size="14">chrome.debugger</text>
-      <text x="547" y="222" text-anchor="middle" fill="#f0883e" font-size="14">WS client :3456</text>
-
-      <rect x="698" y="110" width="148" height="140" rx="8" fill="#161b22" stroke="#3fb950" stroke-width="1.5"/>
-      <text x="772" y="138" text-anchor="middle" fill="#e6edf3" font-size="17" font-weight="700">Chrome</text>
-      <line x1="708" y1="148" x2="836" y2="148" stroke="#21262d" stroke-width="1"/>
-      <text x="772" y="168" text-anchor="middle" fill="#8b949e" font-size="14">your profile</text>
-      <text x="772" y="186" text-anchor="middle" fill="#56d364" font-size="14">logged in</text>
-      <text x="772" y="204" text-anchor="middle" fill="#8b949e" font-size="14">real cookies</text>
-      <text x="772" y="222" text-anchor="middle" fill="#8b949e" font-size="14">active tab</text>
-
-      <line x1="150" y1="190" x2="208" y2="190" stroke="#388bfd" stroke-width="1.5" marker-end="url(#s-arrow-blue)"/>
-
-      <line x1="395" y1="168" x2="453" y2="168" stroke="#f0883e" stroke-width="1.5" marker-end="url(#s-arrow-orange)"/>
-      <text x="424" y="156" text-anchor="middle" fill="#f0883e" font-size="13">commands</text>
-
-      <line x1="453" y1="212" x2="395" y2="212" stroke="#d29922" stroke-width="1.5" marker-end="url(#s-arrow-yellow)"/>
-      <text x="424" y="234" text-anchor="middle" fill="#d29922" font-size="13">results</text>
-
-      <line x1="640" y1="168" x2="696" y2="168" stroke="#3fb950" stroke-width="1.5" marker-end="url(#s-arrow-green)"/>
-      <text x="668" y="156" text-anchor="middle" fill="#3fb950" font-size="13">navigate / click</text>
-
-      <line x1="696" y1="212" x2="640" y2="212" stroke="#d29922" stroke-width="1.5" marker-end="url(#s-arrow-yellow)"/>
-      <text x="668" y="234" text-anchor="middle" fill="#d29922" font-size="13">tree / snapshots</text>
-
-      <rect x="80" y="360" width="190" height="72" rx="8" fill="#161b22" stroke="#8957e5" stroke-width="1.5"/>
-      <text x="175" y="385" text-anchor="middle" fill="#d2a8ff" font-size="15" font-weight="600">Playwright</text>
-      <text x="175" y="403" text-anchor="middle" fill="#d2a8ff" font-size="15" font-weight="600">Page Objects</text>
-      <text x="175" y="422" text-anchor="middle" fill="#6e7681" font-size="13">output/page/*.ts</text>
-
-      <rect x="580" y="360" width="190" height="72" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1.5"/>
-      <text x="675" y="392" text-anchor="middle" fill="#e3b341" font-size="15" font-weight="600">Traces</text>
-      <text x="675" y="422" text-anchor="middle" fill="#6e7681" font-size="13">output/trace/*.zip</text>
-
-      <path d="M260,250 Q200,305 175,358" fill="none" stroke="#8957e5" stroke-width="1.5" marker-end="url(#s-arrow-purple)"/>
-      <path d="M340,250 Q510,305 675,358" fill="none" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#s-arrow-yellow)"/>
-
-      <rect x="30" y="455" width="800" height="1" fill="#21262d"/>
-      <line x1="30" y1="476" x2="65" y2="476" stroke="#f0883e" stroke-width="1.5"/>
-      <text x="70" y="480" fill="#6e7681" font-size="13">WebSocket channel</text>
-      <line x1="235" y1="476" x2="270" y2="476" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3"/>
-      <text x="276" y="480" fill="#6e7681" font-size="13">record-workflow only</text>
-      <circle cx="470" cy="476" r="4" fill="#56d364"/>
-      <text x="480" y="480" fill="#6e7681" font-size="13">real login state preserved</text>
-    </svg>
-
-    <p>
-      In session mode the MCP server runs a WebSocket server on port <code>3456</code>. The
-      brow-use extension connects to it as a client. Every browser tool call is forwarded over
-      the socket; the extension executes it via <a href="https://github.com/ruifigueira/playwright-crx" target="_blank" rel="noopener">playwright-crx</a>
-      (a full Playwright API backed by <code>chrome.debugger</code>) and returns the result.
-      File-writing tools always run on the Node side regardless of mode.
-    </p>
-
-    <p>
-      For details on the extension itself, see <a href="chrome-extension.html">Chrome extension</a>.
-      For session mode setup, see <a href="session-mode.html">Session mode</a>.
-    </p>
+    <p class="section-bridge">Commands are organised into four layers. Knowing the taxonomy first makes the next section — the agent loop — read more cleanly, since the loop's shape varies by layer.</p>
 
     <hr class="section-divider">
 
     <h2>The command layers</h2>
     <p>
-      Commands are organised into layers. Each layer builds on the artifacts produced by the
-      one below it, but every layer is independently runnable — you don't have to do
-      <code>/bu:explore</code> to use <code>/bu:record-page-objects</code>, and you don't have to
-      generate Page Objects to run <code>/bu:do</code>.
+      Commands are organised into four layers. Each layer builds on the artifacts produced by
+      the one below it, but every layer is independently runnable — you don't have to do
+      <code>/bu:explore</code> to use <code>/bu:record-page-objects</code>, and you don't have
+      to generate Page Objects to run <code>/bu:do</code>.
     </p>
 
     <h3><span class="layer-pill layer-1">Layer 1</span> &nbsp; Live capture</h3>
@@ -340,6 +170,206 @@
       <li><code>/bu:run-workflow</code> — run a recorded workflow function against the live app.</li>
     </ul>
 
+    <p class="section-bridge">Layers 1, 3, and 4 each run the same agent loop — the shape stays constant; only the inputs and outputs change. That's the next section.</p>
+
+    <hr class="section-divider">
+
+    <h2>The agent loop</h2>
+    <p>
+      Every long-running brow-use command (Layers 1, 3, and 4) runs an agent loop, not a
+      script. Layer 2 is the exception — pure deterministic post-processing with no LLM in the
+      path — so this section describes the rest. The loop's shape stays the same across the
+      three LLM-driven layers — <em>perceive, reason, act, record</em> — but what each step
+      reads from and writes to changes by layer.
+    </p>
+
+    <h3>Layer 1 form — driving the live browser</h3>
+    <p>
+      When the loop drives a real browser, perception is primarily the accessibility tree, with
+      snapshots (screenshots) and a filtered, safety-policy-applied element list as supporting
+      inputs. Actions navigate, click, or type.
+    </p>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="label">Perceive</div>
+        <div class="name">accessibility tree</div>
+        <div class="detail">Primary input. Snapshots and a filtered element list as supporting inputs.</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="label">Reason</div>
+        <div class="name">Claude</div>
+        <div class="detail">Pick the next action based on intent + current state</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="label">Act</div>
+        <div class="name">click / type / navigate</div>
+        <div class="detail">Browser state changes</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="label">Record</div>
+        <div class="name">trace + write_*</div>
+        <div class="detail">Trace event recorded; artifacts written when ready</div>
+      </div>
+    </div>
+
+    <h3>How the loop changes across layers</h3>
+    <p>
+      <strong>Layer 3 — knowledge generation.</strong> Same loop shape, no live browser.
+      <em>Perceive</em> reads captured artifacts from a prior explore run (aria log,
+      observed-edge list, screenshots extracted from the trace). <em>Act</em> writes derived
+      files via tools like <code>write_feature_doc</code> and <code>write_page_object</code>.
+      The loop continues until every page in the source run has been processed.
+    </p>
+    <p>
+      <strong>Layer 4 — grounded execution.</strong> A hybrid. Before the live loop starts the
+      agent loads the knowledge stack (docs, POMs, and workflows produced by earlier runs).
+      That grounding biases every reasoning step in the Layer 1 form that follows — so picking
+      which page to navigate to or which element to click is informed by recorded knowledge of
+      the app, not just the current aria tree.
+    </p>
+
+    <p class="section-bridge">All Layer 1 / Layer 4 commands ultimately reach a real browser. There are two ways that can happen.</p>
+
+    <hr class="section-divider">
+
+    <h2 id="two-execution-modes">Two execution modes</h2>
+    <p>
+      The same agent, the same tools, the same outputs — but two different ways the browser
+      tool calls actually reach a browser.
+    </p>
+
+    <table class="spec">
+      <thead>
+        <tr>
+          <th style="width: 180px;">Capability</th>
+          <th>Mode 1 — Playwright</th>
+          <th>Mode 2 — Session</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Browser</td>
+          <td>Fresh Chromium launched by Playwright</td>
+          <td>Your real Chrome with your profile</td>
+        </tr>
+        <tr>
+          <td>Login state</td>
+          <td class="no">None — must authenticate per run</td>
+          <td class="yes">Already logged in</td>
+        </tr>
+        <tr>
+          <td>Cookies &amp; storage</td>
+          <td class="no">Empty</td>
+          <td class="yes">Real session data</td>
+        </tr>
+        <tr>
+          <td>Trace fidelity</td>
+          <td class="yes">Full</td>
+          <td class="yes">Full — same format, same viewer</td>
+        </tr>
+        <tr>
+          <td>Visible indicator</td>
+          <td>Separate browser window appears</td>
+          <td>Yellow "DevTools is debugging" banner</td>
+        </tr>
+        <tr>
+          <td>Setup</td>
+          <td>Nothing — default mode</td>
+          <td>Build &amp; load the Chrome extension once</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      The diagrams below focus on what differs between modes — the path between the agent and
+      the browser. The user prompt that feeds Claude Code, and the artifact outputs that come
+      out the other end, are the same in both modes (and are described elsewhere on this page).
+    </p>
+
+    <h3>Mode 1 — Default (Playwright)</h3>
+
+    <div class="archflow">
+
+      <div class="archflow-node archflow-node-claude">
+        <div class="archflow-eyebrow">agent · MCP server</div>
+        <div class="archflow-title">Claude Code</div>
+        <div class="archflow-detail">drives the browser via Playwright in-process</div>
+      </div>
+
+      <div class="archflow-link">
+        <div class="archflow-link-row archflow-link-down"><span class="archflow-arrow">↓</span> navigate / click / type</div>
+        <div class="archflow-link-row archflow-link-up"><span class="archflow-arrow">↑</span> accessibility tree / snapshots</div>
+        <div class="archflow-link-row archflow-link-up archflow-link-dashed"><span class="archflow-arrow">↑</span> traces (record-workflow only)</div>
+      </div>
+
+      <div class="archflow-node archflow-node-runtime">
+        <div class="archflow-eyebrow">runtime</div>
+        <div class="archflow-title">Playwright</div>
+        <div class="archflow-subnode">
+          <div class="archflow-subnode-title">Browser</div>
+          <div class="archflow-subnode-detail">Chromium · live session · <code>headless: false</code></div>
+        </div>
+      </div>
+
+    </div>
+
+    <h3>Mode 2 — Session (Extension)</h3>
+
+    <div class="archflow">
+
+      <div class="archflow-node archflow-node-claude">
+        <div class="archflow-eyebrow">agent · MCP server</div>
+        <div class="archflow-title">Claude Code</div>
+        <div class="archflow-detail">browser tool calls forwarded over WebSocket <code>:3456</code></div>
+      </div>
+
+      <div class="archflow-link">
+        <div class="archflow-link-row archflow-link-bus"><span class="archflow-arrow">↓</span> commands · WebSocket</div>
+        <div class="archflow-link-row archflow-link-up"><span class="archflow-arrow">↑</span> results</div>
+      </div>
+
+      <div class="archflow-node archflow-node-extension">
+        <div class="archflow-eyebrow">browser extension (MV3)</div>
+        <div class="archflow-title">brow-use extension</div>
+        <ul class="archflow-list">
+          <li><code>background.ts</code></li>
+          <li><code>playwright-crx</code></li>
+          <li><code>chrome.debugger</code></li>
+          <li>WS client <code>:3456</code></li>
+        </ul>
+      </div>
+
+      <div class="archflow-link">
+        <div class="archflow-link-row archflow-link-down"><span class="archflow-arrow">↓</span> navigate / click</div>
+        <div class="archflow-link-row archflow-link-up"><span class="archflow-arrow">↑</span> tree / snapshots</div>
+      </div>
+
+      <div class="archflow-node archflow-node-chrome">
+        <div class="archflow-eyebrow">your browser</div>
+        <div class="archflow-title">Chrome <span class="archflow-badge">logged in</span></div>
+        <div class="archflow-detail">your profile · real cookies · active tab</div>
+      </div>
+
+    </div>
+
+    <p>
+      In session mode the MCP server runs a WebSocket server on port <code>3456</code>; the
+      brow-use extension connects as a client. Every browser tool call is forwarded over the
+      socket and executed by the extension via
+      <a href="https://github.com/ruifigueira/playwright-crx" target="_blank" rel="noopener">playwright-crx</a>
+      — a full Playwright API backed by <code>chrome.debugger</code> instead of a separate
+      browser process. File-writing tools always run on the Node side regardless of mode.
+    </p>
+
+    <p>
+      For details on the extension itself, see <a href="chrome-extension.html">Chrome extension</a>.
+      For session mode setup, see <a href="session-mode.html">Session mode</a>.
+    </p>
+
     <hr class="section-divider">
 
     <h2>The run database</h2>
@@ -375,15 +405,11 @@
 
     <hr class="section-divider">
 
-    <h2>Dive deeper</h2>
+    <h2>Where to next</h2>
     <div class="card-grid">
-      <a class="card" href="chrome-extension.html">
-        <div class="card-title">Chrome extension</div>
-        <p class="card-desc">The MV3 extension that proxies Playwright calls into your real Chrome tab.</p>
-      </a>
-      <a class="card" href="session-mode.html">
-        <div class="card-title">Session mode</div>
-        <p class="card-desc">Deeper detail on the WebSocket bridge, mode comparison, and tracing in CRX mode.</p>
+      <a class="card" href="user-guide.html">
+        <div class="card-title">User guide</div>
+        <p class="card-desc">Try it. The four capabilities, the recommended command sequence, and what each layer's commands actually do.</p>
       </a>
       <a class="card" href="developer-guide.html">
         <div class="card-title">Developer guide</div>
