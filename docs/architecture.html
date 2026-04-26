@@ -158,13 +158,14 @@
       <li><code>/bu:generate-page-objects</code> — typed POMs from the aria log; uses observed-edges to type navigation methods.</li>
     </ul>
 
-    <h3><span class="layer-pill layer-4">Layer 4</span> &nbsp; Grounded execution</h3>
+    <h3><span class="layer-pill layer-4">Layer 4</span> &nbsp; Grounded execution &amp; composition</h3>
     <p>
-      With docs and POMs in place, run business-level intents against the app — grounded in the
-      knowledge layer below, falling back to the raw artifacts when needed.
+      With docs and POMs in place, either execute business-level intents against the app or
+      generate reusable workflow code grounded in the knowledge layer below.
     </p>
     <ul>
       <li><code>/bu:run-instruction</code> — extract data, follow a flow, satisfy an intent. Optionally grounded in an earlier explore run. Output in the format you ask for.</li>
+      <li><code>/bu:generate-workflow-function</code> — generate a Playwright async function (no POM — calls Playwright APIs directly) from a plain-English goal, grounded in feature docs when available and the aria log otherwise.</li>
     </ul>
 
     <p class="section-bridge">Layers 1, 3, and 4 each run the same agent loop — the shape stays constant; only the inputs and outputs change. That's the next section.</p>

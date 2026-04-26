@@ -230,9 +230,10 @@
           <span class="layer-pill layer-4">Layer 4</span>
           <span class="ufl-title">Grounded execution</span>
         </div>
-        <p class="ufl-desc">Carry out plain-English intents. Optionally grounded in everything above.</p>
+        <p class="ufl-desc">Use the knowledge artifacts. Either execute a plain-English intent live, or generate a reusable workflow function from a goal description.</p>
         <div class="ufl-cmds">
-          <div class="ufl-cmd"><code>/bu:run-instruction</code><span class="ufl-cmd-note">— extract data, follow a flow, satisfy an intent</span></div>
+          <div class="ufl-cmd"><code>/bu:run-instruction</code><span class="ufl-cmd-note">— execute an intent live, optionally grounded</span></div>
+          <div class="ufl-cmd"><code>/bu:generate-workflow-function</code><span class="ufl-cmd-note">— generate a Playwright workflow fn (no POM)</span></div>
         </div>
       </div>
 
@@ -340,6 +341,27 @@
       <strong>Outputs:</strong> <code>output/results/&lt;id&gt;/result.&lt;ext&gt;</code> with the
       structured data, plus <code>how.md</code> describing in plain language which pages were
       visited and how the data was collected.
+    </p>
+
+    <h3 id="generate-workflow-function"><span class="layer-pill layer-4">Layer 4</span> &nbsp; <code>/bu:generate-workflow-function</code></h3>
+    <p>
+      Generates a reusable Playwright async function from a plain-English goal
+      ("log in then search Subjects by name"). The generated function calls Playwright's
+      <code>getByRole</code> / <code>getByLabel</code> / <code>page.click</code> APIs directly —
+      no Page Object Model imports — so the workflow file is self-contained and depends only on
+      <code>@playwright/test</code>.
+    </p>
+    <p>
+      Picks the best grounding available: feature docs from <code>/bu:document</code> when they
+      exist (semantic mapping from goal phrases to specific page transitions), falling back to
+      the aria log + observed-edges from a raw <code>/bu:explore</code> or
+      <code>/bu:explore-guided</code> run. No browser is launched — this is code generation from
+      captured data.
+    </p>
+    <p>
+      <strong>Outputs:</strong> a single TypeScript file at
+      <code>output/workflow/&lt;function-name&gt;-workflow.ts</code>, exporting one
+      <code>async</code> function whose first parameter is <code>page: Page</code>.
     </p>
 
     <h3 id="apps">App management</h3>
