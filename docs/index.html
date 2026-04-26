@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>brow-use — Browser automation & test generation for Claude Code</title>
+  <title>brow-use — Browser automation for Claude Code</title>
   <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
@@ -25,11 +25,12 @@
 
     <section class="hero">
       <div class="eyebrow">Claude Code plugin</div>
-      <h1>Drive a real browser. Generate the tests.</h1>
+      <h1>Drive a real browser. Get the answer — or generate the tests.</h1>
       <p class="lead">
-        brow-use is a plugin for Claude Code that turns plain-English scenarios into Playwright
-        Page Objects, reusable workflow functions, and human-readable feature documentation —
-        by walking the application live in a real browser and recording everything it sees.
+        brow-use is a plugin for Claude Code that drives a real browser on your behalf. Tell it
+        in plain English what you want done, and it carries out the task and returns the result.
+        Or point it at an app and it generates Playwright Page Objects, reusable workflows, and
+        plain-language feature docs from what it sees.
       </p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="user-guide.html">Get started →</a>
@@ -39,63 +40,73 @@
 
     <hr class="section-divider">
 
-    <h2>The problem</h2>
+    <h2>Two problems, one mechanism</h2>
+
+    <h3>1 — Getting things done in a browser</h3>
     <p>
-      Writing browser tests is mostly mechanical. You open the app, inspect the DOM, copy
+      You need a list out of an internal admin tool that has no export. You need to file the
+      same form fifty times. You need a weekly report from an app with no API. The work is
+      mechanical and one-off; building real automation feels disproportionate, so you do it by
+      hand.
+    </p>
+    <p>
+      LLM assistants can write code that <em>might</em> do it — but they can't see the
+      application. They guess at selectors, hallucinate fields, and the gap between "looks
+      plausible" and "actually fetched the right data" is where the time goes.
+    </p>
+
+    <h3>2 — Writing browser tests</h3>
+    <p>
+      Writing browser tests is mostly mechanical too. You open the app, inspect the DOM, copy
       selectors, write a Page Object, write a workflow that uses it, write the test that uses
       that. Each layer is straightforward in isolation but tedious to assemble — and the result
       is brittle: a refactor renames a CSS class and a hundred selectors break.
     </p>
-    <p>
-      LLM coding assistants can write the code, but they can't see the application. They guess
-      selectors from screenshots or stale documentation, and the gap between "looks plausible"
-      and "actually works in the browser" is exactly where time gets lost.
-    </p>
 
     <h2>What brow-use does</h2>
     <p>
-      brow-use closes that gap. It gives Claude Code a set of MCP tools that drive a real browser,
-      read the live accessibility tree at every step, and write artifacts to disk. The agent
-      reasons about what to do next using the same accessibility tree your users (and screen
-      readers) see — so the selectors it picks are stable, semantic, and survive UI changes.
+      brow-use closes both gaps with the same mechanism. It gives Claude Code a set of MCP
+      tools that drive a real browser, read the live accessibility tree at every step, and
+      record everything. The agent reasons about what to do next using the same accessibility
+      tree your users (and screen readers) see — so it sees what's actually on the page, picks
+      stable semantic selectors, and recovers from things a static script wouldn't (redirects,
+      modals, conditional UI).
     </p>
+    <p>
+      The same browser session and the same agent loop can either <strong>satisfy a one-off
+      intent</strong> (and hand you the result) or <strong>generate code</strong> you keep
+      around for tests later.
+    </p>
+
+    <hr class="section-divider">
+
+    <h2>What you can do with it</h2>
+    <p>Four capabilities, all powered by the same browser-driving agent. Each is independently usable; together they compose.</p>
 
     <div class="card-grid">
 
-      <a class="card" href="user-guide.html#explore">
-        <div class="card-eyebrow">/bu:explore</div>
-        <div class="card-title">Map the app autonomously</div>
-        <p class="card-desc">The agent walks the app breadth-first, captures an aria-tree log per page, and records the whole run as a Playwright trace.</p>
+      <a class="card" href="user-guide.html">
+        <div class="card-eyebrow">capability</div>
+        <div class="card-title">Build test infrastructure for a web app</div>
+        <p class="card-desc">Treat browser tests like any other software code. Get typed Page Object classes, reusable workflow functions, and a layered structure ready to call from your test suite — all derived from real, recorded interactions with the live app, not guessed from screenshots.</p>
       </a>
 
-      <a class="card" href="user-guide.html#document">
-        <div class="card-eyebrow">/bu:document</div>
-        <div class="card-title">Generate plain-language docs</div>
-        <p class="card-desc">From a single explore run, produce one feature doc per cluster of pages — with embedded screenshots and a page-transitions index.</p>
+      <a class="card" href="user-guide.html">
+        <div class="card-eyebrow">capability</div>
+        <div class="card-title">Fetch data using natural language</div>
+        <p class="card-desc">Describe the data you need from a website ("export the active subscriber list as CSV"); receive it in the format you asked for. Works behind authentication without sharing credentials with the model — the agent operates in your already-logged-in browser session.</p>
       </a>
 
-      <a class="card" href="user-guide.html#generate-page-objects">
-        <div class="card-eyebrow">/bu:generate-page-objects</div>
-        <div class="card-title">Typed Playwright POMs</div>
-        <p class="card-desc">Turn captured exploration data into Page Object Model classes with accessible selectors and typed navigation between pages.</p>
+      <a class="card" href="user-guide.html">
+        <div class="card-eyebrow">capability</div>
+        <div class="card-title">Perform actions using natural language</div>
+        <p class="card-desc">Describe the outcome ("file this expense report", "register these fifty entries"); the agent carries it out and hands you a forensic record of what it did. Works behind authentication without you exposing credentials. Destructive actions are refused by policy.</p>
       </a>
 
-      <a class="card" href="user-guide.html#do">
-        <div class="card-eyebrow">/bu:do</div>
-        <div class="card-title">Execute plain-English intents</div>
-        <p class="card-desc">"Export every Excavating Machine as CSV." The agent grounds in earlier docs/POMs/workflows, drives the browser, and writes the result.</p>
-      </a>
-
-      <a class="card" href="record-page-objects.html">
-        <div class="card-eyebrow">/bu:record-page-objects</div>
-        <div class="card-title">Scenario-driven page objects</div>
-        <p class="card-desc">Walk a specific scenario in the browser; emit one POM per page reached. Idempotent — re-running merges new elements into existing files.</p>
-      </a>
-
-      <a class="card" href="record-workflow.html">
-        <div class="card-eyebrow">/bu:record-workflow</div>
-        <div class="card-title">Reusable workflow functions</div>
-        <p class="card-desc">Record a sequence of interactions as a parameterised TypeScript async function — the composition layer between POMs and tests.</p>
+      <a class="card" href="user-guide.html">
+        <div class="card-eyebrow">capability</div>
+        <div class="card-title">Document an application in plain English</div>
+        <p class="card-desc">Generate end-user documentation of an entire web application: one feature page per cluster of related screens, with embedded screenshots, a navigation map between pages, and zero developer jargon. Read by humans, also used as grounding context for later natural-language tasks against the same app.</p>
       </a>
 
     </div>
@@ -103,70 +114,73 @@
     <hr class="section-divider">
 
     <h2>Why it's different</h2>
+    <p>
+      The capabilities above each look obvious in isolation. The hard part — and what brow-use
+      actually innovates on — is the <strong>synthesis of three previously separate worlds</strong>
+      into a single agent loop, and pushing all the orchestration intelligence complexity into that loop. This is what makes this product possible.
+    </p>
 
     <div class="feature-row">
       <div class="feature-num">01</div>
       <div class="feature-body">
-        <h3>Grounded in the live accessibility tree</h3>
-        <p>Every action and every recorded selector is derived from the page's ARIA structure, not from speculation. The output uses <code>getByRole</code>, <code>getByLabel</code>, <code>getByPlaceholder</code> — selectors that survive UI refactors.</p>
+        <h3>The Chrome extension</h3>
+        <p>A Manifest V3 extension lets the agent operate inside your real, logged-in Chrome — using your existing session, cookies, and profile. That's what makes natural-language tasks behind authentication possible without you handing credentials to the model or scripting a login flow per app.</p>
       </div>
     </div>
 
     <div class="feature-row">
       <div class="feature-num">02</div>
       <div class="feature-body">
-        <h3>Two execution modes — fresh Chromium or your real Chrome</h3>
-        <p>Default mode launches a clean Chromium session via Playwright. <a href="session-mode.html">Session mode</a> routes commands through a Chrome extension into your real, logged-in browser — no test login flow required.</p>
+        <h3>The agent loop</h3>
+        <p>Claude Code's reasoning loop sits at the centre and absorbs the messy parts: redirects, intermediate loading states, conditional UI, retry-on-stale, deciding which selector strategy to use. Each tick perceives the live page, picks the next step, acts, and observes the result. The complexity that would otherwise live in your code lives in the loop instead.</p>
       </div>
     </div>
 
     <div class="feature-row">
       <div class="feature-num">03</div>
       <div class="feature-body">
-        <h3>Forensic by default</h3>
-        <p>Every run gets a Playwright trace, an aria-tree log, a per-step screencast, and a row in <code>.brow-use/runs.json</code>. You can audit what the agent actually did, replay it in <code>npx playwright show-trace</code>, or feed it back into a later command.</p>
+        <h3>Browser plain-text artifacts</h3>
+        <p>Underneath, Playwright produces the plain-text view of the browser the agent reasons over: an accessibility tree per page, accessible selectors (<code>getByRole</code>, <code>getByLabel</code>) for any code it generates, and a full Playwright trace per run. The same artifacts that ground the agent's decisions also make every run auditable, replayable, and re-usable as context for future runs.</p>
       </div>
     </div>
 
-    <div class="feature-row">
-      <div class="feature-num">04</div>
-      <div class="feature-body">
-        <h3>Idempotent and layered</h3>
-        <p>Commands compose. An <code>/bu:explore</code> run feeds <code>/bu:document</code> and <code>/bu:generate-page-objects</code>. Their outputs feed <code>/bu:do</code> and <code>/bu:record-workflow</code>. Re-running over the same scenario merges results instead of overwriting them.</p>
-      </div>
-    </div>
+    <h3 style="margin-top: 36px;">The synthesis</h3>
+    <p>
+      Each piece on its own is a familiar tool. Putting them together — and pushing the
+      integration into a single agent loop — is what otherwise requires weeks of glue code,
+      hand-written selectors, custom login automation, and manual inspection of every screen of
+      every app you want to automate. brow-use does that work once, generically, so any web
+      application gets all four capabilities above with no per-app engineering investment.
+    </p>
 
     <hr class="section-divider">
 
-    <h2>What you get</h2>
+    <h2>What you walk away with</h2>
     <table class="spec">
       <thead>
-        <tr><th style="width: 200px;">Artifact</th><th>What it contains</th></tr>
+        <tr><th style="width: 240px;">Outcome</th><th>What you receive</th></tr>
       </thead>
       <tbody>
-        <tr><td>output/page/*.ts</td><td>Typed Playwright Page Object classes, one per page reached.</td></tr>
-        <tr><td>output/workflow/*.ts</td><td>Reusable async TypeScript functions for recorded user flows.</td></tr>
-        <tr><td>output/docs/&lt;run&gt;/</td><td>Plain-language feature docs + a <code>page-transitions</code> index.</td></tr>
-        <tr><td>output/exploration/&lt;run&gt;.jsonl</td><td>Aria-tree log — one JSON line per page reached.</td></tr>
-        <tr><td>output/exploration/&lt;run&gt;/page-*.jpg</td><td>Per-step screenshots extracted from the trace screencast.</td></tr>
-        <tr><td>output/trace/*.zip</td><td>Playwright trace (DOM snapshots, screencast, network, action attribution).</td></tr>
-        <tr><td>output/results/&lt;run&gt;/result.&lt;ext&gt;</td><td>Structured data extracted by <code>/bu:do</code> in the format you asked for.</td></tr>
-        <tr><td>.brow-use/runs.json</td><td>Run database — one row per command invocation, with paths to all artifacts.</td></tr>
+        <tr><td>Extracted data</td><td>Structured data from the website in the format you asked for: CSV, JSON, markdown, or plain text.</td></tr>
+        <tr><td>Plain-language summary</td><td>A short narrative of which pages were visited and how the result was obtained — written for a non-developer reader.</td></tr>
+        <tr><td>Page Object classes</td><td>Typed TypeScript Page Object Model files, one per page reached, with stable accessible selectors.</td></tr>
+        <tr><td>Workflow functions</td><td>Reusable parameterised async TypeScript functions for recorded user flows, importable from any test.</td></tr>
+        <tr><td>Feature documentation</td><td>One feature page per cluster of related screens, plus a page-transitions index — all in plain English with embedded screenshots.</td></tr>
+        <tr><td>Forensic record of every run</td><td>A Playwright trace (DOM snapshots, screencast, network), a per-step aria-tree log, and a run database — replayable and auditable after the fact.</td></tr>
       </tbody>
     </table>
 
     <hr class="section-divider">
 
     <h2>Get started</h2>
-    <p>brow-use installs as a plugin into Claude Code. From there, every workflow starts the same way:</p>
-    <pre><code>/bu:apps                    register an app, point it at a URL
-/bu:explore                 walk the app autonomously
-/bu:document                feature docs from the exploration
-/bu:generate-page-objects   typed POMs from the exploration
-/bu:do                      run plain-English intents grounded in the above</code></pre>
     <p>
-      The <a href="user-guide.html">user guide</a> walks each step end-to-end. If you want to
-      see how the pieces fit together first, head to the
+      brow-use installs as a plugin into Claude Code. Once installed, you register the
+      application you want to work with, let the agent get familiar with it once, and then ask
+      it for whatever you need — data, an action, documentation, or generated code.
+    </p>
+    <p>
+      The <a href="user-guide.html">user guide</a> walks each capability end-to-end with the
+      exact commands. If you'd rather see how the pieces fit together first, head to the
       <a href="architecture.html">architecture page</a>.
     </p>
 

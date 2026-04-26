@@ -2,6 +2,7 @@
 1. Create automated test infrastructure for web applications like we create software code
 2. Fetch data from a website using natural language, including when authentication is required & not providing login details to the model
 3. Perform some action on a website using natural language, including when authentication is required & not providing login details to the model
+4. Generate comprehensive documentation of an application in plain English.
 
 # Additional Requirements
 1. Be able to do 2 & 3 from the browser extension
