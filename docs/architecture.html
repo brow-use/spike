@@ -51,6 +51,7 @@
         <a href="architecture.html" class="active">Architecture</a>
         <a href="user-guide.html">User guide</a>
         <a href="developer-guide.html">Developer guide</a>
+        <a href="agent-integration.html">Agent integration</a>
         <a class="gh" href="https://github.com/brow-use/spike" target="_blank" rel="noopener">GitHub ↗</a>
       </nav>
     </div>
@@ -114,6 +115,11 @@
       (session). <strong>Type</strong> — file-only tools (write a page object, write a feature
       doc, record a run) always run on the Node side regardless of mode; pure-compute tools
       (like fingerprint comparison) run with neither browser nor disk.
+    </p>
+    <p>
+      For the full per-tool surface — every <code>mcp__bu__*</code> tool exposed by the MCP
+      server, and how to drive them from your own agent or skill — see
+      <a href="agent-integration.html">Agent integration</a>.
     </p>
 
     <p class="section-bridge">Commands are organised into four layers. Knowing the taxonomy first makes the next section — the agent loop — read more cleanly, since the loop's shape varies by layer.</p>
@@ -373,19 +379,98 @@
     <h2>The run database</h2>
     <p>
       Every command that drives the browser ends with a <code>record_run</code> call. The result
-      is appended to <code>.brow-use/runs.json</code> — a flat JSON array, one entry per run, that
-      captures:
-    </p>
-    <ul>
-      <li><strong>Identity</strong> — sessionId, command, app, mode, timestamps.</li>
-      <li><strong>Outcome</strong> — pages visited, termination reason, records extracted, intent.</li>
-      <li><strong>Artifacts</strong> — paths to the trace, aria log, docs folder, result file.</li>
-    </ul>
-    <p>
+      is appended to <code>.brow-use/runs.json</code> — a flat JSON array, one entry per run.
       Downstream commands like <code>/bu:document</code> and <code>/bu:generate-page-objects</code>
-      read <code>runs.json</code> as their list of available source runs. The user picks one and
-      the command resolves all paths from the entry.
+      read it as their list of available source runs; the user picks one and the command
+      resolves all paths from the entry.
     </p>
+
+    <p>Each entry captures the following fields:</p>
+
+    <table class="spec">
+      <thead>
+        <tr>
+          <th style="width: 170px;">Field</th>
+          <th>What it captures</th>
+          <th style="width: 220px;">Format</th>
+          <th style="width: 170px;">Recorded by</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>sessionId</code></td>
+          <td>Unique id used to correlate every downstream artifact — trace, aria log, screenshots, docs folder, result file — back to this run.</td>
+          <td><code>&lt;command&gt;-&lt;unix-ms&gt;</code><br>e.g. <code>explore-1714062110123</code></td>
+          <td>all</td>
+        </tr>
+        <tr>
+          <td><code>command</code></td>
+          <td>Which brow-use command produced the run. Drives how downstream tools interpret the entry and which optional fields are present.</td>
+          <td><code>"explore"</code> · <code>"explore-guided"</code> · <code>"run-instruction"</code></td>
+          <td>all</td>
+        </tr>
+        <tr>
+          <td><code>startedAt</code> / <code>endedAt</code></td>
+          <td>Wall-clock window of the run. Used to sort runs and to align with external logs when debugging.</td>
+          <td>ISO 8601 timestamp</td>
+          <td>all</td>
+        </tr>
+        <tr>
+          <td><code>appId</code></td>
+          <td>The active app from <code>.brow-use/apps.json</code> at run time. Anchors the run to a specific URL and functional description so its outputs can't be confused with another app's.</td>
+          <td>string · <code>null</code> if no app was set</td>
+          <td>all</td>
+        </tr>
+        <tr>
+          <td><code>mode</code></td>
+          <td>Which browser the run drove — a fresh Playwright Chromium or a real Chrome tab via the extension.</td>
+          <td><code>"playwright"</code> · <code>"crx"</code></td>
+          <td>all</td>
+        </tr>
+        <tr>
+          <td><code>artifacts</code></td>
+          <td>Map of artifact label to file or directory path. Lets downstream commands resolve every output the run produced without guessing. Keys vary by command — <code>tracePath</code>, <code>ariaLog</code> for explore / explore-guided; <code>tracePath</code>, <code>resultPath</code>, <code>howPath</code> for run-instruction.</td>
+          <td>JSON object — string keys, string paths</td>
+          <td>all</td>
+        </tr>
+        <tr>
+          <td><code>pagesVisited</code></td>
+          <td>Number of distinct pages the autonomous walk reached before terminating. A coarse coverage signal.</td>
+          <td>integer</td>
+          <td>explore</td>
+        </tr>
+        <tr>
+          <td><code>terminationReason</code></td>
+          <td>Why the explore loop stopped — clean exhaustion of the frontier or a budget cap was hit.</td>
+          <td><code>"frontier-empty"</code> · <code>"maxSteps"</code> · <code>"maxLoopHits"</code> · <code>"error"</code></td>
+          <td>explore</td>
+        </tr>
+        <tr>
+          <td><code>intent</code></td>
+          <td>The plain-English instruction the user gave the agent for this run.</td>
+          <td>string</td>
+          <td>explore-guided · run-instruction</td>
+        </tr>
+        <tr>
+          <td><code>format</code></td>
+          <td>Output format the user asked for. Picks the renderer used by <code>write_result</code>.</td>
+          <td><code>"markdown"</code> · <code>"csv"</code> · <code>"json"</code> · <code>"txt"</code></td>
+          <td>run-instruction</td>
+        </tr>
+        <tr>
+          <td><code>recordsExtracted</code></td>
+          <td>Number of rows in the result file. A quick way to spot empty or partial extractions without opening the file.</td>
+          <td>integer</td>
+          <td>run-instruction</td>
+        </tr>
+        <tr>
+          <td><code>sourceExploreId</code></td>
+          <td>The earlier explore run whose docs / aria log this run was grounded in. Omitted entirely when the run was ungrounded.</td>
+          <td>sessionId of a prior explore or explore-guided run</td>
+          <td>run-instruction (when grounded)</td>
+        </tr>
+      </tbody>
+    </table>
 
     <h2>Observability</h2>
     <p>

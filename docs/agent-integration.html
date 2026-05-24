@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent integration — brow-use</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <style>
+    .group-heading {
+      margin-top: 28px;
+      margin-bottom: 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #8b949e;
+    }
+    .group-heading:first-of-type { margin-top: 12px; }
+    .skill-block {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 16px 18px;
+      margin: 18px 0 24px;
+      overflow-x: auto;
+    }
+    .skill-block pre { margin: 0; }
+    .skill-block code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      color: #c9d1d9;
+      background: transparent;
+      padding: 0;
+      border: none;
+      white-space: pre;
+    }
+    .iface-table td:first-child { white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html"><span class="brand-mark"></span> brow-use</a>
+      <nav class="site-nav">
+        <a href="index.html">Product</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="user-guide.html">User guide</a>
+        <a href="developer-guide.html">Developer guide</a>
+        <a href="agent-integration.html" class="active">Agent integration</a>
+        <a class="gh" href="https://github.com/brow-use/spike" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+
+    <div class="eyebrow">Agent integration</div>
+    <h1>Driving brow-use from your own agent</h1>
+    <p class="lead">
+      brow-use exposes two interfaces. The <a href="user-guide.html">slash commands</a>
+      (<code>/bu:explore</code>, <code>/bu:do</code>, …) are for humans. Underneath, every
+      command is a thin wrapper around a set of <strong>MCP tools</strong> that any Claude Code
+      agent can call directly — including agents in your own project, driven by a skill.
+      This page documents that surface and shows how to wire it into a skill.
+    </p>
+
+    <hr class="section-divider">
+
+    <h2>Commands vs MCP tools</h2>
+    <table class="spec iface-table">
+      <thead>
+        <tr><th style="width: 200px;">Interface</th><th>Triggered by</th><th>Use when</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Slash commands <code>/bu:*</code></td>
+          <td>A human typing in Claude Code</td>
+          <td>Interactive use — exploration, ad-hoc data fetches, generating tests by hand.</td>
+        </tr>
+        <tr>
+          <td>MCP tools <code>mcp__bu__*</code></td>
+          <td>Any Claude Code agent (autonomous)</td>
+          <td>You want an agent in your own project to drive brow-use without a human in the loop — e.g., a skill that fetches a daily report, or a workflow that runs as part of a larger task.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout info">
+      <p><strong>Installation reminder.</strong> Both interfaces require the plugin to be
+      enabled in the consuming project. The MCP server is registered in <code>.mcp.json</code>
+      and the plugin (with its slash commands and injected <code>CLAUDE.md</code> instructions)
+      is enabled in <code>.claude/settings.json</code>. See the
+      <a href="user-guide.html">user guide</a> for setup.</p>
+    </div>
+
+    <hr class="section-divider">
+
+    <h2>MCP tool reference</h2>
+    <p>
+      Every tool below is exposed by the <code>bu</code> MCP server. The <em>full</em> input
+      schema lives in <code>tool/&lt;name&gt;.ts</code> in the brow-use repository — the
+      summaries here cover what each tool is for and the main inputs/outputs.
+    </p>
+
+    <div class="group-heading">Navigation &amp; interaction</div>
+    <div class="cmd-list">
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__navigate</div>
+        <div class="cmd-desc">Navigate the active browser to a URL. Waits for <code>domcontentloaded</code> and returns the resulting title and final URL. <strong>Input:</strong> <code>url</code>.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__click</div>
+        <div class="cmd-desc">Click an element on the current page. <strong>Input:</strong> CSS or accessible <code>selector</code>. Discover selectors via <code>get_accessibility_tree</code> or <code>enumerate_interactive_elements</code> first.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__type</div>
+        <div class="cmd-desc">Type text into an input. Clears existing content first. <strong>Input:</strong> <code>selector</code>, <code>text</code>.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__clear_session</div>
+        <div class="cmd-desc">Wipe cookies, <code>localStorage</code>, and <code>sessionStorage</code> for the current context. Use between independent runs in Playwright mode.</div>
+      </div>
+    </div>
+
+    <div class="group-heading">Perception</div>
+    <div class="cmd-list">
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__snapshot</div>
+        <div class="cmd-desc">Return a PNG screenshot of the current page as a base64 image block. Use sparingly — the accessibility tree is cheaper and usually sufficient.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__get_accessibility_tree</div>
+        <div class="cmd-desc">Return the page's ARIA snapshot as plain text. This is the primary way an agent perceives the page and finds stable selectors.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__enumerate_interactive_elements</div>
+        <div class="cmd-desc">List clickable elements (links, buttons, inputs) with selectors and metadata. Destructive actions are filtered by default. <strong>Inputs:</strong> <code>topLevelOnly</code>, <code>rolesFilter</code>, <code>includeDestructive</code>.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__page_fingerprint</div>
+        <div class="cmd-desc">Compute a combined fingerprint for loop detection — SHA-1 of the normalized ARIA tree plus a 64-bit perceptual image hash. Pair with <code>compare_fingerprint</code>.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__compare_fingerprint</div>
+        <div class="cmd-desc">Check whether a candidate fingerprint matches any in a known set. Primary signal: exact ARIA hash match; secondary: Hamming distance on the perceptual hash. <strong>Inputs:</strong> <code>candidate</code>, <code>known</code>, <code>phashThreshold</code>.</div>
+      </div>
+    </div>
+
+    <div class="group-heading">Recording</div>
+    <div class="cmd-list">
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__start_trace</div>
+        <div class="cmd-desc">Begin a Playwright trace (screenshots, DOM snapshots, network, sources). Call this before any actions you want auditable.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__stop_trace</div>
+        <div class="cmd-desc">End trace recording and save it to <code>output/trace/&lt;name&gt;.zip</code>. <strong>Input:</strong> <code>name</code>.</div>
+      </div>
+    </div>
+
+    <div class="group-heading">Artifact generation</div>
+    <div class="cmd-list">
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__write_page_object</div>
+        <div class="cmd-desc">Write a Playwright Page Object Model TypeScript class to <code>output/page/&lt;name&gt;.ts</code>. <strong>Inputs:</strong> <code>name</code>, <code>content</code>.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__write_workflow</div>
+        <div class="cmd-desc">Write a reusable Playwright workflow function module to <code>output/workflow/&lt;name&gt;.ts</code>.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__write_test</div>
+        <div class="cmd-desc">Write a Playwright test file to <code>output/test/&lt;name&gt;.spec.ts</code>.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__write_feature_doc</div>
+        <div class="cmd-desc">Write a plain-English Markdown guide for one feature/cluster of screens to <code>output/docs/&lt;sessionId&gt;/&lt;name&gt;.md</code>.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__write_docs_index</div>
+        <div class="cmd-desc">Generate a <code>README.md</code> for the docs session — TOC, app metadata, generation footer. <strong>Inputs:</strong> <code>sessionId</code>, <code>appName</code>, <code>entries</code>, …</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__write_exploration_log</div>
+        <div class="cmd-desc">Append a JSONL audit log of visited pages (one record per page with fingerprints, URL, title, ARIA summary) to <code>output/exploration/&lt;sessionId&gt;.jsonl</code>.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__save_screenshot</div>
+        <div class="cmd-desc">Capture and save a screenshot to <code>output/exploration/&lt;sessionId&gt;/&lt;name&gt;.png</code>. Returns a Markdown embed snippet you can drop into a generated doc.</div>
+      </div>
+    </div>
+
+    <div class="group-heading">Result &amp; metadata</div>
+    <div class="cmd-list">
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__write_result</div>
+        <div class="cmd-desc">Format and save extracted data to <code>output/results/&lt;sessionId&gt;/result.&lt;ext&gt;</code>. Handles CSV escaping, JSON indenting, and Markdown table alignment. <strong>Inputs:</strong> <code>format</code> (markdown / csv / json / txt), <code>records</code>, <code>columns</code>.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__read_pom_summary</div>
+        <div class="cmd-desc">Parse a previously generated Page Object file and return its class name, locators, methods, URL hints, and imports — without loading the full source.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__read_observed_edges</div>
+        <div class="cmd-desc">Build the navigation graph from an exploration run by correlating trace actions with ARIA snapshots. Returns an edge list with confidence levels.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__record_run</div>
+        <div class="cmd-desc">Append completed run metadata to <code>.brow-use/runs.json</code> (the database of all brow-use invocations).</div>
+      </div>
+    </div>
+
+    <div class="group-heading">Session management</div>
+    <div class="cmd-list">
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__set_mode</div>
+        <div class="cmd-desc">Switch execution mode. <strong>Input:</strong> <code>playwright</code> (fresh Chromium) or <code>crx</code> (real Chrome via the extension).</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__list_tabs</div>
+        <div class="cmd-desc">List currently open Chrome tabs. Session mode only.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__select_tab</div>
+        <div class="cmd-desc">Pin automation to a specific Chrome tab. <strong>Input:</strong> <code>tabId</code>.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__health_check</div>
+        <div class="cmd-desc">Verify MCP server, extension, and browser health. Returns a structured <code>{ok, issues}</code> with a one-line remedy per issue.</div>
+      </div>
+    </div>
+
+    <div class="group-heading">Debug</div>
+    <div class="cmd-list">
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__log_reasoning</div>
+        <div class="cmd-desc">Append a one-line reasoning entry to <code>output/reasoning/&lt;sessionId&gt;.jsonl</code>. Use sparingly — this is an audit trail, not narrative.</div>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <h2>Using brow-use from a skill</h2>
+    <p>
+      A <strong>skill</strong> is a Markdown file that tells a Claude Code agent when and how
+      to do something. Skills live inside the consuming project — not inside brow-use — and
+      can call any tool that's available to the agent, including <code>mcp__bu__*</code>.
+    </p>
+
+    <h3>Where the skill file lives</h3>
+    <p>
+      Inside the project that wants to drive brow-use (e.g., your application repo), create:
+    </p>
+    <div class="skill-block"><pre><code>.claude/skills/&lt;skill-name&gt;/SKILL.md</code></pre></div>
+    <p>
+      Claude Code discovers skills under <code>.claude/skills/</code> automatically. The
+      directory name is the skill's slug.
+    </p>
+
+    <h3>Skill template</h3>
+    <p>Replace the bracketed placeholders. Comments are for your reference; you can delete them.</p>
+    <div class="skill-block"><pre><code>---
+name: [skill-slug]
+description: [One sentence. What does this skill do, and when should the
+  agent activate it? Be specific — Claude reads this to decide whether to
+  invoke the skill in a given turn.]
+---
+
+# [Human-readable skill title]
+
+[Optional: one paragraph of background — what app are we driving, why,
+what does the user expect as output.]
+
+## When to use
+
+[Concrete triggers. E.g.: "When the user asks for the weekly active-user
+count, or anything phrased as 'pull X from the admin tool'."]
+
+## Steps
+
+1. **Confirm the right app is active.** Read `.brow-use/apps.json` with the
+   Read tool to check which app is currently set as `current`. If it's not
+   the right one, ask the user to switch apps before proceeding.
+
+2. **(Optional) Switch mode.** Call `mcp__bu__set_mode` with `crx` if the
+   target app requires the user's logged-in Chrome session, or `playwright`
+   for public pages.
+
+3. **Start tracing** (if you want an audit record): `mcp__bu__start_trace`.
+
+4. **Drive the browser.** Loop:
+   - `mcp__bu__navigate` to the entry URL.
+   - `mcp__bu__get_accessibility_tree` to perceive the page.
+   - Pick the next action from the tree; call `mcp__bu__click` or
+     `mcp__bu__type` with the selector you chose.
+   - Repeat until the goal page is reached.
+
+5. **Persist outputs.** Depending on the goal:
+   - **Data extraction** &rarr; `mcp__bu__write_result` with the records
+     and the format the user asked for (csv / json / markdown / txt).
+   - **Generated code** &rarr; `mcp__bu__write_page_object`,
+     `mcp__bu__write_workflow`, or `mcp__bu__write_test`.
+   - **Documentation** &rarr; `mcp__bu__save_screenshot` per page, then
+     `mcp__bu__write_feature_doc` and `mcp__bu__write_docs_index`.
+
+6. **Stop tracing** (if started): `mcp__bu__stop_trace` with a name.
+
+7. **Record the run**: `mcp__bu__record_run` so the run appears in
+   `.brow-use/runs.json`.
+
+## Notes for the agent
+
+- Always perceive before acting — prefer `get_accessibility_tree` to
+  `snapshot`. Screenshots are expensive and not needed for navigation.
+- Use accessible selectors (role + name) from the ARIA tree, not raw CSS,
+  whenever both are available.
+- If the page looks identical after an action, use
+  `mcp__bu__page_fingerprint` + `compare_fingerprint` to detect loops.
+- Destructive actions are filtered out of
+  `enumerate_interactive_elements` by default. Don't override unless the
+  user has explicitly asked for a destructive operation.
+</code></pre></div>
+
+    <h3>What context the agent already has</h3>
+    <p>
+      When the plugin is enabled in the consuming project, brow-use injects its own
+      <code>CLAUDE.md</code> into every session. This instructs the agent to read the current
+      app context before acting — meaning your skill can assume that context is already
+      established and focus on the task-specific steps.
+    </p>
+
+    <div class="callout info">
+      <p><strong>Note on app context.</strong> The plugin's own instructions refer to an
+      <code>apps://current</code> resource, but in practice app state lives on disk in
+      <code>.brow-use/apps.json</code>. Your skill can read that file directly with the
+      <code>Read</code> tool — no special MCP resource call required.</p>
+    </div>
+
+    <hr class="section-divider">
+
+    <h2>Accessing output artifacts</h2>
+    <p>
+      Everything brow-use generates lands on disk in predictable locations. An agent
+      consuming those outputs uses one of two channels:
+    </p>
+
+    <table class="spec">
+      <thead>
+        <tr><th style="width: 240px;">Artifact</th><th style="width: 320px;">Location on disk</th><th>How to read it</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Extracted result (data)</td>
+          <td><code>output/results/&lt;sessionId&gt;/result.&lt;ext&gt;</code></td>
+          <td><code>Read</code> tool</td>
+        </tr>
+        <tr>
+          <td>Page Object class</td>
+          <td><code>output/page/&lt;name&gt;.ts</code></td>
+          <td><code>Read</code>, or <code>mcp__bu__read_pom_summary</code> for a structured summary</td>
+        </tr>
+        <tr>
+          <td>Workflow function</td>
+          <td><code>output/workflow/&lt;name&gt;.ts</code></td>
+          <td><code>Read</code></td>
+        </tr>
+        <tr>
+          <td>Generated test</td>
+          <td><code>output/test/&lt;name&gt;.spec.ts</code></td>
+          <td><code>Read</code></td>
+        </tr>
+        <tr>
+          <td>Feature documentation</td>
+          <td><code>output/docs/&lt;sessionId&gt;/&lt;name&gt;.md</code></td>
+          <td><code>Read</code></td>
+        </tr>
+        <tr>
+          <td>Docs index</td>
+          <td><code>output/docs/&lt;sessionId&gt;/README.md</code></td>
+          <td><code>Read</code></td>
+        </tr>
+        <tr>
+          <td>Per-step screenshots</td>
+          <td><code>output/exploration/&lt;sessionId&gt;/&lt;name&gt;.png</code></td>
+          <td><code>Read</code> (returns an image block)</td>
+        </tr>
+        <tr>
+          <td>Exploration log</td>
+          <td><code>output/exploration/&lt;sessionId&gt;.jsonl</code></td>
+          <td><code>Read</code></td>
+        </tr>
+        <tr>
+          <td>Navigation graph</td>
+          <td>(derived from trace + ARIA snapshots)</td>
+          <td><code>mcp__bu__read_observed_edges</code></td>
+        </tr>
+        <tr>
+          <td>Playwright trace</td>
+          <td><code>output/trace/&lt;name&gt;.zip</code></td>
+          <td>Replayable with <code>npx playwright show-trace</code> — not normally read by the agent</td>
+        </tr>
+        <tr>
+          <td>Run database</td>
+          <td><code>.brow-use/runs.json</code></td>
+          <td><code>Read</code></td>
+        </tr>
+        <tr>
+          <td>Reasoning audit</td>
+          <td><code>output/reasoning/&lt;sessionId&gt;.jsonl</code></td>
+          <td><code>Read</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      The same naming is used regardless of whether brow-use was driven by a slash command or
+      by your own skill — so any tooling you build around <code>output/</code> works in both
+      cases.
+    </p>
+
+    <hr class="section-divider">
+
+    <h2>Next steps</h2>
+    <p>
+      To set up the plugin in a consuming project, see the
+      <a href="user-guide.html">user guide</a>. To understand how the MCP server fits into the
+      overall system, see <a href="architecture.html">architecture</a>. To extend the tool
+      surface itself (adding new <code>mcp__bu__*</code> tools), see the
+      <a href="developer-guide.html">developer guide</a>.
+    </p>
+
+  </main>
+
+  <footer class="site-footer">
+    brow-use · a Claude Code plugin · <a href="https://github.com/brow-use/spike" target="_blank" rel="noopener">source</a>
+  </footer>
+
+</body>
+</html>
