@@ -5,22 +5,25 @@ brow-use drives a real browser. The `mcp__bu__*` tools navigate, perceive
 write artifacts (page objects, workflows, tests, feature docs, extracted
 results) under `output/`.
 
-## Read app context before any browser action
+## Confirm app and mode before any browser action
 
-App state lives in `.brow-use/apps.json` in the current working directory.
-There is no `apps://` MCP resource — read the file directly with the Read
-tool. Shape:
+Both `currentAppId` and `currentMode` live in `.brow-use/apps.json` in the
+current working directory. There is no `apps://` MCP resource — read the
+file directly with the Read tool. Shape:
 
 ```json
-{ "currentAppId": "<id or null>", "apps": [{ "id": "", "name": "", "url": "", "description": "", "createdAt": "" }] }
+{ "currentAppId": "<id or null>", "currentMode": "playwright" | "crx" | null, "apps": [{ "id": "", "name": "", "url": "", "description": "", "createdAt": "" }] }
 ```
 
-Find the app whose `id` matches `currentAppId`. Use its `url` as the
-navigation entry point and its `description` to inform element identification
-and workflow choices.
+Rule: before any browser action, both fields must be set. If `currentAppId`
+is null, tell the user to run `/bu:apps` and stop; if `currentMode` is null,
+tell them to run `/bu:use-managed-browser` or `/bu:use-session` and stop.
+When both are set, confirm with the user (app name + URL + mode) and let
+them change either before proceeding. The `/bu:*` commands enforce this in
+detail — apply the same rule when driven by a skill or an ad-hoc request.
 
-If the file does not exist or `currentAppId` is null, tell the user to run
-`/bu:apps` and stop.
+Use the app's `url` as the navigation entry point and its `description` to
+inform element identification and workflow choices.
 
 ## Modes
 

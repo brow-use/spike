@@ -138,7 +138,10 @@
     <p>To return to the default Playwright mode:</p>
     <pre><code>set_mode({ mode: "playwright" })</code></pre>
     <div class="callout">
-      Mode is per-session. It resets to <code>playwright</code> each time the MCP server restarts.
+      The chosen mode is persisted to <code>.brow-use/apps.json</code> as
+      <code>currentMode</code>, so it survives MCP server restarts. On first use
+      after a fresh install (no mode ever set), browser-driving commands will
+      ask you to pick a mode before running.
     </div>
 
     <hr class="section-divider">

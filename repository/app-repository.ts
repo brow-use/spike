@@ -5,14 +5,22 @@ import type { App } from '../domain/app.js'
 const STORE_DIR = path.resolve(process.cwd(), '.brow-use')
 const STORE_FILE = path.join(STORE_DIR, 'apps.json')
 
+export type ExecutionMode = 'playwright' | 'crx'
+
 interface Store {
   currentAppId: string | null
+  currentMode: ExecutionMode | null
   apps: App[]
 }
 
 function load(): Store {
-  if (!fs.existsSync(STORE_FILE)) return { currentAppId: null, apps: [] }
-  return JSON.parse(fs.readFileSync(STORE_FILE, 'utf-8')) as Store
+  if (!fs.existsSync(STORE_FILE)) return { currentAppId: null, currentMode: null, apps: [] }
+  const raw = JSON.parse(fs.readFileSync(STORE_FILE, 'utf-8')) as Partial<Store>
+  return {
+    currentAppId: raw.currentAppId ?? null,
+    currentMode: raw.currentMode ?? null,
+    apps: raw.apps ?? [],
+  }
 }
 
 function save(store: Store): void {
@@ -66,5 +74,15 @@ export class AppRepository {
     store.currentAppId = id
     save(store)
     return app
+  }
+
+  getCurrentMode(): ExecutionMode | null {
+    return load().currentMode
+  }
+
+  setCurrentMode(mode: ExecutionMode): void {
+    const store = load()
+    store.currentMode = mode
+    save(store)
   }
 }

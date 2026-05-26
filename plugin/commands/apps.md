@@ -6,10 +6,12 @@ allowed-tools: Read, Write, Bash
 
 Apps are stored in `.brow-use/apps.json` in the current working directory. The file has this shape:
 ```json
-{ "currentAppId": "<id or null>", "apps": [{ "id": "", "name": "", "description": "", "url": "", "createdAt": "" }] }
+{ "currentAppId": "<id or null>", "currentMode": "playwright" | "crx" | null, "apps": [{ "id": "", "name": "", "description": "", "url": "", "createdAt": "" }] }
 ```
 
-Read the file if it exists. If it does not exist, treat the store as `{ "currentAppId": null, "apps": [] }`.
+Read the file if it exists. If it does not exist, treat the store as `{ "currentAppId": null, "currentMode": null, "apps": [] }`.
+
+**Always preserve `currentMode`** when writing the file. It is owned by `/bu:use-managed-browser` and `/bu:use-session` (which call `mcp__bu__set_mode`, which writes it). This command must not clobber it. If the field is absent on read, treat it as `null` and write it back as `null`.
 
 Ask the user what they want to do if they haven't already stated it. Options: list, create, delete, set current.
 

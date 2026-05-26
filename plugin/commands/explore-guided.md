@@ -4,12 +4,16 @@ description: Execute a user-described intention in the browser with a recording.
 allowed-tools: Read, MCP(bu/health_check), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/page_fingerprint), MCP(bu/record_run), MCP(bu/log_reasoning)
 ---
 
-## Preflight
+## Preflight: confirm current app and mode
 
-Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy`, then stop. Do not proceed.
+1. Read `.brow-use/apps.json` with the Read tool. If the file is missing or `currentAppId` is null, tell the user: "No app is selected. Run `/bu:apps` to create or pick one." Stop.
+2. Find the app whose `id` matches `currentAppId`. If no match, tell the user: "The current app id is stale. Run `/bu:apps` to fix it." Stop.
+3. Look at `currentMode` in the same file. If it is null, tell the user: "No mode is set. Run `/bu:use-managed-browser` (fresh Chromium) or `/bu:use-session` (your logged-in Chrome)." Stop.
+4. Confirm with the user, verbatim: "I'll run against **{app.name}** ({app.url}) in **{currentMode}** mode. Continue, change app, or change mode?"
+5. If the user says continue, proceed. If they say change app, run `/bu:apps`; if they say change mode, run `/bu:use-managed-browser` or `/bu:use-session`. After either change, re-read `.brow-use/apps.json` and re-confirm before proceeding.
+6. Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy` and stop.
 
-Read `.brow-use/apps.json` and find the app whose id matches `currentAppId` to get the active app's `url` and `description`.
-If the file does not exist or `currentAppId` is null, tell the user to run `/bu:apps` first and stop.
+Keep the app's `url` and `description` available — `url` is the navigation entry point, `description` informs element identification and workflow choices.
 
 ## Session setup
 

@@ -140,9 +140,38 @@ allowed-tools: Read, Glob, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click)
     <ol>
       <li>Create <code>plugin/commands/&lt;name&gt;.md</code>.</li>
       <li>Decide which MCP tools it needs and list them in <code>allowed-tools</code>.</li>
-      <li>Write the body as instructions to Claude — preflight, inputs, execution, outputs, failure modes. Use the existing commands (<code>explore.md</code>, <code>document.md</code>, <code>do.md</code>) as references.</li>
+      <li>Write the body as instructions to Claude — preflight, inputs, execution, outputs, failure modes. Use the existing commands (<code>explore.md</code>, <code>document.md</code>, <code>run-instruction.md</code>) as references.</li>
       <li><code>make reinstall</code> picks up the new command.</li>
     </ol>
+
+    <h4>Preflight pattern</h4>
+    <p>
+      Every command that touches the browser or relies on app metadata starts
+      with a preflight block that checks two preconditions stored in
+      <code>.brow-use/apps.json</code>:
+    </p>
+    <ul>
+      <li><code>currentAppId</code> — which app the agent is working with (always required for browser-driving and app-metadata commands).</li>
+      <li><code>currentMode</code> — <code>"playwright"</code> or <code>"crx"</code> (required for browser-driving commands only).</li>
+    </ul>
+    <p>
+      If a required field is null, the command tells the user to run
+      <code>/bu:apps</code> (for app) or <code>/bu:use-managed-browser</code> /
+      <code>/bu:use-session</code> (for mode) and stops. If both fields are set, the
+      command confirms with the user — naming the app, URL, and (if applicable) mode —
+      and offers to change either before proceeding.
+    </p>
+    <p>
+      Two variants of the block exist in the codebase. Copy whichever fits:
+    </p>
+    <ul>
+      <li><strong>Variant A (app + mode)</strong> — see <code>plugin/commands/explore.md</code>, <code>explore-guided.md</code>, <code>run-instruction.md</code>.</li>
+      <li><strong>Variant B (app only)</strong> — see <code>plugin/commands/document.md</code>, <code>generate-page-objects.md</code>, <code>generate-workflow-function.md</code>.</li>
+    </ul>
+    <p>
+      Skill authors in consuming projects follow the same pattern — see
+      <a href="agent-integration.html">Agent integration</a> for the skill template.
+    </p>
 
     <hr class="section-divider">
 

@@ -4,7 +4,12 @@ description: Generate Playwright Page Object Model classes from the aria-tree lo
 allowed-tools: Read, Glob, MCP(bu/read_observed_edges), MCP(bu/read_pom_summary), MCP(bu/write_page_object)
 ---
 
-## Preflight
+## Preflight: confirm current app
+
+1. Read `.brow-use/apps.json` with the Read tool. If the file is missing or `currentAppId` is null, tell the user: "No app is selected. Run `/bu:apps` to create or pick one." Stop.
+2. Find the app whose `id` matches `currentAppId`. If no match, tell the user: "The current app id is stale. Run `/bu:apps` to fix it." Stop.
+3. Confirm with the user, verbatim: "I'll work against **{app.name}** ({app.url}). Continue or change app?"
+4. If the user says continue, proceed. If they say change app, run `/bu:apps`, then re-read `.brow-use/apps.json` and re-confirm.
 
 Read `.brow-use/runs.json`. Filter entries where `command === "explore"`. If no such entries exist, tell the user to run `/bu:explore` first and stop.
 

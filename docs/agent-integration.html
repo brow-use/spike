@@ -279,13 +279,19 @@ count, or anything phrased as 'pull X from the admin tool'."]
 
 ## Steps
 
-1. **Confirm the right app is active.** Read `.brow-use/apps.json` with the
-   Read tool to check which app is currently set as `current`. If it's not
-   the right one, ask the user to switch apps before proceeding.
+1. **Precondition: confirm app and mode.** Read `.brow-use/apps.json` with
+   the Read tool.
+   - If the file is missing or `currentAppId` is null, tell the user to run
+     `/bu:apps` and stop.
+   - If `currentMode` is null (and your skill drives the browser), tell the
+     user to run `/bu:use-managed-browser` or `/bu:use-session` and stop.
+   - Otherwise, confirm with the user: "I'll run against **{app.name}**
+     ({app.url}) in **{currentMode}** mode. Continue, change app, or change
+     mode?" Honour the answer before proceeding.
 
-2. **(Optional) Switch mode.** Call `mcp__bu__set_mode` with `crx` if the
-   target app requires the user's logged-in Chrome session, or `playwright`
-   for public pages.
+2. **(If switching mode programmatically)** Call `mcp__bu__set_mode` with
+   `crx` (user's logged-in Chrome) or `playwright` (fresh Chromium). The mode
+   is persisted to `.brow-use/apps.json` automatically.
 
 3. **Start tracing** (if you want an audit record): `mcp__bu__start_trace`.
 
@@ -331,10 +337,12 @@ count, or anything phrased as 'pull X from the admin tool'."]
     </p>
 
     <div class="callout info">
-      <p><strong>Note on app context.</strong> The plugin's own instructions refer to an
-      <code>apps://current</code> resource, but in practice app state lives on disk in
-      <code>.brow-use/apps.json</code>. Your skill can read that file directly with the
-      <code>Read</code> tool — no special MCP resource call required.</p>
+      <p><strong>Note on app and mode state.</strong> Both
+      <code>currentAppId</code> and <code>currentMode</code> live on disk in
+      <code>.brow-use/apps.json</code> — there is no <code>apps://</code> MCP
+      resource. Read the file directly with the <code>Read</code> tool. The
+      mode persists across MCP server restarts because
+      <code>mcp__bu__set_mode</code> writes it to the same file.</p>
     </div>
 
     <hr class="section-divider">

@@ -158,6 +158,16 @@
       app — its URL, name, and functional description. Run <code>/bu:apps</code> once to register
       it; the description is used as exploration bias and as context for everything that follows.
     </p>
+    <div class="callout info">
+      <p><strong>App and mode are confirmed before every run.</strong> Browser-driving
+      commands (<code>/bu:explore</code>, <code>/bu:explore-guided</code>,
+      <code>/bu:run-instruction</code>) and file-only commands that need app context
+      (<code>/bu:document</code>, <code>/bu:generate-page-objects</code>,
+      <code>/bu:generate-workflow-function</code>) all start by showing you the
+      current app (and mode, for browser-driving ones) and ask whether to continue or
+      change either. The mode is persisted in <code>.brow-use/apps.json</code>, so it
+      survives MCP server restarts.</p>
+    </div>
     <ul>
       <li><code>/bu:apps</code> — conversational catalogue: list, create, delete, set current.</li>
       <li><code>/bu:health</code> — quick check that the MCP server, extension, and tab are wired up.</li>

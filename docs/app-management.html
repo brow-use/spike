@@ -57,6 +57,7 @@
     <h2>File shape</h2>
     <pre><code>{
   "currentAppId": "&lt;id or null&gt;",
+  "currentMode": "playwright" | "crx" | null,
   "apps": [
     {
       "id": "uuid-...",
@@ -67,6 +68,15 @@
     }
   ]
 }</code></pre>
+    <p>
+      <strong><code>currentMode</code></strong> records the last selected
+      execution mode (<code>playwright</code> or <code>crx</code>) so the
+      choice survives MCP server restarts. It's written by
+      <code>mcp__bu__set_mode</code> — which is called when you run
+      <code>/bu:use-managed-browser</code> or <code>/bu:use-session</code>. A
+      <code>null</code> value means no mode has been chosen yet; browser-driving
+      commands will refuse to run until it is set.
+    </p>
     <p>
       The <code>description</code> is more than metadata — it's used as exploration bias in
       <code>/bu:explore</code> and as grounding context in <code>/bu:run-instruction</code>. A specific
