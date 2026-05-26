@@ -43,7 +43,7 @@
         <tr><td>viewer/</td><td>React + Vite app for browsing recorded runs (trace + sidecar + reasoning + aria log on a timeline).</td></tr>
         <tr><td>scripts/</td><td>Build &amp; dev helpers: <code>extract-trace.ts</code>, <code>watch-extension.ts</code>, <code>generate-icons.ts</code>.</td></tr>
         <tr><td>config/</td><td>Default app template (<code>app.json</code>). User apps live in <code>.brow-use/apps.json</code> at runtime.</td></tr>
-        <tr><td>output/</td><td>Generated artifacts (page/, workflow/, trace/, docs/, exploration/, reasoning/, results/). Created on first run.</td></tr>
+        <tr><td>output/</td><td>Generated artifacts (page/, workflow/, trace/, docs/, exploration/, reasoning/, results/, investigation/). Created on first run.</td></tr>
         <tr><td>Makefile</td><td>One-shot tasks: <code>make build</code>, <code>make install</code>, <code>make extract SESSION=&lt;id&gt;</code>.</td></tr>
       </tbody>
     </table>
@@ -165,7 +165,7 @@ allowed-tools: Read, Glob, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click)
       Two variants of the block exist in the codebase. Copy whichever fits:
     </p>
     <ul>
-      <li><strong>Variant A (app + mode)</strong> — see <code>plugin/commands/explore.md</code>, <code>explore-guided.md</code>, <code>run-instruction.md</code>.</li>
+      <li><strong>Variant A (app + mode)</strong> — see <code>plugin/commands/explore.md</code>, <code>explore-guided.md</code>, <code>run-instruction.md</code>, <code>investigate.md</code>.</li>
       <li><strong>Variant B (app only)</strong> — see <code>plugin/commands/document.md</code>, <code>generate-page-objects.md</code>, <code>generate-workflow-function.md</code>.</li>
     </ul>
     <p>

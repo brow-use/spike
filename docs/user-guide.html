@@ -161,7 +161,7 @@
     <div class="callout info">
       <p><strong>App and mode are confirmed before every run.</strong> Browser-driving
       commands (<code>/bu:explore</code>, <code>/bu:explore-guided</code>,
-      <code>/bu:run-instruction</code>) and file-only commands that need app context
+      <code>/bu:run-instruction</code>, <code>/bu:investigate</code>) and file-only commands that need app context
       (<code>/bu:document</code>, <code>/bu:generate-page-objects</code>,
       <code>/bu:generate-workflow-function</code>) all start by showing you the
       current app (and mode, for browser-driving ones) and ask whether to continue or
@@ -193,6 +193,7 @@
         <div class="ufl-cmds">
           <div class="ufl-cmd"><code>/bu:explore</code><span class="ufl-cmd-note">— autonomous breadth-first walk</span></div>
           <div class="ufl-cmd"><code>/bu:explore-guided</code><span class="ufl-cmd-note">— one-off intent, ad-hoc</span></div>
+          <div class="ufl-cmd"><code>/bu:investigate</code><span class="ufl-cmd-note">— run a small action and report what you observe</span></div>
         </div>
       </div>
 
@@ -294,6 +295,26 @@
       for ad-hoc tasks where you just want the agent to <em>do the thing</em> and leave behind a
       trace. Unlike <code>/bu:run-instruction</code>, it never asks about grounding and goes
       straight to execution.
+    </p>
+
+    <h3 id="investigate"><span class="layer-pill layer-1">Layer 1</span> &nbsp; <code>/bu:investigate</code></h3>
+    <p>
+      Take a small action in the browser and answer a question about it. The command asks for two
+      things — <strong>what to run</strong> (the action sequence) and <strong>how to help with the
+      investigation</strong> (what to observe or explain) — and decides the technique on its own:
+      aria diffs, screenshots, DOM snapshots, interactive-surface enumeration, or page
+      fingerprints, used in whichever combination answers the question. Unlike
+      <code>/bu:explore-guided</code> and <code>/bu:run-instruction</code>, this command does not
+      read any prior run's docs, page objects, or aria logs — the investigation is purely live.
+    </p>
+    <p>
+      Refuses destructive "what to run" inputs at the parsing stage. Has a hard step budget (40
+      browser actions). Records a trace and a run row in <code>.brow-use/runs.json</code> like the
+      other browser-driving commands.
+    </p>
+    <p>
+      <strong>Outputs:</strong> <code>output/investigation/&lt;id&gt;/findings.md</code> with the
+      narrative answer plus any saved screenshots, and the trace zip in <code>output/trace/</code>.
     </p>
 
     <h3 id="extract"><span class="layer-pill layer-2">Layer 2</span> &nbsp; <code>make extract SESSION=&lt;id&gt;</code></h3>

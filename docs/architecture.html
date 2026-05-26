@@ -142,6 +142,7 @@
     <ul>
       <li><code>/bu:explore</code> — walk the app autonomously, breadth-first, with loop detection.</li>
       <li><code>/bu:explore-guided</code> — carry out a one-off plain-English intent and record it.</li>
+      <li><code>/bu:investigate</code> — run a small action and answer a live question about what the page did, choosing the investigation technique on the fly.</li>
     </ul>
 
     <h3><span class="layer-pill layer-2">Layer 2</span> &nbsp; Deterministic post-processing</h3>
@@ -406,7 +407,7 @@
         <tr>
           <td><code>command</code></td>
           <td>Which brow-use command produced the run. Drives how downstream tools interpret the entry and which optional fields are present.</td>
-          <td><code>"explore"</code> · <code>"explore-guided"</code> · <code>"run-instruction"</code></td>
+          <td><code>"explore"</code> · <code>"explore-guided"</code> · <code>"run-instruction"</code> · <code>"investigate"</code></td>
           <td>all</td>
         </tr>
         <tr>
@@ -429,7 +430,7 @@
         </tr>
         <tr>
           <td><code>artifacts</code></td>
-          <td>Map of artifact label to file or directory path. Lets downstream commands resolve every output the run produced without guessing. Keys vary by command — <code>tracePath</code>, <code>ariaLog</code> for explore / explore-guided; <code>tracePath</code>, <code>resultPath</code>, <code>howPath</code> for run-instruction.</td>
+          <td>Map of artifact label to file or directory path. Lets downstream commands resolve every output the run produced without guessing. Keys vary by command — <code>tracePath</code>, <code>ariaLog</code> for explore / explore-guided; <code>tracePath</code>, <code>resultPath</code>, <code>howPath</code> for run-instruction; <code>tracePath</code>, <code>findingsPath</code> for investigate.</td>
           <td>JSON object — string keys, string paths</td>
           <td>all</td>
         </tr>
@@ -447,9 +448,9 @@
         </tr>
         <tr>
           <td><code>intent</code></td>
-          <td>The plain-English instruction the user gave the agent for this run.</td>
+          <td>The plain-English instruction the user gave the agent for this run. For <code>investigate</code> this is the combined two-part input: <code>"Run: {whatToRun} | Investigate: {howToHelp}"</code>.</td>
           <td>string</td>
-          <td>explore-guided · run-instruction</td>
+          <td>explore-guided · run-instruction · investigate</td>
         </tr>
         <tr>
           <td><code>format</code></td>
