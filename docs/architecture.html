@@ -15,6 +15,7 @@
     .archflow-node-runtime { border-left-color: #3fb950; }
     .archflow-node-extension { border-left-color: #f0883e; }
     .archflow-node-chrome { border-left-color: #3fb950; }
+    .archflow-node-artifact { border-left-color: #8b949e; }
     .archflow-eyebrow { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.7rem; color: #6e7681; margin-bottom: 4px; }
     .archflow-title { font-size: 0.98rem; font-weight: 600; color: #e6edf3; line-height: 1.3; }
     .archflow-detail { font-size: 0.85rem; color: #8b949e; margin-top: 4px; line-height: 1.5; }
@@ -120,6 +121,151 @@
       For the full per-tool surface — every <code>mcp__bu__*</code> tool exposed by the MCP
       server, and how to drive them from your own agent or skill — see
       <a href="agent-integration.html">Agent integration</a>.
+    </p>
+
+    <hr class="section-divider">
+
+    <h2>End-to-end: generating a page object</h2>
+    <p>
+      Before zooming in on the command taxonomy and the agent loop, here's the
+      whole runtime stitched together for one concrete outcome — producing a
+      typed Page Object for a page in your app. Two prompts, with a
+      deterministic post-processing step between them. The first prompt drives
+      a real browser via the Chrome extension; the second never touches a
+      browser at all. That split is the key idea.
+    </p>
+
+    <h3>Phase 1 — Capture (live, session mode)</h3>
+    <p>
+      You run <code>/bu:explore</code>. The agent walks your app in a real
+      Chrome tab and records everything. The trace and aria log it produces are
+      the raw material the next phase reads.
+    </p>
+
+    <div class="archflow">
+
+      <div class="archflow-node archflow-node-user">
+        <div class="archflow-eyebrow">you</div>
+        <div class="archflow-title">/bu:explore</div>
+        <div class="archflow-detail">typed in Claude Code</div>
+      </div>
+
+      <div class="archflow-link">
+        <div class="archflow-link-row archflow-link-down"><span class="archflow-arrow">↓</span> reads <code>explore.md</code></div>
+      </div>
+
+      <div class="archflow-node archflow-node-claude">
+        <div class="archflow-eyebrow">agent</div>
+        <div class="archflow-title">Claude Code</div>
+        <div class="archflow-detail">executes the markdown verbatim — perceive · reason · act · record</div>
+      </div>
+
+      <div class="archflow-link">
+        <div class="archflow-link-row archflow-link-down"><span class="archflow-arrow">↓</span> MCP tool calls — <code>start_trace</code>, <code>navigate</code>, <code>get_accessibility_tree</code>, <code>click</code>…</div>
+        <div class="archflow-link-row archflow-link-up"><span class="archflow-arrow">↑</span> tool results</div>
+      </div>
+
+      <div class="archflow-node archflow-node-runtime">
+        <div class="archflow-eyebrow">brow-use plugin · long-running Node process</div>
+        <div class="archflow-title">MCP server</div>
+        <div class="archflow-detail">routes browser tool calls over WebSocket <code>:3456</code> in session mode</div>
+      </div>
+
+      <div class="archflow-link">
+        <div class="archflow-link-row archflow-link-bus"><span class="archflow-arrow">↓</span> commands · WebSocket</div>
+        <div class="archflow-link-row archflow-link-up"><span class="archflow-arrow">↑</span> results</div>
+      </div>
+
+      <div class="archflow-node archflow-node-extension">
+        <div class="archflow-eyebrow">browser extension (MV3)</div>
+        <div class="archflow-title">brow-use extension</div>
+        <div class="archflow-detail"><code>playwright-crx</code> drives the active tab through <code>chrome.debugger</code></div>
+      </div>
+
+      <div class="archflow-link">
+        <div class="archflow-link-row archflow-link-down"><span class="archflow-arrow">↓</span> CDP commands</div>
+        <div class="archflow-link-row archflow-link-up"><span class="archflow-arrow">↑</span> accessibility tree · snapshots</div>
+      </div>
+
+      <div class="archflow-node archflow-node-chrome">
+        <div class="archflow-eyebrow">your browser</div>
+        <div class="archflow-title">Chrome <span class="archflow-badge">logged in</span></div>
+        <div class="archflow-detail">your profile · real cookies · active tab</div>
+      </div>
+
+    </div>
+
+    <p class="section-bridge">
+      When the loop ends, the agent calls <code>stop_trace</code> and
+      <code>record_run</code> — the trace zip lands at
+      <code>output/traces/&lt;sessionId&gt;.zip</code> and the run is appended
+      to <code>.brow-use/runs.json</code>. Then
+      <code>make extract SESSION=&lt;id&gt;</code> (Layer 2 — pure TypeScript,
+      no agent, no browser) turns the zip into the aria-tree log and per-step
+      screenshots that Phase 2 reads.
+    </p>
+
+    <h3>Phase 2 — Generate (offline, no browser)</h3>
+    <p>
+      You run <code>/bu:generate-page-objects</code>. The same MCP server is
+      still there, but no browser tool is called this time — the agent reads
+      the captured artifacts and writes typed POMs.
+    </p>
+
+    <div class="archflow">
+
+      <div class="archflow-node archflow-node-user">
+        <div class="archflow-eyebrow">you</div>
+        <div class="archflow-title">/bu:generate-page-objects</div>
+        <div class="archflow-detail">typed in Claude Code</div>
+      </div>
+
+      <div class="archflow-link">
+        <div class="archflow-link-row archflow-link-down"><span class="archflow-arrow">↓</span> reads <code>generate-page-objects.md</code></div>
+      </div>
+
+      <div class="archflow-node archflow-node-claude">
+        <div class="archflow-eyebrow">agent</div>
+        <div class="archflow-title">Claude Code</div>
+        <div class="archflow-detail">picks a source run from <code>.brow-use/runs.json</code>, iterates page by page</div>
+      </div>
+
+      <div class="archflow-link">
+        <div class="archflow-link-row archflow-link-down"><span class="archflow-arrow">↓</span> MCP tool calls — <code>read_observed_edges</code>, <code>read_pom_summary</code>, <code>write_page_object</code></div>
+        <div class="archflow-link-row archflow-link-up"><span class="archflow-arrow">↑</span> page structure · navigation edges</div>
+      </div>
+
+      <div class="archflow-node archflow-node-runtime">
+        <div class="archflow-eyebrow">brow-use plugin · file-only tools</div>
+        <div class="archflow-title">MCP server</div>
+        <div class="archflow-detail">no browser, no extension, no WebSocket — straight filesystem reads &amp; writes</div>
+      </div>
+
+      <div class="archflow-link">
+        <div class="archflow-link-row archflow-link-up"><span class="archflow-arrow">↑</span> aria log · observed edges · screenshots</div>
+        <div class="archflow-link-row archflow-link-down"><span class="archflow-arrow">↓</span> generated POM files</div>
+      </div>
+
+      <div class="archflow-node archflow-node-artifact">
+        <div class="archflow-eyebrow">disk · output/</div>
+        <div class="archflow-title">Artifacts</div>
+        <ul class="archflow-list">
+          <li><code>aria-log/&lt;sessionId&gt;.jsonl</code> — input</li>
+          <li><code>screenshots/&lt;sessionId&gt;/</code> — input</li>
+          <li><code>pom/&lt;page&gt;.ts</code> — output</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <p>
+      The phase split is the deliberate part. Everything fragile and stateful
+      — real browser, real cookies, network timing — lives in Phase 1. By the
+      time Phase 2 runs, the app is frozen as a deterministic set of files;
+      re-running the generator against the same source run produces the same
+      POMs without re-walking the app. That's what lets you iterate on the
+      generator (or fix prompts in <code>generate-page-objects.md</code>)
+      without re-paying the cost of a live capture.
     </p>
 
     <p class="section-bridge">Commands are organised into four layers. Knowing the taxonomy first makes the next section — the agent loop — read more cleanly, since the loop's shape varies by layer.</p>

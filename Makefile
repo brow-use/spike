@@ -1,6 +1,6 @@
 PLUGIN_DIR := /Users/viveksingh/projects/brow-use/spike
 
-.PHONY: build install reinstall list dev-mcp extract
+.PHONY: build install reinstall install-local list dev-mcp extract
 
 build:
 	npm run build
@@ -12,6 +12,14 @@ install: build
 reinstall: build
 	claude plugin uninstall bu
 	claude plugin install bu
+
+# Copy the plugin into a target project — no reference back to this repo.
+# Usage: make install-local PROJECT=<absolute-or-relative path to consuming project>
+install-local: build
+ifndef PROJECT
+	$(error PROJECT is required — e.g. make install-local PROJECT=../my-app)
+endif
+	npx tsx scripts/install-local.ts $(PROJECT)
 
 list:
 	claude plugin list
