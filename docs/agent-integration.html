@@ -279,19 +279,17 @@ count, or anything phrased as 'pull X from the admin tool'."]
 
 ## Steps
 
-1. **Precondition: confirm app and mode.** Read `.brow-use/apps.json` with
+1. **Precondition: confirm URL and mode.** Read `.brow-use/config.json` with
    the Read tool.
-   - If the file is missing or `currentAppId` is null, tell the user to run
-     `/bu:apps` and stop.
    - If `currentMode` is null (and your skill drives the browser), tell the
      user to run `/bu:use-managed-browser` or `/bu:use-session` and stop.
-   - Otherwise, confirm with the user: "I'll run against **{app.name}**
-     ({app.url}) in **{currentMode}** mode. Continue, change app, or change
-     mode?" Honour the answer before proceeding.
+   - Get the target URL: use it if supplied, otherwise ask the user.
+   - Confirm with the user: "I'll run against **{url}** in **{currentMode}**
+     mode. Continue or change mode?" Honour the answer before proceeding.
 
 2. **(If switching mode programmatically)** Call `mcp__bu__set_mode` with
    `crx` (user's logged-in Chrome) or `playwright` (fresh Chromium). The mode
-   is persisted to `.brow-use/apps.json` automatically.
+   is persisted to `.brow-use/config.json` automatically.
 
 3. **Start tracing** (if you want an audit record): `mcp__bu__start_trace`.
 
@@ -337,12 +335,10 @@ count, or anything phrased as 'pull X from the admin tool'."]
     </p>
 
     <div class="callout info">
-      <p><strong>Note on app and mode state.</strong> Both
-      <code>currentAppId</code> and <code>currentMode</code> live on disk in
-      <code>.brow-use/apps.json</code> — there is no <code>apps://</code> MCP
-      resource. Read the file directly with the <code>Read</code> tool. The
-      mode persists across MCP server restarts because
-      <code>mcp__bu__set_mode</code> writes it to the same file.</p>
+      <p><strong>Note on mode state.</strong> <code>currentMode</code> lives on disk in
+      <code>.brow-use/config.json</code>. Read the file directly with the <code>Read</code> tool.
+      The mode persists across MCP server restarts because <code>mcp__bu__set_mode</code>
+      writes it to the same file.</p>
     </div>
 
     <hr class="section-divider">

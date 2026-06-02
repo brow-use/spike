@@ -4,13 +4,7 @@ description: Generate end-user feature documentation from the aria-tree log of a
 allowed-tools: Read, Glob, MCP(bu/health_check), MCP(bu/read_observed_edges), MCP(bu/write_feature_doc), MCP(bu/write_docs_index), MCP(bu/log_reasoning)
 ---
 
-## Preflight: confirm current app
-
-1. Read `.brow-use/apps.json` with the Read tool. If the file is missing or `currentAppId` is null, tell the user: "No app is selected. Run `/bu:apps` to create or pick one." Stop.
-2. Find the app whose `id` matches `currentAppId`. If no match, tell the user: "The current app id is stale. Run `/bu:apps` to fix it." Stop.
-3. Confirm with the user, verbatim: "I'll work against **{app.name}** ({app.url}). Continue or change app?"
-4. If the user says continue, proceed. If they say change app, run `/bu:apps`, then re-read `.brow-use/apps.json` and re-confirm.
-5. Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy` and stop.
+## Preflight: pick a run
 
 Read `.brow-use/runs.json`. Filter entries where `command === "explore"`. If none exist, tell the user to run `/bu:explore` first and stop.
 
@@ -21,9 +15,7 @@ List the available runs as a table: index, sessionId, date (from `startedAt`), p
 From the chosen run read:
 - `sessionId` — call it `sourceExploreId`. All outputs this command writes are scoped under this id, so re-running the command overwrites cleanly.
 - `artifacts.ariaLog` — required. If the key is missing or the file does not exist on disk, tell the user to run `make extract SESSION=<sourceExploreId>` first, then re-run this command. Stop.
-- `appId` — needed for looking up app metadata below.
-
-Read `.brow-use/apps.json` and find the app whose id matches the run's `appId`. Keep its `name`, `url`, and `description` — you will pass them to `write_docs_index` later. If the app is no longer in `apps.json`, proceed with the sessionId alone and note it in the summary.
+- `url` — the URL the run started from (used to pass `appUrl` to `write_docs_index`).
 
 Read the aria log file line by line. Each line is a JSON object: `{ stepId, url, title, ariaSummary, ariaTree, timestamp }`. Parse all lines into a working array `pages` sorted by `stepId` ascending.
 
@@ -158,7 +150,7 @@ One row per inferred navigation edge from this exploration. `Trigger` is the hum
 Sort rows by `fromStepId` ascending, then `toStepId`. Emit one row per edge even when multiple edges share the same (from, to) with different triggers. If the edges list is empty (single-page run), write only the heading paragraph and skip the table.
 
 Finally, call `write_docs_index` to emit the README:
-- `sessionId = sourceExploreId`, `appName`, `appUrl`, `appDescription` (from the `apps.json` lookup above; pass empty strings if the app entry was missing).
+- `sessionId = sourceExploreId`, `appUrl` — from the run's `url` field. Omit `appName` (defaults to the URL's hostname).
 - `entries` — an array of `{slug, title, summary}`, one per feature doc written. `slug` matches the doc filename without `.md`; `title` is the human title; `summary` is one plain-language sentence.
 - `stats` — optionally `{pagesVisited: pages.length}`.
 

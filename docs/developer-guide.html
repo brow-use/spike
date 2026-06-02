@@ -42,7 +42,7 @@
         <tr><td>plugin/</td><td>Plugin manifest plus <code>commands/*.md</code> — every <code>/bu:&lt;name&gt;</code> command is a markdown file Claude executes verbatim.</td></tr>
         <tr><td>viewer/</td><td>React + Vite app for browsing recorded runs (trace + sidecar + reasoning + aria log on a timeline).</td></tr>
         <tr><td>scripts/</td><td>Build &amp; dev helpers: <code>extract-trace.ts</code>, <code>watch-extension.ts</code>, <code>generate-icons.ts</code>.</td></tr>
-        <tr><td>config/</td><td>Default app template (<code>app.json</code>). User apps live in <code>.brow-use/apps.json</code> at runtime.</td></tr>
+        <tr><td>config/</td><td>Default app template (<code>app.json</code>). Mode state lives in <code>.brow-use/config.json</code> at runtime.</td></tr>
         <tr><td>output/</td><td>Generated artifacts (page/, workflow/, trace/, docs/, exploration/, reasoning/, results/, investigation/). Created on first run.</td></tr>
         <tr><td>Makefile</td><td>One-shot tasks: <code>make build</code>, <code>make install</code>, <code>make extract SESSION=&lt;id&gt;</code>.</td></tr>
       </tbody>
@@ -146,28 +146,18 @@ allowed-tools: Read, Glob, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click)
 
     <h4>Preflight pattern</h4>
     <p>
-      Every command that touches the browser or relies on app metadata starts
-      with a preflight block that checks two preconditions stored in
-      <code>.brow-use/apps.json</code>:
+      Browser-driving commands start with a preflight block that checks mode and collects the URL:
     </p>
     <ul>
-      <li><code>currentAppId</code> — which app the agent is working with (always required for browser-driving and app-metadata commands).</li>
-      <li><code>currentMode</code> — <code>"playwright"</code> or <code>"crx"</code> (required for browser-driving commands only).</li>
+      <li><code>currentMode</code> — read from <code>.brow-use/config.json</code>. If null, the command tells the user to run <code>/bu:use-managed-browser</code> or <code>/bu:use-session</code> and stops.</li>
+      <li><code>url</code> — if not supplied by the user, the command asks for it on demand.</li>
     </ul>
     <p>
-      If a required field is null, the command tells the user to run
-      <code>/bu:apps</code> (for app) or <code>/bu:use-managed-browser</code> /
-      <code>/bu:use-session</code> (for mode) and stops. If both fields are set, the
-      command confirms with the user — naming the app, URL, and (if applicable) mode —
-      and offers to change either before proceeding.
+      When mode is set and a URL is available, the command confirms both with the user and offers to change the mode before proceeding.
     </p>
     <p>
-      Two variants of the block exist in the codebase. Copy whichever fits:
+      Artifact-only commands (<code>/bu:document</code>, <code>/bu:generate-page-objects</code>, <code>/bu:generate-workflow-function</code>) skip the preflight entirely and go straight to run selection from <code>.brow-use/runs.json</code>.
     </p>
-    <ul>
-      <li><strong>Variant A (app + mode)</strong> — see <code>plugin/commands/explore.md</code>, <code>explore-guided.md</code>, <code>run-instruction.md</code>, <code>investigate.md</code>.</li>
-      <li><strong>Variant B (app only)</strong> — see <code>plugin/commands/document.md</code>, <code>generate-page-objects.md</code>, <code>generate-workflow-function.md</code>.</li>
-    </ul>
     <p>
       Skill authors in consuming projects follow the same pattern — see
       <a href="agent-integration.html">Agent integration</a> for the skill template.

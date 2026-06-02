@@ -4,16 +4,16 @@ description: Autonomously explore the current app and capture a per-page aria-tr
 allowed-tools: Read, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/clear_session), MCP(bu/page_fingerprint), MCP(bu/compare_fingerprint), MCP(bu/enumerate_interactive_elements), MCP(bu/record_run), MCP(bu/log_reasoning)
 ---
 
-## Preflight: confirm current app and mode
+## Preflight: confirm URL and mode
 
-1. Read `.brow-use/apps.json` with the Read tool. If the file is missing or `currentAppId` is null, tell the user: "No app is selected. Run `/bu:apps` to create or pick one." Stop.
-2. Find the app whose `id` matches `currentAppId`. If no match, tell the user: "The current app id is stale. Run `/bu:apps` to fix it." Stop.
-3. Look at `currentMode` in the same file. If it is null, tell the user: "No mode is set. Run `/bu:use-managed-browser` (fresh Chromium) or `/bu:use-session` (your logged-in Chrome)." Stop.
-4. Confirm with the user, verbatim: "I'll run against **{app.name}** ({app.url}) in **{currentMode}** mode. Continue, change app, or change mode?"
-5. If the user says continue, proceed. If they say change app, run `/bu:apps`; if they say change mode, run `/bu:use-managed-browser` or `/bu:use-session`. After either change, re-read `.brow-use/apps.json` and re-confirm before proceeding.
+1. Read `.brow-use/config.json` with the Read tool. Look at `currentMode`. If it is null, tell the user: "No mode is set. Run `/bu:use-managed-browser` (fresh Chromium) or `/bu:use-session` (your logged-in Chrome)." Stop.
+2. Get the target URL: if the user has already stated one, use it. Otherwise ask: "What URL should I start from?"
+3. Get an app description (optional): if the user has already provided one, use it. Otherwise ask: "Briefly describe the app for exploration bias — or press Enter to skip."
+4. Confirm with the user, verbatim: "I'll run against **{url}** in **{currentMode}** mode. Continue or change mode?"
+5. If the user says continue, proceed. If they say change mode, run `/bu:use-managed-browser` or `/bu:use-session`. After the mode change, re-confirm before proceeding.
 6. Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy` and stop.
 
-Use the app's `description` as exploration bias: prefer actions whose accessible names overlap with words in the description. If no description is present, proceed without bias and tell the user.
+Use the description as exploration bias: prefer actions whose accessible names overlap with words in the description. If no description is provided, proceed without bias and tell the user.
 
 ## Budget
 
@@ -51,7 +51,7 @@ Before descending into any single module, call `enumerate_interactive_elements` 
 
 1. Derive `sessionId = "explore-<UNIX-millis>"` once.
 2. Call `start_trace`. This is the single audit artifact.
-3. Navigate to the app's `url`.
+3. Navigate to `url`.
 4. Call `page_fingerprint`. Parse the returned JSON; keep `{ phash, ariaHash, url, title }` as the first entry in an in-memory `visited` array. Maintain `contiguousLoopHits = 0` and an empty `frontier` list.
 
 Repeat until a termination condition below is met:
@@ -104,7 +104,7 @@ At the very end, call `record_run` to register this run in the brow-use run data
 - `command: "explore"`.
 - `startedAt` — ISO timestamp from when you derived the sessionId (you can reconstruct it from the unix-ms portion).
 - `endedAt` — ISO timestamp of now.
-- `appId` — the `currentAppId` value from `.brow-use/apps.json`.
+- `url` — the URL this run started from.
 - `mode` — `"crx"` or `"playwright"`, whichever was active (check `health_check`'s `mode` field at preflight).
 - `pagesVisited` — `visited.length` at termination.
 - `terminationReason` — `"frontier-empty"` | `"maxSteps"` | `"maxLoopHits"`.

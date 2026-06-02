@@ -152,24 +152,17 @@
       <li><code>/bu:use-session</code> — switch to session mode (will list tabs and ask which one to pin).</li>
     </ul>
 
-    <h3>3 — Register an app</h3>
-    <p>
-      Most commands start by reading <code>.brow-use/apps.json</code> for the currently active
-      app — its URL, name, and functional description. Run <code>/bu:apps</code> once to register
-      it; the description is used as exploration bias and as context for everything that follows.
-    </p>
+    <h3>3 — Confirm URL and mode</h3>
     <div class="callout info">
-      <p><strong>App and mode are confirmed before every run.</strong> Browser-driving
+      <p><strong>URL and mode are confirmed before every run.</strong> Browser-driving
       commands (<code>/bu:explore</code>, <code>/bu:explore-guided</code>,
-      <code>/bu:run-instruction</code>, <code>/bu:investigate</code>) and file-only commands that need app context
-      (<code>/bu:document</code>, <code>/bu:generate-page-objects</code>,
-      <code>/bu:generate-workflow-function</code>) all start by showing you the
-      current app (and mode, for browser-driving ones) and ask whether to continue or
-      change either. The mode is persisted in <code>.brow-use/apps.json</code>, so it
-      survives MCP server restarts.</p>
+      <code>/bu:run-instruction</code>, <code>/bu:investigate</code>) ask for the target URL
+      if you haven't supplied one, then confirm URL + mode before starting. The mode is
+      persisted in <code>.brow-use/config.json</code>, so it survives MCP server restarts.
+      Optionally provide a short description of the app — it is used as exploration bias in
+      <code>/bu:explore</code> and <code>/bu:explore-guided</code>.</p>
     </div>
     <ul>
-      <li><code>/bu:apps</code> — conversational catalogue: list, create, delete, set current.</li>
       <li><code>/bu:health</code> — quick check that the MCP server, extension, and tab are wired up.</li>
       <li><code>/bu:setup-project</code> — scaffold a Playwright TypeScript project in the current directory.</li>
     </ul>
@@ -400,14 +393,6 @@
       <code>output/workflow/&lt;function-name&gt;-workflow.ts</code>, exporting one
       <code>async</code> function whose first parameter is <code>page: Page</code>.
     </p>
-
-    <h3 id="apps">App management</h3>
-    <p>
-      <code>/bu:apps</code> manages everything in <code>.brow-use/apps.json</code>: list,
-      create, delete, set current. The "current app" is the one all subsequent commands operate
-      against — its URL is the entry point, its description is the exploration bias.
-    </p>
-    <p>For the file shape and full conversational behaviour, see <a href="app-management.html">App management</a>.</p>
 
     <hr class="section-divider">
 

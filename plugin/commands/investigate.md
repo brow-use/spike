@@ -1,29 +1,63 @@
 ---
-disable-model-invocation: true
 description: Run a small action in the browser and investigate something about it. The user provides what to run and what to investigate; the agent picks the investigation method. No prior run knowledge is used.
 allowed-tools: Read, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/enumerate_interactive_elements), MCP(bu/save_screenshot), MCP(bu/page_fingerprint), MCP(bu/list_tabs), MCP(bu/select_tab), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/record_run), MCP(bu/log_reasoning)
 ---
 
-## Preflight: confirm current app and mode
+## Pre-supplied inputs (composable invocation)
 
-1. Read `.brow-use/apps.json` with the Read tool. If the file is missing or `currentAppId` is null, tell the user: "No app is selected. Run `/bu:apps` to create or pick one." Stop.
-2. Find the app whose `id` matches `currentAppId`. If no match, tell the user: "The current app id is stale. Run `/bu:apps` to fix it." Stop.
-3. Look at `currentMode` in the same file. If it is null, tell the user: "No mode is set. Run `/bu:use-managed-browser` (fresh Chromium) or `/bu:use-session` (your logged-in Chrome)." Stop.
-4. Confirm with the user, verbatim: "I'll run against **{app.name}** ({app.url}) in **{currentMode}** mode. Continue, change app, or change mode?"
-5. If the user says continue, proceed. If they say change app, run `/bu:apps`; if they say change mode, run `/bu:use-managed-browser` or `/bu:use-session`. After either change, re-read `.brow-use/apps.json` and re-confirm before proceeding.
-6. If `currentMode` is `crx`, ask the user: "Use the currently pinned tab, or pick a different one?" If they want to switch, call `list_tabs`, match their input against tab titles and URLs, and call `select_tab` with the chosen id. Confirm the active tab back to them before proceeding.
-7. Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy` and stop. Do not start a trace.
+This command can be driven interactively by a human, OR called as a sub-step from another slash command with pre-supplied inputs.
 
-Keep the app's `url` and `description` available — `url` is the navigation entry point unless the user's instruction specifies otherwise.
+Before doing anything else, scan `$ARGUMENTS` for a JSON object (it may appear anywhere in the user's message; if a JSON object is present, the rest of the message is ignored). Supported fields:
+
+- `url` (string) — the URL to run against. Overrides the interactively supplied URL.
+- `mode` (string, `"playwright"` or `"crx"`) — overrides `currentMode`.
+- `tabHint` (string, crx-only) — matched (case-insensitive substring) against tab title and URL via `list_tabs` + `select_tab`. If no tab matches, fall through to the currently pinned tab without asking.
+- `whatToRun` (string) — the action sequence (same semantics as interactive input #1 below).
+- `howToHelp` (string) — the investigation question (same semantics as interactive input #2 below).
+- `nonInteractive` (boolean) — when `true`, suppress all user-facing confirmation prompts.
+
+If `$ARGUMENTS` contains no parsable JSON object, treat the command as a fully interactive invocation and follow the original interactive flow below.
+
+If a JSON object is present, use its fields as defaults for the corresponding interactive steps. When `nonInteractive` is true, additional behaviour changes are described below.
+
+## Preflight: confirm URL and mode
+
+### Interactive flow (when `nonInteractive` is not true)
+
+1. Read `.brow-use/config.json` with the Read tool. Determine the effective mode: use `mode` from the JSON if provided, otherwise `currentMode`. If it is null, tell the user: "No mode is set. Run `/bu:use-managed-browser` (fresh Chromium) or `/bu:use-session` (your logged-in Chrome)." Stop.
+2. Determine the effective URL: use `url` from the JSON if provided, otherwise ask the user: "What URL should I run against?"
+3. Confirm with the user, verbatim: "I'll run against **{url}** in **{effectiveMode}** mode. Continue or change mode?"
+4. If the user says continue, proceed. If they say change mode, run `/bu:use-managed-browser` or `/bu:use-session`. After the mode change, re-confirm before proceeding.
+5. If the effective mode is `crx`, ask the user: "Use the currently pinned tab, or pick a different one?" If they want to switch, call `list_tabs`, match their input against tab titles and URLs, and call `select_tab` with the chosen id. Confirm the active tab back to them before proceeding.
+6. Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy` and stop. Do not start a trace.
+
+### Non-interactive flow (when `nonInteractive` is true)
+
+The caller has asked for a clean, prompt-free run. Do not fall back to interactive prompts on any failure — print the specific problem and stop.
+
+1. Read `.brow-use/config.json` with the Read tool. If the file is missing, print: "`.brow-use/config.json` not found." Stop.
+2. Determine the effective URL: prefer `url` from the JSON. If not supplied, print: "Required input `url` was not supplied." Stop.
+3. Determine the effective mode: prefer `mode` from the JSON, otherwise `currentMode`. If neither is set, print: "No mode supplied and `currentMode` is null." Stop. If supplied but not `"playwright"` or `"crx"`, print: "Mode `<value>` is invalid; expected `playwright` or `crx`." Stop.
+4. Skip the "Continue or change mode?" prompt entirely.
+5. If the effective mode is `crx`:
+   - Skip the "use the pinned tab, or pick a different one?" prompt.
+   - If `tabHint` is provided, call `list_tabs` and pick the first tab whose title or URL contains `tabHint` (case-insensitive); call `select_tab` with that id. If no tab matches, silently fall through to the currently pinned tab — do not ask.
+   - If `tabHint` is absent, use the currently pinned tab silently.
+6. Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy` and stop. Do not start a trace.
+
+Keep `url` as the navigation entry point unless the user's instruction specifies otherwise.
 
 ## Inputs
 
-Ask the user for two things (if they have not already stated them in their request):
+Two inputs are required: **what to run** and **how to help with investigation**.
 
-1. **What to run** (required, plain text). The action or short sequence to perform in the browser. For example: *"Click 'Submit' on the contact form after typing 'test' into the name field."* Keep it focused — one feature, one path. Do NOT ask for detailed selectors; the agent decides how to carry it out.
-2. **How to help with investigation** (required, plain text). What the user wants observed, captured, or explained. For example: *"Tell me which elements change state after Submit"*, *"Figure out why the form refuses to submit"*, *"Trace what changes in the DOM when the modal opens"*, *"Identify which field validation is failing"*.
+- If both `whatToRun` and `howToHelp` are present in the JSON, use them directly without asking.
+- If either is missing and `nonInteractive` is true, print: "Required input `<field>` was not supplied." Stop. Do not fall back to an interactive prompt.
+- Otherwise (interactive flow):
+  1. **What to run** (required, plain text). The action or short sequence to perform in the browser. For example: *"Click 'Submit' on the contact form after typing 'test' into the name field."* Keep it focused — one feature, one path. Do NOT ask for detailed selectors; the agent decides how to carry it out.
+  2. **How to help with investigation** (required, plain text). What the user wants observed, captured, or explained. For example: *"Tell me which elements change state after Submit"*, *"Figure out why the form refuses to submit"*, *"Trace what changes in the DOM when the modal opens"*, *"Identify which field validation is failing"*.
 
-If the user has stated only one of the two, ask for the missing piece. Do not infer "how to investigate" from "what to run" — they are distinct.
+  If the user has stated only one of the two in their original message, ask for the missing piece. Do not infer "how to investigate" from "what to run" — they are distinct.
 
 ## No grounding
 
@@ -100,7 +134,7 @@ After writing `findings.md` and stopping the trace, call `record_run` to registe
 - `sessionId`
 - `command: "investigate"`
 - `startedAt`, `endedAt` — ISO timestamps.
-- `appId` — from `.brow-use/apps.json`.
+- `url` — the URL this run started from.
 - `mode` — `"crx"` or `"playwright"`.
 - `intent` — combined two-part input formatted as: `"Run: {whatToRun} | Investigate: {howToHelp}"`.
 - `artifacts` — `{ tracePath, findingsPath: "output/investigation/<sessionId>/findings.md" }`.

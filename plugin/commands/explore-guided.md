@@ -4,16 +4,16 @@ description: Execute a user-described intention in the browser with a recording.
 allowed-tools: Read, MCP(bu/health_check), MCP(bu/get_accessibility_tree), MCP(bu/snapshot), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/page_fingerprint), MCP(bu/record_run), MCP(bu/log_reasoning)
 ---
 
-## Preflight: confirm current app and mode
+## Preflight: confirm URL and mode
 
-1. Read `.brow-use/apps.json` with the Read tool. If the file is missing or `currentAppId` is null, tell the user: "No app is selected. Run `/bu:apps` to create or pick one." Stop.
-2. Find the app whose `id` matches `currentAppId`. If no match, tell the user: "The current app id is stale. Run `/bu:apps` to fix it." Stop.
-3. Look at `currentMode` in the same file. If it is null, tell the user: "No mode is set. Run `/bu:use-managed-browser` (fresh Chromium) or `/bu:use-session` (your logged-in Chrome)." Stop.
-4. Confirm with the user, verbatim: "I'll run against **{app.name}** ({app.url}) in **{currentMode}** mode. Continue, change app, or change mode?"
-5. If the user says continue, proceed. If they say change app, run `/bu:apps`; if they say change mode, run `/bu:use-managed-browser` or `/bu:use-session`. After either change, re-read `.brow-use/apps.json` and re-confirm before proceeding.
+1. Read `.brow-use/config.json` with the Read tool. Look at `currentMode`. If it is null, tell the user: "No mode is set. Run `/bu:use-managed-browser` (fresh Chromium) or `/bu:use-session` (your logged-in Chrome)." Stop.
+2. Get the target URL: if the user has already stated one, use it. Otherwise ask: "What URL should I start from?"
+3. Get an app description (optional): if the user has already provided one, use it. Otherwise ask: "Briefly describe the app — or press Enter to skip."
+4. Confirm with the user, verbatim: "I'll run against **{url}** in **{currentMode}** mode. Continue or change mode?"
+5. If the user says continue, proceed. If they say change mode, run `/bu:use-managed-browser` or `/bu:use-session`. After the mode change, re-confirm before proceeding.
 6. Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy` and stop.
 
-Keep the app's `url` and `description` available — `url` is the navigation entry point, `description` informs element identification and workflow choices.
+Keep `url` as the navigation entry point. Use the description to inform element identification and workflow choices if provided.
 
 ## Session setup
 
@@ -64,7 +64,7 @@ When the intention is complete:
    - `command: "explore-guided"`
    - `startedAt` — ISO timestamp derived from the unix-ms portion of `sessionId`.
    - `endedAt` — ISO timestamp of now.
-   - `appId` — `currentAppId` from `.brow-use/apps.json`.
+   - `url` — the URL this run started from.
    - `mode` — `"crx"` or `"playwright"` from `health_check`'s `mode`.
    - `artifacts: { tracePath, ariaLog: "output/exploration/<sessionId>.jsonl" }`. The `ariaLog` path is predictable but the file will not exist until the user runs `make extract SESSION=<sessionId>`.
    - `intent` — the plain-text user intent.

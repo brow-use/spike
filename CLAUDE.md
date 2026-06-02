@@ -30,7 +30,7 @@ consuming project via `make install`.
 - `scripts/` — utility scripts (trace extraction, watchers, icon generation).
 - `output/` — generated artifacts (page objects, workflows, tests, traces,
   screenshots, results). Runtime; gitignored.
-- `.brow-use/` — runtime state per project (`apps.json`, `runs.json`).
+- `.brow-use/` — runtime state per project (`config.json`, `runs.json`).
   Gitignored.
 - `dist/` — build output. Gitignored.
 

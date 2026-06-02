@@ -4,14 +4,13 @@ description: Carry out a plain-English user intention against the current app. O
 allowed-tools: Read, Glob, Write, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/enumerate_interactive_elements), MCP(bu/snapshot), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/write_result), MCP(bu/record_run), MCP(bu/log_reasoning)
 ---
 
-## Preflight: confirm current app and mode
+## Preflight: confirm URL and mode
 
-1. Read `.brow-use/apps.json` with the Read tool. If the file is missing or `currentAppId` is null, tell the user: "No app is selected. Run `/bu:apps` to create or pick one." Stop.
-2. Find the app whose `id` matches `currentAppId`. If no match, tell the user: "The current app id is stale. Run `/bu:apps` to fix it." Stop.
-3. Look at `currentMode` in the same file. If it is null, tell the user: "No mode is set. Run `/bu:use-managed-browser` (fresh Chromium) or `/bu:use-session` (your logged-in Chrome)." Stop.
-4. Confirm with the user, verbatim: "I'll run against **{app.name}** ({app.url}) in **{currentMode}** mode. Continue, change app, or change mode?"
-5. If the user says continue, proceed. If they say change app, run `/bu:apps`; if they say change mode, run `/bu:use-managed-browser` or `/bu:use-session`. After either change, re-read `.brow-use/apps.json` and re-confirm before proceeding.
-6. Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy` and stop. Do not start a trace.
+1. Read `.brow-use/config.json` with the Read tool. Look at `currentMode`. If it is null, tell the user: "No mode is set. Run `/bu:use-managed-browser` (fresh Chromium) or `/bu:use-session` (your logged-in Chrome)." Stop.
+2. Get the target URL: if the user has already stated one, use it. Otherwise ask: "What URL should I start from?"
+3. Confirm with the user, verbatim: "I'll run against **{url}** in **{currentMode}** mode. Continue or change mode?"
+4. If the user says continue, proceed. If they say change mode, run `/bu:use-managed-browser` or `/bu:use-session`. After the mode change, re-confirm before proceeding.
+5. Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy` and stop. Do not start a trace.
 
 ## Inputs
 
@@ -22,7 +21,7 @@ Ask the user for two things (if they have not already stated them):
 
 ## Grounding (optional)
 
-Read `.brow-use/runs.json`. Filter for entries with `command: "explore"`. If any exist, list them (id, app name, date) and ask the user:
+Read `.brow-use/runs.json`. Filter for entries with `command: "explore"`. If any exist, list them (id, url, date) and ask the user:
 
 > "I found earlier explore runs for this app. Would you like me to ground this task in one of them? It gives me docs, aria logs, and page objects to work from. Reply with the run id or skip to proceed without grounding."
 
@@ -86,7 +85,7 @@ Even if the user's intent appears to request a delete/remove, refuse at the inte
 
 ## Execution
 
-1. Navigate to the app's home URL if not already there.
+1. Navigate to `url` if not already there.
 2. Work through your stated plan using `navigate`, `click`, `type`, `enumerate_interactive_elements`, `get_accessibility_tree`, `snapshot`. Guidelines:
    - For picking *what to click* on the current page, prefer `enumerate_interactive_elements` — it returns a filtered, already-selector-ready list of safe interactive items.
    - Use `get_accessibility_tree` when you need the full page content (e.g. reading table cells for extraction), not for picking actions.
@@ -130,7 +129,7 @@ After writing result + how.md and stopping the trace, call `record_run` to regis
 - `sessionId` — this run's id.
 - `command: "run-instruction"`.
 - `startedAt`, `endedAt` — ISO timestamps.
-- `appId` — from `.brow-use/apps.json`.
+- `url` — the URL this run started from.
 - `mode` — `"crx"` or `"playwright"`.
 - `intent` — the user's plain-text intent.
 - `format` — `"markdown"` | `"csv"` | `"json"` | `"txt"`.

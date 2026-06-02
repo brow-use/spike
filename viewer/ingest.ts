@@ -38,20 +38,12 @@ interface TimelineEvent {
   }
 }
 
-interface App {
-  id: string
-  name: string
-  description: string
-  url: string
-  createdAt: string
-}
-
 interface Run {
   sessionId: string
   command: 'explore' | 'explore-guided' | 'run-instruction'
   startedAt: string
   endedAt: string
-  appId: string | null
+  url?: string
   mode?: 'crx' | 'playwright'
   artifacts?: Record<string, string>
   // Per-command fields we pass through to the index:
@@ -68,9 +60,7 @@ interface IndexEntry {
   command: string
   startedAt: string
   endedAt: string
-  appId: string | null
-  appName: string | null
-  appUrl: string | null
+  url: string | null
   hasTimeline: boolean
   pagesVisited?: number
   terminationReason?: string
@@ -119,8 +109,7 @@ interface Bundle {
   endedAt: string
   runStartMs: number
   runEndMs: number
-  appId: string | null
-  app: App | null
+  url: string | null
   stats: {
     eventsByKind: Record<string, number>
   }
@@ -869,8 +858,7 @@ function buildEdges(events: TimelineEvent[], sidecar: SidecarAction[]): Edge[] {
 
 // ---------- orchestration ----------
 
-async function buildBundle(run: Run, apps: App[]): Promise<Bundle> {
-  const app = apps.find(a => a.id === run.appId) ?? null
+async function buildBundle(run: Run): Promise<Bundle> {
   const sessionDataDir = path.join(DATA_DIR, run.sessionId)
   const runStartMs = isoToMs(run.startedAt)
 
@@ -942,8 +930,7 @@ async function buildBundle(run: Run, apps: App[]): Promise<Bundle> {
     endedAt: run.endedAt,
     runStartMs: isoToMs(run.startedAt),
     runEndMs: isoToMs(run.endedAt),
-    appId: run.appId,
-    app,
+    url: run.url ?? null,
     stats: { eventsByKind },
     events,
     edges,
@@ -951,17 +938,14 @@ async function buildBundle(run: Run, apps: App[]): Promise<Bundle> {
   }
 }
 
-function toIndexEntry(run: Run, apps: App[], eventCount: number | undefined): IndexEntry {
-  const app = apps.find(a => a.id === run.appId) ?? null
+function toIndexEntry(run: Run, eventCount: number | undefined): IndexEntry {
   const hasTimeline = run.command === 'explore' || run.command === 'run-instruction' || run.command === 'explore-guided'
   return {
     sessionId: run.sessionId,
     command: run.command,
     startedAt: run.startedAt,
     endedAt: run.endedAt,
-    appId: run.appId,
-    appName: app?.name ?? null,
-    appUrl: app?.url ?? null,
+    url: run.url ?? null,
     hasTimeline,
     pagesVisited: run.pagesVisited,
     terminationReason: run.terminationReason,
@@ -974,7 +958,6 @@ function toIndexEntry(run: Run, apps: App[], eventCount: number | undefined): In
 
 async function main(): Promise<void> {
   const runsFile = readJson<{ runs: Run[] }>(path.join(BROW_USE, 'runs.json'))
-  const appsFile = readJson<{ apps: App[] }>(path.join(BROW_USE, 'apps.json'))
 
   if (!runsFile) {
     console.error(`No runs file at ${path.join(BROW_USE, 'runs.json')}. Nothing to ingest.`)
@@ -982,7 +965,6 @@ async function main(): Promise<void> {
     return
   }
 
-  const apps = appsFile?.apps ?? []
   fs.mkdirSync(DATA_DIR, { recursive: true })
 
   const index: IndexEntry[] = []
@@ -991,12 +973,12 @@ async function main(): Promise<void> {
   for (const run of runsFile.runs) {
     let eventCount: number | undefined
     if (run.command === 'explore' || run.command === 'run-instruction' || run.command === 'explore-guided') {
-      const bundle = await buildBundle(run, apps)
+      const bundle = await buildBundle(run)
       writeJson(path.join(DATA_DIR, `${run.sessionId}.json`), bundle)
       eventCount = bundle.events.length
       bundlesWritten++
     }
-    index.push(toIndexEntry(run, apps, eventCount))
+    index.push(toIndexEntry(run, eventCount))
   }
 
   writeJson(path.join(DATA_DIR, '_index.json'), index)

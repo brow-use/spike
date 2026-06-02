@@ -44,7 +44,7 @@ describe('record_run', () => {
       command: 'explore',
       startedAt: '2026-04-22T10:00:00.000Z',
       endedAt: '2026-04-22T10:05:00.000Z',
-      appId: 'app-1',
+      url: 'https://example.com',
       mode: 'crx',
       pagesVisited: 23,
       terminationReason: 'maxLoopHits',
@@ -71,14 +71,14 @@ describe('record_run', () => {
       command: 'explore',
       startedAt: '2026-04-22T10:00:00.000Z',
       endedAt: '2026-04-22T10:05:00.000Z',
-      appId: 'app-1',
+      url: 'https://example.com',
     })
     const r = await call({
       sessionId: 'run-instruction-1',
       command: 'run-instruction',
       startedAt: '2026-04-22T11:00:00.000Z',
       endedAt: '2026-04-22T11:01:00.000Z',
-      appId: 'app-1',
+      url: 'https://example.com',
       intent: 'Get list of X',
       format: 'csv',
       recordsExtracted: 5,
@@ -97,7 +97,7 @@ describe('record_run', () => {
       command: 'explore',
       startedAt: '2026-04-22T10:00:00.000Z',
       endedAt: '2026-04-22T10:05:00.000Z',
-      appId: 'app-1',
+      url: 'https://example.com',
       pagesVisited: 10,
     })
     await call({
@@ -105,7 +105,7 @@ describe('record_run', () => {
       command: 'explore',
       startedAt: '2026-04-22T10:00:00.000Z',
       endedAt: '2026-04-22T10:15:00.000Z',
-      appId: 'app-1',
+      url: 'https://example.com',
       pagesVisited: 40,
     })
     const data = readRuns()
@@ -113,7 +113,7 @@ describe('record_run', () => {
     assert.equal(data.runs[0].pagesVisited, 40)
   })
 
-  test('appId is null when not provided', async () => {
+  test('url is undefined when not provided', async () => {
     await call({
       sessionId: 'eg-1',
       command: 'explore-guided',
@@ -121,7 +121,7 @@ describe('record_run', () => {
       endedAt: 't',
     })
     const data = readRuns()
-    assert.equal(data.runs[0].appId, null)
+    assert.equal(data.runs[0].url, undefined)
   })
 
   test('artifacts passed as JSON string are parsed', async () => {
@@ -130,7 +130,7 @@ describe('record_run', () => {
       command: 'run-instruction',
       startedAt: 't',
       endedAt: 't',
-      appId: 'app-1',
+      url: 'https://example.com',
       artifacts: JSON.stringify({ tracePath: '/a.zip', resultPath: '/r.csv' }),
     })
     const data = readRuns()
@@ -159,14 +159,14 @@ describe('record_run', () => {
     fs.mkdirSync(path.join(tmpRoot, '.brow-use'), { recursive: true })
     fs.writeFileSync(
       path.join(tmpRoot, '.brow-use', 'runs.json'),
-      JSON.stringify({ runs: [{ sessionId: 'pre-existing', command: 'run-instruction', startedAt: 't', endedAt: 't', appId: null }] }),
+      JSON.stringify({ runs: [{ sessionId: 'pre-existing', command: 'run-instruction', startedAt: 't', endedAt: 't' }] }),
     )
     await call({
       sessionId: 'new',
       command: 'run-instruction',
       startedAt: 't',
       endedAt: 't',
-      appId: 'app-1',
+      url: 'https://example.com',
     })
     const data = readRuns()
     assert.equal(data.runs.length, 2)
@@ -180,7 +180,7 @@ describe('record_run', () => {
       command: 'explore-guided',
       startedAt: '2026-04-23T10:00:00.000Z',
       endedAt: '2026-04-23T10:02:00.000Z',
-      appId: 'app-1',
+      url: 'https://example.com',
       mode: 'crx',
       intent: 'open the login page',
       artifacts: {
@@ -207,7 +207,7 @@ describe('record_run', () => {
       command: 'run-instruction',
       startedAt: 't',
       endedAt: 't',
-      appId: 'app-1',
+      url: 'https://example.com',
     })
     const data = readRuns()
     assert.equal(data.runs.length, 1)

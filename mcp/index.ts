@@ -36,7 +36,7 @@ import { readObservedEdges } from '../tool/read-observed-edges.js'
 import { recordRun } from '../tool/record-run.js'
 import { logReasoning } from '../tool/log-reasoning.js'
 import { dhash } from '../tool/phash.js'
-import { AppRepository } from '../repository/app-repository.js'
+import { ModeRepository } from '../repository/mode-repository.js'
 const OUTPUT_DIR = path.resolve(process.cwd(), 'output')
 const SERVER_START = Date.now()
 
@@ -114,8 +114,8 @@ wss.on('connection', (socket) => {
   socket.on('close', () => log('extension disconnected'))
 })
 
-const appRepository = new AppRepository()
-let executionMode: 'playwright' | 'crx' = appRepository.getCurrentMode() ?? 'playwright'
+const modeRepository = new ModeRepository()
+let executionMode: 'playwright' | 'crx' = modeRepository.getCurrentMode() ?? 'playwright'
 
 let browser: Browser | null = null
 let browserContext: BrowserContext | null = null
@@ -222,7 +222,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     try {
       if (name === 'set_mode') {
         executionMode = args.mode as 'playwright' | 'crx'
-        appRepository.setCurrentMode(executionMode)
+        modeRepository.setCurrentMode(executionMode)
         log('mode', executionMode)
         return { content: [{ type: 'text', text: `Execution mode set to: ${executionMode}` }] }
       }

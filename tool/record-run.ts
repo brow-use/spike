@@ -7,7 +7,7 @@ interface RunEntry {
   command: string
   startedAt: string
   endedAt: string
-  appId: string | null
+  url?: string
   mode?: 'crx' | 'playwright'
   artifacts?: Record<string, string>
   [k: string]: unknown
@@ -47,7 +47,7 @@ export const recordRun: Tool = {
       },
       startedAt: { type: 'string', description: 'ISO timestamp when the run began.' },
       endedAt: { type: 'string', description: 'ISO timestamp when the run ended.' },
-      appId: { type: 'string', description: 'currentAppId from .brow-use/apps.json at run time. null if none was set.' },
+      url: { type: 'string', description: 'The URL the run started from.' },
       mode: { type: 'string', enum: ['crx', 'playwright'], description: 'Browser execution mode used.' },
       artifacts: {
         type: 'object',
@@ -68,9 +68,9 @@ export const recordRun: Tool = {
       command: input.command as string,
       startedAt: input.startedAt as string,
       endedAt: input.endedAt as string,
-      appId: (input.appId as string | null | undefined) ?? null,
     }
 
+    if (input.url !== undefined) entry.url = input.url as string
     if (input.mode !== undefined) entry.mode = input.mode as 'crx' | 'playwright'
 
     if (input.artifacts !== undefined) {

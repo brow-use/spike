@@ -5,25 +5,24 @@ brow-use drives a real browser. The `mcp__bu__*` tools navigate, perceive
 write artifacts (page objects, workflows, tests, feature docs, extracted
 results) under `output/`.
 
-## Confirm app and mode before any browser action
+## Confirm URL and mode before any browser action
 
-Both `currentAppId` and `currentMode` live in `.brow-use/apps.json` in the
-current working directory. There is no `apps://` MCP resource — read the
-file directly with the Read tool. Shape:
+`currentMode` lives in `.brow-use/config.json` in the current working directory.
+Read the file directly with the Read tool. Shape:
 
 ```json
-{ "currentAppId": "<id or null>", "currentMode": "playwright" | "crx" | null, "apps": [{ "id": "", "name": "", "url": "", "description": "", "createdAt": "" }] }
+{ "currentMode": "playwright" | "crx" | null }
 ```
 
-Rule: before any browser action, both fields must be set. If `currentAppId`
-is null, tell the user to run `/bu:apps` and stop; if `currentMode` is null,
-tell them to run `/bu:use-managed-browser` or `/bu:use-session` and stop.
-When both are set, confirm with the user (app name + URL + mode) and let
-them change either before proceeding. The `/bu:*` commands enforce this in
-detail — apply the same rule when driven by a skill or an ad-hoc request.
+Rule: before any browser action, `currentMode` must be set. If it is null,
+tell the user to run `/bu:use-managed-browser` or `/bu:use-session` and stop.
+When mode is set, ask for the target URL if the user has not supplied one,
+then confirm (URL + mode) and let them change mode before proceeding.
+The `/bu:*` commands enforce this in detail — apply the same rule when driven
+by a skill or an ad-hoc request.
 
-Use the app's `url` as the navigation entry point and its `description` to
-inform element identification and workflow choices.
+Use the supplied URL as the navigation entry point. If the user also provides
+a description, use it to inform element identification and exploration bias.
 
 ## Modes
 

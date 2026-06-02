@@ -15,7 +15,7 @@ export const writeDocsIndex: Tool = {
     type: 'object',
     properties: {
       sessionId: { type: 'string' },
-      appName: { type: 'string' },
+      appName: { type: 'string', description: 'Optional display name for the app. Defaults to the hostname of appUrl.' },
       appUrl: { type: 'string' },
       appDescription: { type: 'string' },
       entries: {
@@ -40,12 +40,12 @@ export const writeDocsIndex: Tool = {
         },
       },
     },
-    required: ['sessionId', 'appName', 'appUrl', 'entries'],
+    required: ['sessionId', 'appUrl', 'entries'],
   },
   async execute(input, ctx: ToolContext): Promise<string> {
     const sessionId = input.sessionId as string
-    const appName = input.appName as string
     const appUrl = input.appUrl as string
+    const appName = (input.appName as string | undefined) ?? new URL(appUrl).hostname
     const appDescription = (input.appDescription as string | undefined) ?? ''
     const rawEntries = input.entries
     const entries: IndexEntry[] = Array.isArray(rawEntries)
