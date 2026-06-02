@@ -11,7 +11,7 @@ Before doing anything else, scan `$ARGUMENTS` for a JSON object (it may appear a
 
 - `url` (string) — the URL to run against. Overrides the interactively supplied URL.
 - `mode` (string, `"playwright"` or `"crx"`) — overrides `currentMode`.
-- `tabHint` (string, crx-only) — matched (case-insensitive substring) against tab title and URL via `list_tabs` + `select_tab`. If no tab matches, fall through to the currently pinned tab without asking.
+- `tabHint` (string, crx-only) — matched (case-insensitive substring) against tab title and URL via `list_tabs` + `select_tab`. If no tab matches, the non-interactive flow raises an error; the interactive flow falls through to the currently pinned tab.
 - `whatToRun` (string) — the action sequence (same semantics as interactive input #1 below).
 - `howToHelp` (string) — the investigation question (same semantics as interactive input #2 below).
 - `nonInteractive` (boolean) — when `true`, suppress all user-facing confirmation prompts.
@@ -35,13 +35,15 @@ If a JSON object is present, use its fields as defaults for the corresponding in
 
 The caller has asked for a clean, prompt-free run. Do not fall back to interactive prompts on any failure — print the specific problem and stop.
 
-1. Read `.brow-use/config.json` with the Read tool. If the file is missing, print: "`.brow-use/config.json` not found." Stop.
+1. Read `.brow-use/config.json` with the Read tool. If the file is missing:
+   - If `mode` is provided in the JSON input, create `.brow-use/config.json` with `{ "currentMode": "<mode>" }` and continue.
+   - If `mode` is not provided, print: "`.brow-use/config.json` not found and no `mode` was supplied. Provide `mode` in the JSON input or run `/bu:use-managed-browser` / `/bu:use-session` first." Stop.
 2. Determine the effective URL: prefer `url` from the JSON. If not supplied, print: "Required input `url` was not supplied." Stop.
 3. Determine the effective mode: prefer `mode` from the JSON, otherwise `currentMode`. If neither is set, print: "No mode supplied and `currentMode` is null." Stop. If supplied but not `"playwright"` or `"crx"`, print: "Mode `<value>` is invalid; expected `playwright` or `crx`." Stop.
 4. Skip the "Continue or change mode?" prompt entirely.
 5. If the effective mode is `crx`:
    - Skip the "use the pinned tab, or pick a different one?" prompt.
-   - If `tabHint` is provided, call `list_tabs` and pick the first tab whose title or URL contains `tabHint` (case-insensitive); call `select_tab` with that id. If no tab matches, silently fall through to the currently pinned tab — do not ask.
+   - If `tabHint` is provided, call `list_tabs` and pick the first tab whose title or URL contains `tabHint` (case-insensitive); call `select_tab` with that id. If no tab matches, print: "No tab matching `tabHint` value `<tabHint>` was found. Available tabs: <list titles and URLs>." Stop.
    - If `tabHint` is absent, use the currently pinned tab silently.
 6. Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy` and stop. Do not start a trace.
 
