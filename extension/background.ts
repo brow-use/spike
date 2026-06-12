@@ -27,10 +27,108 @@ export interface CommandEvent {
   timestamp: number
 }
 
+export interface LogEntry {
+  kind: 'brow_use_log'
+  level: 'info' | 'warn' | 'error'
+  source: 'background' | 'content'
+  message: string
+  tabId: number | null
+  timestamp: number
+}
+
+const LOG_BUFFER_MAX = 500
+const logBuffer: LogEntry[] = []
+
+function stringifyArg(arg: unknown): string {
+  if (typeof arg === 'string') return arg
+  if (arg instanceof Error) return arg.stack ?? arg.message
+  try {
+    return JSON.stringify(arg)
+  } catch {
+    return String(arg)
+  }
+}
+
+function recordLog(entry: LogEntry): void {
+  logBuffer.push(entry)
+  if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.shift()
+  try {
+    chrome.runtime.sendMessage(entry).catch(() => {})
+  } catch {}
+}
+
+function installConsoleCapture(): void {
+  const levels: Array<['log' | 'info' | 'warn' | 'error', LogEntry['level']]> = [
+    ['log', 'info'],
+    ['info', 'info'],
+    ['warn', 'warn'],
+    ['error', 'error'],
+  ]
+  for (const [method, level] of levels) {
+    const original = console[method].bind(console)
+    console[method] = (...args: unknown[]) => {
+      original(...args)
+      recordLog({
+        kind: 'brow_use_log',
+        level,
+        source: 'background',
+        message: args.map(stringifyArg).join(' '),
+        tabId: selectedTabId,
+        timestamp: Date.now(),
+      })
+    }
+  }
+}
+
 let ws: WebSocket | null = null
 let crxApp: Awaited<ReturnType<typeof crx.start>> | null = null
 let tracingContext: BrowserContext | null = null
 let selectedTabId: number | null = null
+
+installConsoleCapture()
+
+self.addEventListener('error', (e: ErrorEvent) => {
+  recordLog({
+    kind: 'brow_use_log',
+    level: 'error',
+    source: 'background',
+    message: e.error instanceof Error ? (e.error.stack ?? e.error.message) : e.message,
+    tabId: selectedTabId,
+    timestamp: Date.now(),
+  })
+})
+
+self.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
+  recordLog({
+    kind: 'brow_use_log',
+    level: 'error',
+    source: 'background',
+    message: `Unhandled rejection: ${stringifyArg(e.reason)}`,
+    tabId: selectedTabId,
+    timestamp: Date.now(),
+  })
+})
+
+chrome.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
+  const m = msg as { kind?: string }
+  if (m?.kind === 'brow_use_get_logs') {
+    sendResponse(logBuffer)
+    return false
+  }
+  if (m?.kind === 'brow_use_content_log') {
+    const c = msg as { level: LogEntry['level']; message: string; timestamp: number }
+    recordLog({
+      kind: 'brow_use_log',
+      level: c.level,
+      source: 'content',
+      message: c.message,
+      tabId: sender.tab?.id ?? null,
+      timestamp: c.timestamp,
+    })
+    return false
+  }
+  return false
+})
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {})
 

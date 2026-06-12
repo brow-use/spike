@@ -4,6 +4,26 @@ interface BrowserCommand {
   payload: Record<string, unknown>
 }
 
+function forwardLog(level: 'info' | 'warn' | 'error', message: string): void {
+  try {
+    chrome.runtime.sendMessage({
+      kind: 'brow_use_content_log',
+      level,
+      source: 'content',
+      message,
+      timestamp: Date.now(),
+    }).catch(() => {})
+  } catch {}
+}
+
+window.addEventListener('error', (e) => {
+  forwardLog('error', `${e.message} (${e.filename}:${e.lineno})`)
+})
+
+window.addEventListener('unhandledrejection', (e) => {
+  forwardLog('error', `Unhandled rejection: ${String(e.reason)}`)
+})
+
 chrome.runtime.onMessage.addListener((cmd: BrowserCommand, _sender, sendResponse) => {
   handleCommand(cmd).then(sendResponse).catch(err => {
     sendResponse({ id: cmd.id, success: false, error: String(err) })
