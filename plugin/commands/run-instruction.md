@@ -40,7 +40,7 @@ Page objects (`output/page/*.ts`) and workflows (`output/workflow/*.ts`) are not
 
 ## Session setup
 
-Derive `sessionId = "run-instruction-<UNIX-millis>"`. Call `start_trace` after preflight (grounded path: after successful resolution; ungrounded path: after the user skips grounding).
+Derive `sessionId = "run-instruction-<UNIX-millis>"`. Call `start_trace` with `name = sessionId` after preflight (grounded path: after successful resolution; ungrounded path: after the user skips grounding).
 
 ## Knowledge stack (grounded path only)
 
@@ -159,7 +159,7 @@ Print, in order:
 3. The three paths:
    - `output/results/<sessionId>/result.<ext>`
    - `output/results/<sessionId>/how.md`
-   - `output/trace/<sessionId>-<ts>.zip` (or note that no trace was produced if the command aborted before `start_trace`)
+   - `output/trace/<sessionId>/` (chunked trace; or note that no trace was produced if the command aborted before `start_trace`)
 
 ## Failure modes
 

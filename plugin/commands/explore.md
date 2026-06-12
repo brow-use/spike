@@ -50,7 +50,7 @@ Before descending into any single module, call `enumerate_interactive_elements` 
 ## Exploration
 
 1. Derive `sessionId = "explore-<UNIX-millis>"` once.
-2. Call `start_trace`. This is the single audit artifact.
+2. Call `start_trace` with `name = sessionId`. This is the single audit artifact; it is flushed to disk in chunks under `output/trace/<sessionId>/` as the run proceeds, so a mid-run crash loses at most the last few actions.
 3. Navigate to `url`.
 4. Call `page_fingerprint`. Parse the returned JSON; keep `{ phash, ariaHash, url, title }` as the first entry in an in-memory `visited` array. Maintain `contiguousLoopHits = 0` and an empty `frontier` list.
 

@@ -8,7 +8,7 @@
     "copy:extension": "cp extension/manifest.json extension/popup.html extension/sidepanel.html dist/extension/ && cp -r extension/icons dist/extension/",
     "dev:extension": "tsx scripts/watch-extension.ts",
     "chrome": "open -a 'Google Chrome' --args --remote-debugging-port=9222",
-    "test": "node --import tsx --test tool/*.test.ts mcp/*.test.ts",
+    "test": "node --import tsx --test tool/*.test.ts mcp/*.test.ts domain/*.test.ts",
     "viewer:ingest": "tsx viewer/ingest.ts",
     "viewer:dev": "vite --config viewer.vite.config.ts"
   },

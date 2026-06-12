@@ -7,12 +7,18 @@ export const navigate: Tool = {
     type: 'object',
     properties: {
       url: { type: 'string', description: 'The URL to navigate to' },
+      waitUntil: {
+        type: 'string',
+        enum: ['domcontentloaded', 'load', 'networkidle'],
+        description: 'Navigation readiness to wait for. Default domcontentloaded; use networkidle for SPAs that keep rendering after load.',
+      },
     },
     required: ['url'],
   },
   async execute(input, ctx: ToolContext): Promise<string> {
     const url = input.url as string
-    await ctx.page.goto(url, { waitUntil: 'domcontentloaded' })
+    const waitUntil = (input.waitUntil as 'domcontentloaded' | 'load' | 'networkidle' | undefined) ?? 'domcontentloaded'
+    await ctx.page.goto(url, { waitUntil })
     return JSON.stringify({ title: await ctx.page.title(), url: ctx.page.url() })
   },
 }

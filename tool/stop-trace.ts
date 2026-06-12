@@ -1,9 +1,9 @@
-import path from 'path'
 import type { Tool, ToolContext } from './tool.js'
+import { stopTraceSession } from './trace-session.js'
 
 export const stopTrace: Tool = {
   name: 'stop_trace',
-  description: 'Stop the current Playwright trace recording and save it to a file. Returns the path of the saved trace.',
+  description: 'Stop the current Playwright trace recording, flushing the final chunk. Returns the directory containing the chunked trace.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -11,10 +11,8 @@ export const stopTrace: Tool = {
     },
     required: ['name'],
   },
-  async execute(input, ctx: ToolContext): Promise<string> {
-    const name = input.name as string
-    const tracePath = path.join(ctx.outputDir, 'trace', `${name}-${Date.now()}.zip`)
-    await ctx.context.tracing.stop({ path: tracePath })
-    return `Trace saved to: ${tracePath}`
+  async execute(_input, ctx: ToolContext): Promise<string> {
+    const dir = await stopTraceSession(ctx.context)
+    return `Trace saved to: ${dir}`
   },
 }

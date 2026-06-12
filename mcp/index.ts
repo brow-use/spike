@@ -9,9 +9,12 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import type { Tool, ToolContext } from '../tool/tool.js'
+import type { Tool } from '../tool/tool.js'
+import type { ToolContext, ToolResultContent } from '../tool/tool.js'
 import { CrxClient } from './crx-client.js'
 import { log } from './logger.js'
+import { buildHealthStatus } from './health.js'
+import { TimingStats } from './timing.js'
 import { navigate } from '../tool/navigate.js'
 import { click } from '../tool/click.js'
 import { type as typeTool } from '../tool/type.js'
@@ -36,16 +39,13 @@ import { readObservedEdges } from '../tool/read-observed-edges.js'
 import { recordRun } from '../tool/record-run.js'
 import { logReasoning } from '../tool/log-reasoning.js'
 import { dhash } from '../tool/phash.js'
+import { recordTraceAction } from '../tool/trace-session.js'
 import { ModeRepository } from '../repository/mode-repository.js'
 const OUTPUT_DIR = path.resolve(process.cwd(), 'output')
 const SERVER_START = Date.now()
-
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms)),
-  ])
-}
+const WS_PORT = 3456
+const WS_BIND_RETRIES = 5
+const WS_BIND_RETRY_DELAY_MS = 1000
 
 const browserTools: Tool[] = [
   navigate, click, typeTool, snapshot, getAccessibilityTree,
@@ -96,23 +96,50 @@ const appTools = [
   },
   {
     name: 'health_check',
-    description: 'Verify the MCP server, Chrome extension, and their connection are healthy. Call this before long-running commands that depend on the browser. Returns structured JSON with mode, extension status, browser status, and a list of issues each with a remedy.',
+    description: 'Verify the MCP server, Chrome extension, and their connection are healthy. Call this before long-running commands that depend on the browser. Returns structured JSON with mode, extension status, browser status, per-tool timing stats, and a list of issues each with a remedy. Pass heal:true to also attempt automatic recovery (drops a dead extension socket so the extension reconnects, then re-checks).',
     inputSchema: {
       type: 'object' as const,
-      properties: {},
+      properties: {
+        heal: { type: 'boolean', description: 'Attempt automatic recovery of a hung extension connection before reporting. Default false.' },
+      },
       required: [],
     },
   },
 ]
 
 const crxClient = new CrxClient(OUTPUT_DIR)
+const timing = new TimingStats()
 
-const wss = new WebSocketServer({ port: 3456 })
-wss.on('connection', (socket) => {
-  log('extension connected')
-  crxClient.attachSocket(socket)
-  socket.on('close', () => log('extension disconnected'))
-})
+let activeWss: WebSocketServer | null = null
+
+function startWebSocketServer(attemptsLeft: number): void {
+  const wss = new WebSocketServer({
+    port: WS_PORT,
+    host: '127.0.0.1',
+    verifyClient: (info: { origin?: string }) => (info.origin ?? '').startsWith('chrome-extension://'),
+  })
+  wss.on('error', (err) => {
+    log('wss error', err)
+    if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+      wss.close()
+      if (attemptsLeft > 0) {
+        log(`port ${WS_PORT} in use — retrying in ${WS_BIND_RETRY_DELAY_MS}ms (${attemptsLeft} attempts left)`)
+        setTimeout(() => startWebSocketServer(attemptsLeft - 1), WS_BIND_RETRY_DELAY_MS)
+      } else {
+        log(`port ${WS_PORT} still in use — kill the old mcp process and restart`)
+        process.exit(1)
+      }
+    }
+  })
+  wss.on('listening', () => log(`ws server listening on 127.0.0.1:${WS_PORT}`))
+  wss.on('connection', (socket) => {
+    log('extension connected')
+    crxClient.attachSocket(socket)
+    socket.on('close', () => log('extension disconnected'))
+  })
+  activeWss = wss
+}
+startWebSocketServer(WS_BIND_RETRIES)
 
 const modeRepository = new ModeRepository()
 let executionMode: 'playwright' | 'crx' = modeRepository.getCurrentMode() ?? 'playwright'
@@ -120,74 +147,6 @@ let executionMode: 'playwright' | 'crx' = modeRepository.getCurrentMode() ?? 'pl
 let browser: Browser | null = null
 let browserContext: BrowserContext | null = null
 let page: Page | null = null
-
-interface HealthIssue { kind: string; message: string; remedy: string }
-
-async function buildHealthStatus() {
-  const issues: HealthIssue[] = []
-  const mcp = { uptimeSec: Math.round((Date.now() - SERVER_START) / 1000), pid: process.pid }
-
-  let extensionBlock: Record<string, unknown>
-  if (executionMode === 'crx') {
-    if (!crxClient.connected) {
-      extensionBlock = { required: true, connected: false }
-      issues.push({
-        kind: 'extension-disconnected',
-        message: 'Chrome extension is not connected to the MCP WebSocket server.',
-        remedy: 'Load the brow-use extension at chrome://extensions (Load unpacked → dist/extension/), then /mcp → reconnect bu.',
-      })
-    } else {
-      const start = Date.now()
-      try {
-        const pong = await withTimeout(crxClient.ping(), 3000) as {
-          version?: string
-          selectedTabId?: number | null
-          currentTabUrl?: string | null
-          currentTabTitle?: string | null
-        }
-        const rtt = Date.now() - start
-        extensionBlock = {
-          required: true,
-          connected: true,
-          pingRoundTripMs: rtt,
-          version: pong.version ?? 'unknown',
-          selectedTabId: pong.selectedTabId ?? null,
-          currentTabUrl: pong.currentTabUrl ?? null,
-          currentTabTitle: pong.currentTabTitle ?? null,
-        }
-        if (pong.selectedTabId == null) {
-          issues.push({
-            kind: 'no-selected-tab',
-            message: 'Extension is connected but no tab has been pinned for automation.',
-            remedy: 'Run /bu:use-session and pick a tab.',
-          })
-        }
-      } catch (err) {
-        extensionBlock = { required: true, connected: true, pingFailed: String(err) }
-        issues.push({
-          kind: 'extension-ping-timeout',
-          message: 'Extension is connected but did not respond to ping within 3s.',
-          remedy: 'Reload the extension at chrome://extensions (click the refresh icon) and try again.',
-        })
-      }
-    }
-  } else {
-    extensionBlock = { required: false }
-  }
-
-  const browserBlock = page && !page.isClosed()
-    ? { launched: true, currentUrl: page.url(), currentTitle: await page.title() }
-    : { launched: false, currentUrl: null, currentTitle: null }
-
-  return {
-    ok: issues.length === 0,
-    mode: executionMode,
-    mcp,
-    extension: extensionBlock,
-    browser: browserBlock,
-    issues,
-  }
-}
 
 async function ensureBrowser(): Promise<ToolContext> {
   if (!page || page.isClosed()) {
@@ -213,10 +172,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   ],
 }))
 
-server.setRequestHandler(CallToolRequestSchema, async (req) => {
-  const { name, arguments: args = {} } = req.params
-  log('call', name, args)
+function toMcpContent(result: string | ToolResultContent[]) {
+  if (typeof result === 'string') {
+    return { content: [{ type: 'text' as const, text: result }] }
+  }
+  return {
+    content: result.map(block => block.type === 'image'
+      ? { type: 'image' as const, data: block.source.data, mimeType: block.source.media_type }
+      : { type: 'text' as const, text: block.text }),
+  }
+}
 
+async function handleToolCall(name: string, args: Record<string, unknown>) {
   const appTool = appTools.find(t => t.name === name)
   if (appTool) {
     try {
@@ -224,66 +191,62 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         executionMode = args.mode as 'playwright' | 'crx'
         modeRepository.setCurrentMode(executionMode)
         log('mode', executionMode)
-        return { content: [{ type: 'text', text: `Execution mode set to: ${executionMode}` }] }
+        return { content: [{ type: 'text' as const, text: `Execution mode set to: ${executionMode}` }] }
       }
       if (name === 'health_check') {
-        const status = await buildHealthStatus()
+        const status = await buildHealthStatus({
+          mode: executionMode,
+          serverStart: SERVER_START,
+          crx: crxClient,
+          getBrowserState: async () => page && !page.isClosed()
+            ? { launched: true, currentUrl: page.url(), currentTitle: await page.title() }
+            : { launched: false, currentUrl: null, currentTitle: null },
+          timing,
+        }, { heal: args.heal === true })
         log('health', status.ok ? 'ok' : 'issues', status.issues.length)
-        return { content: [{ type: 'text', text: JSON.stringify(status) }] }
+        return { content: [{ type: 'text' as const, text: JSON.stringify(status) }] }
       }
-      if (name === 'list_tabs' || name === 'select_tab') {
-        const result = await crxClient.execute(name, args)
-        log('result', name, typeof result === 'string' ? result.slice(0, 200) : `[${result.length} blocks]`)
-        if (typeof result === 'string') {
-          return { content: [{ type: 'text', text: result }] }
-        }
-        return { content: result.map(block => block.type === 'image'
-          ? { type: 'image' as const, data: block.source.data, mimeType: block.source.media_type }
-          : { type: 'text' as const, text: block.text }) }
-      }
+      const result = await crxClient.execute(name, args)
+      log('result', name, typeof result === 'string' ? result.slice(0, 200) : `[${result.length} blocks]`)
+      return toMcpContent(result)
     } catch (err) {
       log('error', name, err)
-      return { content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true }
+      return { content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }], isError: true }
     }
   }
 
   const browserTool = browserTools.find(t => t.name === name)
   if (!browserTool) {
-    return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }
+    return { content: [{ type: 'text' as const, text: `Unknown tool: ${name}` }], isError: true }
   }
 
   const fileOnlyTools = new Set(['write_page_object', 'write_workflow', 'write_test', 'write_feature_doc', 'write_exploration_log', 'write_docs_index', 'write_result', 'read_pom_summary', 'read_observed_edges', 'record_run', 'log_reasoning'])
   const pureComputeTools = new Set(['compare_fingerprint'])
 
   try {
-    let result: string | import('../tool/tool.js').ToolResultContent[]
+    let result: string | ToolResultContent[]
     if (pureComputeTools.has(name) || fileOnlyTools.has(name)) {
       result = await browserTool.execute(args, { page: null as unknown as Page, context: null as unknown as BrowserContext, outputDir: OUTPUT_DIR })
     } else if (executionMode === 'crx' && name === 'page_fingerprint') {
-      const [snapResult, ariaResult] = await Promise.all([
-        crxClient.execute('snapshot', {}),
-        crxClient.execute('get_accessibility_tree', {}),
+      const [snapBuffer, ariaText] = await Promise.all([
+        crxClient.fetchSnapshotBuffer(),
+        crxClient.fetchAriaTree(),
       ])
-      const base64 = Array.isArray(snapResult) ? (snapResult[0] as { source: { data: string } }).source.data : ''
-      const phash = dhash(Buffer.from(base64, 'base64'))
-      const ariaText = typeof ariaResult === 'string' ? ariaResult : ''
-      result = JSON.stringify({ phash, ariaHash: computeAriaHash(ariaText) })
+      result = JSON.stringify({ phash: dhash(snapBuffer), ariaHash: computeAriaHash(ariaText) })
     } else if (executionMode === 'crx' && name === 'save_screenshot') {
       const sessionId = args.sessionId as string
       const shotName = args.name as string
       const alt = (args.alt as string | undefined) ?? shotName.replace(/-/g, ' ')
-      const snapResult = await crxClient.execute('snapshot', {})
-      const base64 = Array.isArray(snapResult) ? (snapResult[0] as { source: { data: string } }).source.data : ''
+      const snapBuffer = await crxClient.fetchSnapshotBuffer()
       const dir = path.join(OUTPUT_DIR, 'exploration', sessionId)
       fs.mkdirSync(dir, { recursive: true })
       const filePath = path.join(dir, `${shotName}.png`)
-      fs.writeFileSync(filePath, Buffer.from(base64, 'base64'))
+      fs.writeFileSync(filePath, snapBuffer)
       const relToDocs = path.join('..', '..', 'exploration', sessionId, `${shotName}.png`)
       const markdownSnippet = `![${alt}](${relToDocs})`
       result = JSON.stringify({ absolutePath: filePath, relativeToDocs: relToDocs, markdownSnippet })
     } else if (executionMode === 'crx' && name === 'enumerate_interactive_elements') {
-      const ariaResult = await crxClient.execute('get_accessibility_tree', {})
-      const ariaText = typeof ariaResult === 'string' ? ariaResult : ''
+      const ariaText = await crxClient.fetchAriaTree()
       const items = applyEnumerationFilters(parseInteractive(ariaText), {
         topLevelOnly: (args.topLevelOnly as boolean | undefined) ?? false,
         rolesFilter: args.rolesFilter as string[] | undefined,
@@ -295,32 +258,44 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     } else {
       const ctx = await ensureBrowser()
       result = await browserTool.execute(args, ctx)
+      if (name === 'navigate' || name === 'click' || name === 'type') {
+        await recordTraceAction(ctx.context)
+      }
     }
     log('result', name, typeof result === 'string' ? result.slice(0, 200) : `[${result.length} blocks]`)
-    if (typeof result === 'string') {
-      return { content: [{ type: 'text', text: result }] }
-    }
-    return {
-      content: result.map(block => {
-        if (block.type === 'image') {
-          return { type: 'image' as const, data: block.source.data, mimeType: block.source.media_type }
-        }
-        return { type: 'text' as const, text: block.text }
-      }),
-    }
+    return toMcpContent(result)
   } catch (err) {
     log('error', name, err)
     return {
-      content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+      content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }],
       isError: true,
     }
+  }
+}
+
+server.setRequestHandler(CallToolRequestSchema, async (req) => {
+  const { name, arguments: args = {} } = req.params
+  log('call', name, args)
+  const t0 = Date.now()
+  try {
+    return await handleToolCall(name, args)
+  } finally {
+    timing.record(name, Date.now() - t0)
   }
 })
 
 process.on('SIGTERM', async () => {
-  wss.close()
+  activeWss?.close()
   await browserContext?.close()
   await browser?.close()
+  process.exit(0)
+})
+
+process.stdin.on('close', () => {
+  log('stdin closed — exiting')
+  activeWss?.close()
+  browserContext?.close().catch(() => {})
+  browser?.close().catch(() => {})
   process.exit(0)
 })
 

@@ -12,8 +12,8 @@ async function main(): Promise<void> {
     console.error('usage: extract-trace <sessionId> [--trace=<tracePath>]')
     console.error('')
     console.error('  sessionId   e.g. explore-1745385600000 or run-1746000000000')
-    console.error('  --trace     optional explicit trace zip path; otherwise the newest')
-    console.error('              output/trace/<sessionId>-*.zip is used')
+    console.error('  --trace     optional explicit trace zip or chunk-directory path; otherwise')
+    console.error('              output/trace/<sessionId>/ (or legacy <sessionId>-*.zip) is used')
     process.exit(2)
   }
 

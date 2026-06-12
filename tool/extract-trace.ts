@@ -66,13 +66,32 @@ async function readEntryBuffer(zip: yauzl.ZipFile, entry: yauzl.Entry): Promise<
   })
 }
 
-function findLatestTraceForSession(traceDir: string, sessionId: string): string | null {
-  if (!fs.existsSync(traceDir)) return null
+function findTraceZipsForSession(traceDir: string, sessionId: string): string[] {
+  const chunkDir = path.join(traceDir, sessionId)
+  if (fs.existsSync(chunkDir) && fs.statSync(chunkDir).isDirectory()) {
+    const chunks = fs.readdirSync(chunkDir)
+      .filter(n => n.startsWith('chunk-') && n.endsWith('.zip'))
+      .sort()
+      .map(n => path.join(chunkDir, n))
+    if (chunks.length > 0) return chunks
+  }
+  if (!fs.existsSync(traceDir)) return []
   const matches = fs.readdirSync(traceDir)
     .filter(n => n.startsWith(`${sessionId}-`) && n.endsWith('.zip'))
     .map(n => ({ name: n, mtime: fs.statSync(path.join(traceDir, n)).mtimeMs }))
     .sort((a, b) => b.mtime - a.mtime)
-  return matches.length > 0 ? path.join(traceDir, matches[0].name) : null
+  return matches.length > 0 ? [path.join(traceDir, matches[0].name)] : []
+}
+
+function resolveTraceZips(traceDir: string, sessionId: string, explicitPath: string | undefined): string[] {
+  if (!explicitPath) return findTraceZipsForSession(traceDir, sessionId)
+  if (fs.existsSync(explicitPath) && fs.statSync(explicitPath).isDirectory()) {
+    return fs.readdirSync(explicitPath)
+      .filter(n => n.endsWith('.zip'))
+      .sort()
+      .map(n => path.join(explicitPath, n))
+  }
+  return fs.existsSync(explicitPath) ? [explicitPath] : []
 }
 
 function summariseAriaTree(tree: string): string {
@@ -117,40 +136,42 @@ export const extractTrace: Tool = {
   inputSchema: {
     type: 'object',
     properties: {
-      sessionId: { type: 'string', description: 'Run session id; used to locate output/trace/<sessionId>-*.zip (newest wins) and to name the output files.' },
-      tracePath: { type: 'string', description: 'Optional explicit path to the trace zip. Overrides the sessionId-based lookup.' },
+      sessionId: { type: 'string', description: 'Run session id; used to locate the chunked trace at output/trace/<sessionId>/ (falling back to legacy output/trace/<sessionId>-*.zip) and to name the output files.' },
+      tracePath: { type: 'string', description: 'Optional explicit path to a trace zip or a directory of chunk zips. Overrides the sessionId-based lookup.' },
     },
     required: ['sessionId'],
   },
   async execute(input, ctx: ToolContext): Promise<string> {
     const sessionId = input.sessionId as string
-    const tracePath = (input.tracePath as string | undefined) ?? findLatestTraceForSession(
-      path.join(ctx.outputDir, 'trace'), sessionId,
+    const traceZips = resolveTraceZips(
+      path.join(ctx.outputDir, 'trace'), sessionId, input.tracePath as string | undefined,
     )
-    if (!tracePath || !fs.existsSync(tracePath)) {
-      throw new Error(`No trace zip found for sessionId "${sessionId}" under output/trace/`)
+    if (traceZips.length === 0) {
+      throw new Error(`No trace found for sessionId "${sessionId}" under output/trace/`)
     }
 
-    const zip = await openZip(tracePath)
     const traceTextParts: string[] = []
     const resourceBuffers = new Map<string, Buffer>()
 
-    await new Promise<void>((resolve, reject) => {
-      zip.on('entry', (entry: yauzl.Entry) => {
-        const name = entry.fileName
-        if (name === 'trace.trace') {
-          readEntryText(zip, entry).then(t => { traceTextParts.push(t); zip.readEntry() }).catch(reject)
-        } else if (name.startsWith('resources/')) {
-          const sha1 = name.split('/').pop()!
-          readEntryBuffer(zip, entry).then(b => { resourceBuffers.set(sha1, b); zip.readEntry() }).catch(reject)
-        } else {
-          zip.readEntry()
-        }
+    for (const zipPath of traceZips) {
+      const zip = await openZip(zipPath)
+      await new Promise<void>((resolve, reject) => {
+        zip.on('entry', (entry: yauzl.Entry) => {
+          const name = entry.fileName
+          if (name === 'trace.trace') {
+            readEntryText(zip, entry).then(t => { traceTextParts.push(t); zip.readEntry() }).catch(reject)
+          } else if (name.startsWith('resources/')) {
+            const sha1 = name.split('/').pop()!
+            readEntryBuffer(zip, entry).then(b => { resourceBuffers.set(sha1, b); zip.readEntry() }).catch(reject)
+          } else {
+            zip.readEntry()
+          }
+        })
+        zip.on('end', resolve)
+        zip.on('error', reject)
+        zip.readEntry()
       })
-      zip.on('end', resolve)
-      zip.on('error', reject)
-      zip.readEntry()
-    })
+    }
 
     const events: TraceEvent[] = traceTextParts.join('\n').split('\n')
       .filter(Boolean).map(l => JSON.parse(l) as TraceEvent)
@@ -249,7 +270,8 @@ export const extractTrace: Tool = {
     }
 
     return JSON.stringify({
-      tracePath,
+      tracePath: traceZips.length === 1 ? traceZips[0] : path.dirname(traceZips[0]),
+      traceChunks: traceZips.length,
       ariaLogPath,
       entries: jsonlLines.length,
       screenshotsWritten: writtenShots.length,

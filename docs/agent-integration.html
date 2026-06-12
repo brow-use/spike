@@ -107,15 +107,15 @@
     <div class="cmd-list">
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__navigate</div>
-        <div class="cmd-desc">Navigate the active browser to a URL. Waits for <code>domcontentloaded</code> and returns the resulting title and final URL. <strong>Input:</strong> <code>url</code>.</div>
+        <div class="cmd-desc">Navigate the active browser to a URL. Waits for <code>domcontentloaded</code> by default and returns the resulting title and final URL. <strong>Inputs:</strong> <code>url</code>, optional <code>waitUntil</code> (<code>domcontentloaded</code> / <code>load</code> / <code>networkidle</code> — use <code>networkidle</code> for SPAs that keep rendering after load).</div>
       </div>
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__click</div>
-        <div class="cmd-desc">Click an element on the current page. <strong>Input:</strong> CSS or accessible <code>selector</code>. Discover selectors via <code>get_accessibility_tree</code> or <code>enumerate_interactive_elements</code> first.</div>
+        <div class="cmd-desc">Click an element on the current page. <strong>Input:</strong> CSS or accessible <code>selector</code>. Discover selectors via <code>get_accessibility_tree</code> or <code>enumerate_interactive_elements</code> first. If the selector no longer matches, the tool heals it against the current accessibility tree, retries once, and reports the substitution in the result (<code>healed from: …</code>) — update your page object when you see it.</div>
       </div>
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__type</div>
-        <div class="cmd-desc">Type text into an input. Clears existing content first. <strong>Input:</strong> <code>selector</code>, <code>text</code>.</div>
+        <div class="cmd-desc">Type text into an input. Clears existing content first. <strong>Inputs:</strong> <code>selector</code>, <code>text</code>. Selector healing applies as for <code>click</code>.</div>
       </div>
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__clear_session</div>
@@ -151,11 +151,11 @@
     <div class="cmd-list">
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__start_trace</div>
-        <div class="cmd-desc">Begin a Playwright trace (screenshots, DOM snapshots, network, sources). Call this before any actions you want auditable.</div>
+        <div class="cmd-desc">Begin a Playwright trace (screenshots, DOM snapshots, network, sources). Call this before any actions you want auditable. The trace is flushed to disk incrementally as chunk zips under <code>output/trace/&lt;name&gt;/</code>, so a mid-run crash loses at most the last few actions. <strong>Input:</strong> <code>name</code> (the session id).</div>
       </div>
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__stop_trace</div>
-        <div class="cmd-desc">End trace recording and save it to <code>output/trace/&lt;name&gt;.zip</code>. <strong>Input:</strong> <code>name</code>.</div>
+        <div class="cmd-desc">End trace recording, flushing the final chunk. Returns the chunk directory <code>output/trace/&lt;name&gt;/</code>. Each chunk is an independently viewable Playwright trace. <strong>Input:</strong> <code>name</code>.</div>
       </div>
     </div>
 
@@ -227,7 +227,7 @@
       </div>
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__health_check</div>
-        <div class="cmd-desc">Verify MCP server, extension, and browser health. Returns a structured <code>{ok, issues}</code> with a one-line remedy per issue.</div>
+        <div class="cmd-desc">Verify MCP server, extension, and browser health. Returns a structured <code>{ok, issues}</code> with a one-line remedy per issue, plus per-tool timing stats. <strong>Input:</strong> optional <code>heal</code> — when true, a hung extension connection is dropped so the extension reconnects, then the check reruns and reports <code>healed</code>.</div>
       </div>
     </div>
 

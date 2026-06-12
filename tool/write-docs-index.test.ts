@@ -83,7 +83,7 @@ describe('write_docs_index', () => {
   test('footer references trace zip, jsonl, and screenshots paths', async () => {
     await run(baseInput)
     const content = readReadme('explore-12345')
-    assert.ok(content.includes('output/trace/explore-12345-*.zip'))
+    assert.ok(content.includes('output/trace/explore-12345/chunk-*.zip'))
     assert.ok(content.includes('output/exploration/explore-12345.jsonl'))
     assert.ok(content.includes('output/exploration/explore-12345/'))
     assert.ok(content.includes('npx playwright show-trace'))

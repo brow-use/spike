@@ -20,7 +20,7 @@ Keep `url` as the navigation entry point. Use the description to inform element 
 Before asking the user for their intent:
 
 1. Derive `sessionId = "explore-guided-<UNIX-millis>"` once.
-2. Call `start_trace`.
+2. Call `start_trace` with `name = sessionId`.
 
 The trace is the source of truth. You do NOT need to maintain an in-memory `visited` array, compute fingerprints, or save per-step screenshots during execution — the trace captures every `get_accessibility_tree` call, every navigation, and a screencast. Downstream artifacts (aria-tree log, per-step screenshots) are produced by the shell command `make extract SESSION=<sessionId>` afterwards, not by this command.
 

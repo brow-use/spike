@@ -69,8 +69,9 @@
         <tr><td>type</td><td>Fill an input field by CSS selector</td></tr>
         <tr><td>get_accessibility_tree</td><td>Return an ARIA snapshot of the page body</td></tr>
         <tr><td>snapshot</td><td>Capture a PNG screenshot, returned as base64</td></tr>
-        <tr><td>start_trace</td><td>Begin a Playwright trace (screenshots, DOM snapshots, sources)</td></tr>
-        <tr><td>stop_trace</td><td>Stop the trace and send the <code>.zip</code> bytes back to the server</td></tr>
+        <tr><td>start_trace</td><td>Begin a Playwright trace (screenshots, DOM snapshots, sources) and open the first chunk</td></tr>
+        <tr><td>flush_trace_chunk</td><td>Close the current trace chunk, send its <code>.zip</code> bytes back to the server, and open a new chunk</td></tr>
+        <tr><td>stop_trace</td><td>Stop the trace and send the final chunk's <code>.zip</code> bytes back to the server</td></tr>
         <tr><td>clear_session</td><td>Clear cookies, localStorage, and sessionStorage for the active tab</td></tr>
       </tbody>
     </table>

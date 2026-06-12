@@ -68,7 +68,7 @@ This command does NOT read `.brow-use/runs.json`, `output/docs/`, `output/page/`
 ## Session setup
 
 1. Derive `sessionId = "investigate-<UNIX-millis>"`.
-2. Call `start_trace`.
+2. Call `start_trace` with `name = sessionId`.
 3. Call `log_reasoning` once with `kind: "plan"` describing — in one or two sentences — how you intend to satisfy the investigation request (what you will capture and when).
 
 ## Approach — agent decides
