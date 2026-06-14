@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { formatLogTimestamp } from '../domain/log-timestamp.js'
 
 const LOG_FILE = path.resolve(process.cwd(), '.brow-use/mcp.log')
 fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true })
@@ -16,7 +17,8 @@ function format(args: unknown[]): string {
 }
 
 export function log(...args: unknown[]): void {
-  stream.write(`[${new Date().toISOString()}] ${format(args)}\n`)
+  const now = new Date()
+  stream.write(`[${formatLogTimestamp(now, -now.getTimezoneOffset())}] ${format(args)}\n`)
 }
 
 log('--- mcp server started pid=' + process.pid + ' ---')

@@ -1,4 +1,5 @@
 import type { TimingStats, TimingSummary } from './timing.js'
+import { withTimeout } from '../domain/with-timeout.js'
 
 export interface HealthIssue {
   kind: string
@@ -51,13 +52,6 @@ interface ExtensionPong {
   currentTabTitle?: string | null
 }
 
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms)),
-  ])
-}
-
 function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms))
 }
@@ -74,7 +68,7 @@ async function waitFor(predicate: () => boolean, totalMs: number, pollMs: number
 async function pingExtension(deps: HealthDeps, pingTimeoutMs: number): Promise<{ block: Record<string, unknown>; issue: HealthIssue | null }> {
   const start = Date.now()
   try {
-    const pong = await withTimeout(deps.crx.ping(), pingTimeoutMs) as ExtensionPong
+    const pong = await withTimeout(deps.crx.ping(), pingTimeoutMs, `timeout after ${pingTimeoutMs}ms`) as ExtensionPong
     const block: Record<string, unknown> = {
       required: true,
       connected: true,

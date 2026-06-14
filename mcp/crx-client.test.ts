@@ -1,5 +1,8 @@
 import { describe, test } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 import type { WebSocket } from 'ws'
 import { CrxClient } from './crx-client.js'
 import { CommandError } from '../domain/command-error.js'
@@ -503,6 +506,94 @@ describe('CrxClient selector healing', () => {
   })
 })
 
+describe('CrxClient trace session', () => {
+  function clientWithTempDir(): { client: CrxClient; socket: FakeSocket; dir: string } {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'crx-client-test-'))
+    const client = new CrxClient(dir)
+    const socket = new FakeSocket()
+    client.attachSocket(socket.asWebSocket())
+    return { client, socket, dir }
+  }
+
+  test('successful start_trace creates the session and the actions file', async () => {
+    const { client, socket, dir } = clientWithTempDir()
+    socket.onSend = (msg) => ({ id: msg.id, success: true })
+
+    const result = await client.execute('start_trace', { name: 'run-1' })
+    assert.match(result as string, /Trace started/)
+    assert.ok(fs.existsSync(path.join(dir, 'trace', 'run-1-actions.jsonl')))
+  })
+
+  test('failed start_trace leaves no session and writes nothing to disk', async () => {
+    const { client, socket, dir } = clientWithTempDir()
+    socket.onSend = (msg) => ({ id: msg.id, success: false, error: 'tracing.start: Tracing has been already started' })
+
+    await assert.rejects(client.execute('start_trace', { name: 'run-1' }), /already started/i)
+    assert.equal(fs.existsSync(path.join(dir, 'trace', 'run-1')), false)
+    assert.equal(fs.existsSync(path.join(dir, 'trace', 'run-1-actions.jsonl')), false)
+    await assert.rejects(client.execute('stop_trace', { name: 'run-1' }), /No active trace session/)
+  })
+
+  test('a successful flush writes a chunk and adds no warning to the result', async () => {
+    const { client, socket, dir } = clientWithTempDir()
+    socket.onSend = (msg) => {
+      if (msg.type === 'start_trace') return { id: msg.id, success: true }
+      if (msg.type === 'navigate') return { id: msg.id, success: true, data: { title: 't', url: 'u' } }
+      if (msg.type === 'flush_trace_chunk') return { id: msg.id, success: true, data: Buffer.from([1, 2, 3]).toString('base64') }
+      return null
+    }
+
+    await client.execute('start_trace', { name: 'run-1' })
+    let lastResult = ''
+    for (let i = 0; i < 5; i++) lastResult = await client.execute('navigate', { url: `https://x/${i}` }) as string
+
+    assert.ok(!lastResult.includes('[trace]'))
+    assert.ok(fs.existsSync(path.join(dir, 'trace', 'run-1', 'chunk-0000.zip')))
+  })
+
+  test('a trace-lost flush is surfaced to the caller and the trace is restarted', async () => {
+    const { client, socket } = clientWithTempDir()
+    let flushes = 0
+    let startTraces = 0
+    socket.onSend = (msg) => {
+      if (msg.type === 'start_trace') { startTraces += 1; return { id: msg.id, success: true } }
+      if (msg.type === 'navigate') return { id: msg.id, success: true, data: { title: 't', url: 'u' } }
+      if (msg.type === 'flush_trace_chunk') {
+        flushes += 1
+        return { id: msg.id, success: false, error: 'Trace recording was lost when the extension service worker restarted', code: 'trace-lost' }
+      }
+      return null
+    }
+
+    await client.execute('start_trace', { name: 'run-1' })
+    let lastResult = ''
+    for (let i = 0; i < 5; i++) lastResult = await client.execute('navigate', { url: `https://x/${i}` }) as string
+
+    assert.equal(flushes, 1)
+    assert.equal(startTraces, 2) // initial start plus the revive
+    assert.match(lastResult, /trace recording was lost/i)
+    assert.match(lastResult, /restarted/i)
+  })
+
+  test('a non-trace-lost flush failure is surfaced without restarting the trace', async () => {
+    const { client, socket } = clientWithTempDir()
+    let startTraces = 0
+    socket.onSend = (msg) => {
+      if (msg.type === 'start_trace') { startTraces += 1; return { id: msg.id, success: true } }
+      if (msg.type === 'navigate') return { id: msg.id, success: true, data: { title: 't', url: 'u' } }
+      if (msg.type === 'flush_trace_chunk') return { id: msg.id, success: false, error: 'boom', code: 'unknown' }
+      return null
+    }
+
+    await client.execute('start_trace', { name: 'run-1' })
+    let lastResult = ''
+    for (let i = 0; i < 5; i++) lastResult = await client.execute('navigate', { url: `https://x/${i}` }) as string
+
+    assert.equal(startTraces, 1) // no revive
+    assert.match(lastResult, /flush failed/i)
+  })
+})
+
 describe('CrxClient heartbeat', () => {
   test('a missed pong terminates the socket', async () => {
     const client = new CrxClient('/tmp/test', { heartbeatIntervalMs: 20 })
@@ -513,6 +604,16 @@ describe('CrxClient heartbeat', () => {
     assert.ok(sock.pings >= 1)
     assert.equal(sock.terminated, true)
     assert.equal(client.connected, false)
+  })
+
+  test('a missed pong is logged via the onLog hook', async () => {
+    const logs: string[] = []
+    const client = new CrxClient('/tmp/test', { heartbeatIntervalMs: 20, onLog: (...a) => logs.push(a.join(' ')) })
+    const sock = new FakeSocket()
+    client.attachSocket(sock.asWebSocket())
+
+    await sleep(90)
+    assert.ok(logs.some(l => /no pong/i.test(l)))
   })
 
   test('pongs keep the socket alive', async () => {

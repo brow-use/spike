@@ -56,6 +56,7 @@ export interface CrxClientOptions {
   commandTimeoutMs?: number
   reconnectGraceMs?: number
   heartbeatIntervalMs?: number
+  onLog?: (...args: unknown[]) => void
 }
 
 export const ACTION_TIMEOUT_MS = 8000
@@ -72,12 +73,14 @@ export class CrxClient {
   private commandTimeoutMs: number
   private reconnectGraceMs: number
   private heartbeatIntervalMs: number
+  private onLog: (...args: unknown[]) => void
 
   constructor(outputDir: string, options: CrxClientOptions = {}) {
     this.outputDir = outputDir
     this.commandTimeoutMs = options.commandTimeoutMs ?? 35000
     this.reconnectGraceMs = options.reconnectGraceMs ?? 10000
     this.heartbeatIntervalMs = options.heartbeatIntervalMs ?? 15000
+    this.onLog = options.onLog ?? (() => {})
   }
 
   attachSocket(socket: WebSocket): void {
@@ -93,6 +96,7 @@ export class CrxClient {
     socket.on('pong', () => { alive = true })
     const heartbeat = setInterval(() => {
       if (!alive) {
+        this.onLog(`heartbeat: no pong within ${this.heartbeatIntervalMs}ms — terminating extension socket`)
         socket.terminate()
         return
       }
@@ -251,14 +255,38 @@ export class CrxClient {
     return chunkPath
   }
 
-  private async maybeFlushChunk(): Promise<void> {
-    if (!this.traceSession || this.traceSession.actionsSinceFlush < FLUSH_EVERY) return
+  private async reviveTrace(): Promise<void> {
+    const s = this.traceSession
+    if (!s) return
+    await this.send('start_trace', { name: s.name })
+    s.actionsSinceFlush = 0
+  }
+
+  private async maybeFlushChunk(): Promise<string | null> {
+    const s = this.traceSession
+    if (!s || s.actionsSinceFlush < FLUSH_EVERY) return null
+    s.actionsSinceFlush = 0
     try {
       const data = await this.send('flush_trace_chunk') as Uint8Array | string
       this.writeChunk(data)
-    } catch {
-      // flush is best-effort: a failed flush keeps actions in the current extension-side chunk
+      return null
+    } catch (err) {
+      const code = err instanceof CommandError ? err.code : 'unknown'
+      if (code === 'trace-lost') {
+        try {
+          await this.reviveTrace()
+          return 'trace recording was lost (extension service worker restarted) and has been restarted; screenshots and DOM snapshots since the last flush were dropped. The action log is intact.'
+        } catch (reviveErr) {
+          const m = reviveErr instanceof Error ? reviveErr.message : String(reviveErr)
+          return `trace recording was lost and could not be restarted (${m}). The action log is intact; call start_trace to resume rich capture.`
+        }
+      }
+      return `trace chunk flush failed (${code}): ${err instanceof Error ? err.message : String(err)}. The action log is intact.`
     }
+  }
+
+  private withTraceWarning(base: string, warning: string | null): string {
+    return warning ? `${base}\n\n[trace] ${warning}` : base
   }
 
   async execute(toolName: string, args: Record<string, unknown>): Promise<string | ToolResultContent[]> {
@@ -268,8 +296,8 @@ export class CrxClient {
         const result = await this.send('navigate', { url: args.url, waitUntil: args.waitUntil }) as { title: string; url: string }
         this.ariaCache = null
         this.appendAction({ t, name: 'navigate', url: args.url as string })
-        await this.maybeFlushChunk()
-        return JSON.stringify(result)
+        const warning = await this.maybeFlushChunk()
+        return this.withTraceWarning(JSON.stringify(result), warning)
       }
       case 'click': {
         const t = Date.now()
@@ -277,8 +305,9 @@ export class CrxClient {
         const healed = await this.actionWithHealing('click', { selector, timeoutMs: ACTION_TIMEOUT_MS })
         this.ariaCache = null
         this.appendAction({ t, name: 'click', selector: healed ?? selector })
-        await this.maybeFlushChunk()
-        return healed ? `Clicked: ${healed} (healed from: ${selector})` : `Clicked: ${selector}`
+        const warning = await this.maybeFlushChunk()
+        const base = healed ? `Clicked: ${healed} (healed from: ${selector})` : `Clicked: ${selector}`
+        return this.withTraceWarning(base, warning)
       }
       case 'type': {
         const t = Date.now()
@@ -287,8 +316,9 @@ export class CrxClient {
         const healed = await this.actionWithHealing('type', { selector, text, timeoutMs: ACTION_TIMEOUT_MS })
         this.ariaCache = null
         this.appendAction({ t, name: 'type', selector: healed ?? selector, text })
-        await this.maybeFlushChunk()
-        return healed ? `Typed into: ${healed} (healed from: ${selector})` : `Typed into: ${selector}`
+        const warning = await this.maybeFlushChunk()
+        const base = healed ? `Typed into: ${healed} (healed from: ${selector})` : `Typed into: ${selector}`
+        return this.withTraceWarning(base, warning)
       }
       case 'get_accessibility_tree': {
         return this.getAriaTree()
@@ -299,12 +329,12 @@ export class CrxClient {
       }
       case 'start_trace': {
         const name = args.name as string
+        await this.send('start_trace', { name })
         const dir = path.join(this.outputDir, 'trace', name)
         fs.mkdirSync(dir, { recursive: true })
         const actionsPath = path.join(this.outputDir, 'trace', `${name}-actions.jsonl`)
         fs.writeFileSync(actionsPath, '', 'utf-8')
         this.traceSession = { name, dir, actionsPath, chunkIndex: 0, actionsSinceFlush: 0 }
-        await this.send('start_trace', { name })
         return `Trace started (extension mode) — chunks will be flushed to ${dir}`
       }
       case 'stop_trace': {

@@ -4,6 +4,7 @@ import { createCommandQueue } from '../domain/command-queue'
 import { matchTab } from '../domain/tab-match'
 import { encodeBinaryFrame } from '../domain/ws-frame'
 import { CommandError, classifyErrorMessage } from '../domain/command-error'
+import { withTimeout, TimeoutError } from '../domain/with-timeout'
 
 interface BrowserCommand {
   id: string
@@ -24,6 +25,8 @@ const RECONNECT_DELAY_MS = 3000
 const KEEPALIVE_INTERVAL_MS = 20000
 const RECONNECT_ALARM = 'brow-use-reconnect'
 const DEFAULT_ACTION_TIMEOUT_MS = 8000
+const TRACE_OP_TIMEOUT_MS = 10000
+const TRACE_START_OPTIONS = { screenshots: true, snapshots: true, sources: true }
 
 export interface CommandEvent {
   kind: 'brow_use_command'
@@ -94,16 +97,18 @@ let tracingContext: BrowserContext | null = null
 let selectedTabId: number | null = null
 let lastKnownUrl: string | null = null
 let activeTraceName: string | null = null
+let panelTabId: number | null = null
 
 async function restoreState(): Promise<void> {
-  const stored = await chrome.storage.session.get(['selectedTabId', 'lastKnownUrl', 'activeTraceName'])
+  const stored = await chrome.storage.session.get(['selectedTabId', 'lastKnownUrl', 'activeTraceName', 'panelTabId'])
   selectedTabId = (stored.selectedTabId as number | undefined) ?? null
   lastKnownUrl = (stored.lastKnownUrl as string | undefined) ?? null
   activeTraceName = (stored.activeTraceName as string | undefined) ?? null
+  panelTabId = (stored.panelTabId as number | undefined) ?? null
 }
 
 function persistState(): void {
-  void chrome.storage.session.set({ selectedTabId, lastKnownUrl, activeTraceName })
+  void chrome.storage.session.set({ selectedTabId, lastKnownUrl, activeTraceName, panelTabId })
 }
 
 installConsoleCapture()
@@ -151,7 +156,30 @@ chrome.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
   return false
 })
 
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {})
+async function showPanelExclusivelyOn(tabId: number): Promise<void> {
+  if (panelTabId !== null && panelTabId !== tabId) {
+    await chrome.sidePanel.setOptions({ tabId: panelTabId, enabled: false }).catch(() => {})
+  }
+  await chrome.sidePanel.setOptions({ tabId, enabled: true, path: 'sidepanel.html' }).catch(() => {})
+  panelTabId = tabId
+  persistState()
+}
+
+chrome.action.onClicked.addListener((tab) => {
+  if (tab.id === undefined) return
+  const tabId = tab.id
+  void (async () => {
+    await showPanelExclusivelyOn(tabId)
+    await chrome.sidePanel.open({ tabId }).catch(() => {})
+  })()
+})
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (tabId === panelTabId) {
+    panelTabId = null
+    persistState()
+  }
+})
 
 chrome.alarms.create(RECONNECT_ALARM, { periodInMinutes: 0.5 })
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -204,6 +232,34 @@ async function getActivePage(): Promise<Page> {
   const tabId = await resolveTabId()
   const app = await ensureCrxApp()
   return app.attach(tabId)
+}
+
+async function hardResetCrx(): Promise<void> {
+  tracingContext = null
+  activeTraceName = null
+  persistState()
+  const app = crxApp
+  crxApp = null
+  if (app) {
+    try {
+      await withTimeout(app.close(), TRACE_OP_TIMEOUT_MS, 'crx close timed out')
+    } catch (err) {
+      console.warn('[brow-use] crx close during hard reset failed:', stringifyArg(err))
+    }
+  }
+}
+
+async function traceOp<T>(op: Promise<T>): Promise<T> {
+  try {
+    return await withTimeout(op, TRACE_OP_TIMEOUT_MS, `trace operation timed out after ${TRACE_OP_TIMEOUT_MS}ms`)
+  } catch (err) {
+    if (err instanceof TimeoutError) {
+      console.error('[brow-use] Trace operation hung; force-resetting crx')
+      await hardResetCrx()
+      throw new CommandError('trace-lost', 'Trace operation hung and tracing was force-reset; chunks flushed earlier are preserved on disk. Start a new trace.')
+    }
+    throw err
+  }
 }
 
 async function handleCommand(cmd: BrowserCommand): Promise<unknown> {
@@ -266,25 +322,40 @@ async function handleCommand(cmd: BrowserCommand): Promise<unknown> {
       return data as unknown as Uint8Array
     }
     case 'start_trace': {
-      await context.tracing.start({ screenshots: true, snapshots: true, sources: true })
-      await context.tracing.startChunk()
-      tracingContext = context
+      let ctx = context
+      try {
+        await ctx.tracing.start(TRACE_START_OPTIONS)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        if (!/already.*started/i.test(message)) throw err
+        console.warn('[brow-use] Orphaned tracing session found; recovering')
+        try {
+          await withTimeout(ctx.tracing.stop(), TRACE_OP_TIMEOUT_MS, 'tracing.stop timed out')
+        } catch {
+          await hardResetCrx()
+          const page = await getActivePage()
+          ctx = page.context()
+        }
+        await ctx.tracing.start(TRACE_START_OPTIONS)
+      }
+      await ctx.tracing.startChunk()
+      tracingContext = ctx
       activeTraceName = (payload.name as string | undefined) ?? 'unnamed'
       persistState()
       return null
     }
     case 'flush_trace_chunk': {
       const ctx = tracingContext ?? context
-      await ctx.tracing.stopChunk({ path: 'chunk.zip' })
+      await traceOp(ctx.tracing.stopChunk({ path: 'chunk.zip' }))
       const buffer = crx.fs.readFileSync('chunk.zip') as Uint8Array
       try { crx.fs.unlinkSync('chunk.zip') } catch {}
-      await ctx.tracing.startChunk()
+      await traceOp(ctx.tracing.startChunk())
       return buffer
     }
     case 'stop_trace': {
       const ctx = tracingContext ?? context
-      await ctx.tracing.stopChunk({ path: 'chunk.zip' })
-      await ctx.tracing.stop()
+      await traceOp(ctx.tracing.stopChunk({ path: 'chunk.zip' }))
+      await traceOp(ctx.tracing.stop())
       tracingContext = null
       activeTraceName = null
       persistState()
@@ -379,4 +450,10 @@ function connect(): void {
   }
 }
 
-void restoreState().then(() => connect())
+void restoreState().then(async () => {
+  await chrome.sidePanel.setOptions({ enabled: false }).catch(() => {})
+  if (panelTabId !== null) {
+    await chrome.sidePanel.setOptions({ tabId: panelTabId, enabled: true, path: 'sidepanel.html' }).catch(() => {})
+  }
+  connect()
+})

@@ -107,7 +107,7 @@ const appTools = [
   },
 ]
 
-const crxClient = new CrxClient(OUTPUT_DIR)
+const crxClient = new CrxClient(OUTPUT_DIR, { onLog: log })
 const timing = new TimingStats()
 
 let activeWss: WebSocketServer | null = null
@@ -135,7 +135,10 @@ function startWebSocketServer(attemptsLeft: number): void {
   wss.on('connection', (socket) => {
     log('extension connected')
     crxClient.attachSocket(socket)
-    socket.on('close', () => log('extension disconnected'))
+    socket.on('close', (code, reason) => {
+      const r = reason && reason.length > 0 ? ` reason="${reason.toString()}"` : ''
+      log(`extension disconnected code=${code}${r}`)
+    })
   })
   activeWss = wss
 }
