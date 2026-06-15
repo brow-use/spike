@@ -31,7 +31,8 @@ async function main(): Promise<void> {
   const res = JSON.parse(raw as string)
 
   console.log(`trace          ${res.tracePath}`)
-  console.log(`aria log       ${res.ariaLogPath}  (${res.entries} entries)`)
+  const ariaNote = res.ariaLogPreserved ? '  (preserved — written incrementally by the run)' : ''
+  console.log(`aria log       ${res.ariaLogPath}  (${res.entries} entries)${ariaNote}`)
   console.log(`screenshots    ${res.screenshotsDir}  (${res.screenshotsWritten} files)`)
   if (res.actionsPath) {
     console.log(`actions        ${res.actionsPath}  (${res.actionsWritten} entries)`)

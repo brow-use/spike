@@ -5,6 +5,7 @@ import { matchTab } from '../domain/tab-match'
 import { encodeBinaryFrame } from '../domain/ws-frame'
 import { CommandError, classifyErrorMessage } from '../domain/command-error'
 import { withTimeout, TimeoutError } from '../domain/with-timeout'
+import { reconnectDelayMs } from '../domain/reconnect-backoff'
 
 interface BrowserCommand {
   id: string
@@ -21,7 +22,8 @@ interface CommandResult {
 }
 
 const WS_URL = 'ws://localhost:3456'
-const RECONNECT_DELAY_MS = 3000
+const RECONNECT_BASE_MS = 1000
+const RECONNECT_MAX_MS = 30000
 const KEEPALIVE_INTERVAL_MS = 20000
 const RECONNECT_ALARM = 'brow-use-reconnect'
 const DEFAULT_ACTION_TIMEOUT_MS = 8000
@@ -183,7 +185,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 chrome.alarms.create(RECONNECT_ALARM, { periodInMinutes: 0.5 })
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === RECONNECT_ALARM && !ws) connect()
+  if (alarm.name === RECONNECT_ALARM && ws === null) scheduleReconnect()
 })
 
 async function getCurrentTabId(): Promise<number | null> {
@@ -410,8 +412,20 @@ async function runCommand(cmd: BrowserCommand): Promise<void> {
 }
 
 let reconnectCount = 0
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleReconnect(): void {
+  if (ws !== null || reconnectTimer !== null) return
+  const delay = reconnectDelayMs(reconnectCount, { baseMs: RECONNECT_BASE_MS, maxMs: RECONNECT_MAX_MS })
+  console.log(`[brow-use] Disconnected. Reconnecting in ${delay}ms (attempt ${reconnectCount + 1})`)
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    connect()
+  }, delay)
+}
 
 function connect(): void {
+  if (ws !== null) return
   console.log(`[brow-use] Connecting to ${WS_URL}${reconnectCount > 0 ? ` (attempt ${reconnectCount + 1})` : ''}`)
   ws = new WebSocket(WS_URL)
   let keepalive: ReturnType<typeof setInterval> | null = null
@@ -438,10 +452,9 @@ function connect(): void {
 
   ws.onclose = () => {
     reconnectCount++
-    console.log(`[brow-use] Disconnected. Retrying in ${RECONNECT_DELAY_MS}ms...`)
     if (keepalive !== null) clearInterval(keepalive)
     ws = null
-    setTimeout(connect, RECONNECT_DELAY_MS)
+    scheduleReconnect()
   }
 
   ws.onerror = (err) => {

@@ -33,6 +33,85 @@ interface ActionEntry {
   text?: string
 }
 
+export interface ParsedTrace {
+  ariaCalls: AriaSnapshotCall[]
+  screencastFrames: ScreencastFrame[]
+  actions: ActionEntry[]
+}
+
+export function isRealUrl(url: string | undefined | null): url is string {
+  return !!url && url !== 'about:blank' && /^https?:\/\//i.test(url)
+}
+
+export function parseTraceEvents(events: TraceEvent[], navigatedUrls: Set<string>): ParsedTrace {
+  const frameUrlByCall = new Map<string, string>()
+  const screencastFrames: ScreencastFrame[] = []
+  const ariaBefore = new Map<string, TraceEvent>()
+  const ariaAfter = new Map<string, TraceEvent>()
+  const currentMainUrlByCall = new Map<string, string>()
+  const actions: ActionEntry[] = []
+  let currentMainUrl = ''
+
+  for (const e of events) {
+    if (e.type === 'screencast-frame') {
+      const frame = e as unknown as { sha1?: string; timestamp?: number }
+      if (frame.sha1 && typeof frame.timestamp === 'number') {
+        screencastFrames.push({ sha1: frame.sha1, timestamp: frame.timestamp })
+      }
+    } else if (e.type === 'frame-snapshot' && e.snapshot) {
+      const s = e.snapshot as { callId?: string; snapshotName?: string; frameUrl?: string }
+      if (s.callId && s.snapshotName && s.frameUrl) {
+        frameUrlByCall.set(`${s.callId}:${s.snapshotName}`, s.frameUrl)
+      }
+      if (isRealUrl(s.frameUrl) && (navigatedUrls.size === 0 || navigatedUrls.has(s.frameUrl))) {
+        currentMainUrl = s.frameUrl
+      }
+    } else if (e.type === 'before' && e.callId) {
+      if (e.method === 'ariaSnapshot') ariaBefore.set(e.callId, e)
+      else if (e.method === 'goto') {
+        actions.push({ t: Math.round((e.startTime ?? 0) * 1000), name: 'navigate', url: (e.params?.url as string) })
+      } else if (e.method === 'click' || e.method === 'tap') {
+        actions.push({ t: Math.round((e.startTime ?? 0) * 1000), name: 'click', selector: (e.params?.selector as string) })
+      } else if (e.method === 'fill' || e.method === 'type' || e.method === 'press') {
+        actions.push({
+          t: Math.round((e.startTime ?? 0) * 1000),
+          name: 'type',
+          selector: (e.params?.selector as string),
+          text: (e.params?.value as string) ?? (e.params?.text as string),
+        })
+      }
+    } else if (e.type === 'after' && e.callId && ariaBefore.has(e.callId)) {
+      ariaAfter.set(e.callId, e)
+      currentMainUrlByCall.set(e.callId, currentMainUrl)
+    }
+  }
+
+  const ariaCalls: AriaSnapshotCall[] = []
+  for (const [callId, after] of ariaAfter) {
+    const snapshot = (after.result as { snapshot?: string } | undefined)?.snapshot
+    if (typeof snapshot !== 'string') continue
+    const byCall = frameUrlByCall.get(`${callId}:after@${callId}`) ?? frameUrlByCall.get(`${callId}:before@${callId}`)
+    const url = isRealUrl(byCall) ? byCall : (currentMainUrlByCall.get(callId) ?? '')
+    ariaCalls.push({ callId, endTime: after.endTime ?? 0, ariaTree: snapshot, frameUrl: url })
+  }
+  ariaCalls.sort((a, b) => a.endTime - b.endTime)
+
+  return { ariaCalls, screencastFrames, actions }
+}
+
+function readNavigatedUrls(actionsPath: string): Set<string> {
+  const urls = new Set<string>()
+  if (!fs.existsSync(actionsPath)) return urls
+  for (const line of fs.readFileSync(actionsPath, 'utf-8').split('\n')) {
+    if (!line.trim()) continue
+    try {
+      const a = JSON.parse(line) as { name?: string; url?: string }
+      if ((a.name === 'navigate' || a.name === 'goto') && a.url) urls.add(a.url)
+    } catch { continue }
+  }
+  return urls
+}
+
 async function openZip(zipPath: string): Promise<yauzl.ZipFile> {
   return new Promise((resolve, reject) => {
     yauzl.open(zipPath, { lazyEntries: true }, (err, zip) => {
@@ -176,52 +255,9 @@ export const extractTrace: Tool = {
     const events: TraceEvent[] = traceTextParts.join('\n').split('\n')
       .filter(Boolean).map(l => JSON.parse(l) as TraceEvent)
 
-    const frameUrlByCall = new Map<string, string>()
-    const screencastFrames: ScreencastFrame[] = []
-    const ariaBefore = new Map<string, TraceEvent>()
-    const ariaAfter = new Map<string, TraceEvent>()
-    const actions: ActionEntry[] = []
-
-    for (const e of events) {
-      if (e.type === 'screencast-frame') {
-        const frame = e as unknown as { sha1?: string; timestamp?: number }
-        if (frame.sha1 && typeof frame.timestamp === 'number') {
-          screencastFrames.push({ sha1: frame.sha1, timestamp: frame.timestamp })
-        }
-      } else if (e.type === 'frame-snapshot' && e.snapshot) {
-        const s = e.snapshot as { callId?: string; snapshotName?: string; frameUrl?: string }
-        if (s.callId && s.snapshotName && s.frameUrl) {
-          frameUrlByCall.set(`${s.callId}:${s.snapshotName}`, s.frameUrl)
-        }
-      } else if (e.type === 'before' && e.callId) {
-        if (e.method === 'ariaSnapshot') ariaBefore.set(e.callId, e)
-        else if (e.method === 'goto') {
-          actions.push({ t: Math.round((e.startTime ?? 0) * 1000), name: 'navigate', url: (e.params?.url as string) })
-        } else if (e.method === 'click' || e.method === 'tap') {
-          actions.push({ t: Math.round((e.startTime ?? 0) * 1000), name: 'click', selector: (e.params?.selector as string) })
-        } else if (e.method === 'fill' || e.method === 'type' || e.method === 'press') {
-          actions.push({
-            t: Math.round((e.startTime ?? 0) * 1000),
-            name: 'type',
-            selector: (e.params?.selector as string),
-            text: (e.params?.value as string) ?? (e.params?.text as string),
-          })
-        }
-      } else if (e.type === 'after' && e.callId && ariaBefore.has(e.callId)) {
-        ariaAfter.set(e.callId, e)
-      }
-    }
-
-    const ariaCalls: AriaSnapshotCall[] = []
-    for (const [callId, after] of ariaAfter) {
-      const snapshot = (after.result as { snapshot?: string } | undefined)?.snapshot
-      if (typeof snapshot !== 'string') continue
-      const url = frameUrlByCall.get(`${callId}:after@${callId}`)
-        ?? frameUrlByCall.get(`${callId}:before@${callId}`)
-        ?? ''
-      ariaCalls.push({ callId, endTime: after.endTime ?? 0, ariaTree: snapshot, frameUrl: url })
-    }
-    ariaCalls.sort((a, b) => a.endTime - b.endTime)
+    const actionsPath = path.join(ctx.outputDir, 'trace', `${sessionId}-actions.jsonl`)
+    const navigatedUrls = readNavigatedUrls(actionsPath)
+    const { ariaCalls, screencastFrames, actions } = parseTraceEvents(events, navigatedUrls)
 
     const dedupedCalls: AriaSnapshotCall[] = []
     for (const c of ariaCalls) {
@@ -260,9 +296,15 @@ export const extractTrace: Tool = {
     }
 
     const ariaLogPath = path.join(exploreDir, `${sessionId}.jsonl`)
-    fs.writeFileSync(ariaLogPath, jsonlLines.join('\n') + (jsonlLines.length ? '\n' : ''), 'utf-8')
+    const ariaLogExisted = fs.existsSync(ariaLogPath)
+      && fs.readFileSync(ariaLogPath, 'utf-8').trim().length > 0
+    if (!ariaLogExisted) {
+      fs.writeFileSync(ariaLogPath, jsonlLines.join('\n') + (jsonlLines.length ? '\n' : ''), 'utf-8')
+    }
+    const entries = ariaLogExisted
+      ? fs.readFileSync(ariaLogPath, 'utf-8').split('\n').filter(Boolean).length
+      : jsonlLines.length
 
-    const actionsPath = path.join(ctx.outputDir, 'trace', `${sessionId}-actions.jsonl`)
     let actionsWritten = 0
     if (!fs.existsSync(actionsPath) && actions.length > 0) {
       fs.writeFileSync(actionsPath, actions.map(a => JSON.stringify(a)).join('\n') + '\n', 'utf-8')
@@ -273,7 +315,8 @@ export const extractTrace: Tool = {
       tracePath: traceZips.length === 1 ? traceZips[0] : path.dirname(traceZips[0]),
       traceChunks: traceZips.length,
       ariaLogPath,
-      entries: jsonlLines.length,
+      ariaLogPreserved: ariaLogExisted,
+      entries,
       screenshotsWritten: writtenShots.length,
       screenshotsDir: shotDir,
       actionsPath: actionsWritten > 0 ? actionsPath : null,

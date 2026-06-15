@@ -46,6 +46,7 @@ const SERVER_START = Date.now()
 const WS_PORT = 3456
 const WS_BIND_RETRIES = 5
 const WS_BIND_RETRY_DELAY_MS = 1000
+const PID_FILE = path.resolve(process.cwd(), '.brow-use/mcp.pid')
 
 const browserTools: Tool[] = [
   navigate, click, typeTool, snapshot, getAccessibilityTree,
@@ -112,6 +113,20 @@ const timing = new TimingStats()
 
 let activeWss: WebSocketServer | null = null
 
+function readPortHolderPid(): string {
+  try {
+    return fs.readFileSync(PID_FILE, 'utf-8').trim() || 'unknown'
+  } catch {
+    return 'unknown'
+  }
+}
+
+function cleanupPidFile(): void {
+  try {
+    if (fs.readFileSync(PID_FILE, 'utf-8').trim() === String(process.pid)) fs.unlinkSync(PID_FILE)
+  } catch {}
+}
+
 function startWebSocketServer(attemptsLeft: number): void {
   const wss = new WebSocketServer({
     port: WS_PORT,
@@ -126,12 +141,17 @@ function startWebSocketServer(attemptsLeft: number): void {
         log(`port ${WS_PORT} in use — retrying in ${WS_BIND_RETRY_DELAY_MS}ms (${attemptsLeft} attempts left)`)
         setTimeout(() => startWebSocketServer(attemptsLeft - 1), WS_BIND_RETRY_DELAY_MS)
       } else {
-        log(`port ${WS_PORT} still in use — kill the old mcp process and restart`)
+        const holder = readPortHolderPid()
+        log(`port ${WS_PORT} still in use by another mcp server (pid ${holder}) — stop it (kill ${holder}) and restart`)
         process.exit(1)
       }
     }
   })
-  wss.on('listening', () => log(`ws server listening on 127.0.0.1:${WS_PORT}`))
+  wss.on('listening', () => {
+    activeWss = wss
+    try { fs.writeFileSync(PID_FILE, String(process.pid)) } catch {}
+    log(`ws server listening on 127.0.0.1:${WS_PORT} (pid ${process.pid})`)
+  })
   wss.on('connection', (socket) => {
     log('extension connected')
     crxClient.attachSocket(socket)
@@ -140,7 +160,6 @@ function startWebSocketServer(attemptsLeft: number): void {
       log(`extension disconnected code=${code}${r}`)
     })
   })
-  activeWss = wss
 }
 startWebSocketServer(WS_BIND_RETRIES)
 
@@ -288,6 +307,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 })
 
 process.on('SIGTERM', async () => {
+  cleanupPidFile()
   activeWss?.close()
   await browserContext?.close()
   await browser?.close()
@@ -296,6 +316,7 @@ process.on('SIGTERM', async () => {
 
 process.stdin.on('close', () => {
   log('stdin closed — exiting')
+  cleanupPidFile()
   activeWss?.close()
   browserContext?.close().catch(() => {})
   browser?.close().catch(() => {})

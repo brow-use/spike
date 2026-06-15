@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
 description: Autonomously explore the current app and capture a per-page aria-tree log. Uses perceptual hashing to avoid loops; the whole run is recorded as a single Playwright trace for human verification. Run /bu:document afterwards to produce end-user feature docs from the log.
-allowed-tools: Read, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/clear_session), MCP(bu/page_fingerprint), MCP(bu/compare_fingerprint), MCP(bu/enumerate_interactive_elements), MCP(bu/record_run), MCP(bu/log_reasoning)
+allowed-tools: Read, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(bu/type), MCP(bu/get_accessibility_tree), MCP(bu/start_trace), MCP(bu/stop_trace), MCP(bu/clear_session), MCP(bu/page_fingerprint), MCP(bu/compare_fingerprint), MCP(bu/enumerate_interactive_elements), MCP(bu/record_run), MCP(bu/log_reasoning), MCP(bu/write_exploration_log)
 ---
 
 ## Preflight: confirm URL and mode
@@ -50,9 +50,10 @@ Before descending into any single module, call `enumerate_interactive_elements` 
 ## Exploration
 
 1. Derive `sessionId = "explore-<UNIX-millis>"` once.
-2. Call `start_trace` with `name = sessionId`. This is the single audit artifact; it is flushed to disk in chunks under `output/trace/<sessionId>/` as the run proceeds, so a mid-run crash loses at most the last few actions.
-3. Navigate to `url`.
-4. Call `page_fingerprint`. Parse the returned JSON; keep `{ phash, ariaHash, url, title }` as the first entry in an in-memory `visited` array. Maintain `contiguousLoopHits = 0` and an empty `frontier` list.
+2. Call `start_trace` with `name = sessionId`. The trace is the rich audit artifact (screenshots, DOM), flushed to disk in chunks under `output/trace/<sessionId>/`. In session (crx) mode the extension service worker can restart mid-run and drop un-flushed trace chunks, so the trace alone is not a reliable record of which pages were seen — that is why each novel page is also persisted to the aria log incrementally in step g.
+3. Call `write_exploration_log` once with `sessionId`, `entries: []`, and `append: false` to truncate any stale log from a previous run with this id.
+4. Navigate to `url`.
+5. Call `page_fingerprint`. Parse the returned JSON; keep `{ phash, ariaHash, url, title }` as the first entry in an in-memory `visited` array. Call `get_accessibility_tree`, then persist this first page exactly as step g describes. Maintain `contiguousLoopHits = 0` and an empty `frontier` list.
 
 Repeat until a termination condition below is met:
 
@@ -75,7 +76,8 @@ f. If `matched` is true:
 
 g. If `matched` is false (or `phash-close` but the URL is new):
    - Reset `contiguousLoopHits` to 0.
-   - Append `{ phash, ariaHash, url }` to `visited`. This is loop-detection state only — the full aria tree, title, and screenshot are recovered from the trace at the end via `extract_trace`, not persisted by this command.
+   - Append `{ phash, ariaHash, url }` to `visited` for loop detection.
+   - Persist the page immediately: call `write_exploration_log` with `append: true` and `entries` set to a single-element array holding `{ stepId, phash, ariaHash, url, title, ariaSummary, ariaTree, timestamp }`, where `stepId` is the zero-padded index of this page in `visited` (e.g. `"0003"`), `ariaTree` is the tree from the `get_accessibility_tree` call for this page, `ariaSummary` is a one-line summary of it, and `timestamp` is the current ISO time. This writes to `output/exploration/<sessionId>.jsonl` on disk, so the page survives even if the extension service worker restarts and the trace chunk is lost. Use the real `url` from `page_fingerprint`/`navigate` — do not rely on the trace to recover it.
    - Return to step a.
 
 h. Back-navigation: after exploring what appears to be a leaf (no new actions surface), call `navigate` to the nearest parent URL from `visited` rather than relying on browser history.
@@ -94,7 +96,7 @@ Then:
    ```
    make extract SESSION=<sessionId>
    ```
-   This produces `output/exploration/<sessionId>.jsonl` (aria-tree log) and `output/exploration/<sessionId>/page-<stepId>.{jpg,png}` (per-step screenshots) from the trace. `/bu:explore` never writes those itself — the extraction step is shell-driven so the user can re-run it any time the trace format or extractor heuristics change.
+   The aria-tree log `output/exploration/<sessionId>.jsonl` is already written incrementally by this command (step g), with correct per-page URLs. `make extract` adds the per-step screenshots `output/exploration/<sessionId>/page-<stepId>.{jpg,png}` from the trace and back-fills the aria log only if it is missing — it will not overwrite the log this command wrote. Re-run it any time you want screenshots refreshed.
 
 ## Record the run
 
@@ -108,7 +110,7 @@ At the very end, call `record_run` to register this run in the brow-use run data
 - `mode` — `"crx"` or `"playwright"`, whichever was active (check `health_check`'s `mode` field at preflight).
 - `pagesVisited` — `visited.length` at termination.
 - `terminationReason` — `"frontier-empty"` | `"maxSteps"` | `"maxLoopHits"`.
-- `artifacts` — object with `tracePath` and `ariaLog` = `"output/exploration/<sessionId>.jsonl"`. The ariaLog path is predictable but the file will not exist until the user runs `make extract SESSION=<sessionId>`. Downstream consumers (`/bu:document`, `/bu:generate-page-objects`, `/bu:run-instruction`) check this path and stop with an instruction if the file is missing.
+- `artifacts` — object with `tracePath` and `ariaLog` = `"output/exploration/<sessionId>.jsonl"`. The ariaLog is written incrementally during the run (step g), so it already exists at this point. Per-step screenshots still come from `make extract SESSION=<sessionId>`. Downstream consumers (`/bu:document`, `/bu:generate-page-objects`, `/bu:run-instruction`) read the ariaLog directly.
 
 Do this regardless of success or partial completion — it is the audit trail for every run.
 

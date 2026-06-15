@@ -89,4 +89,39 @@ describe('write_exploration_log', () => {
     const parsed = JSON.parse(lines[0])
     assert.equal(parsed.ariaTree, 'line1\nline2\nline3')
   })
+
+  test('append:true accumulates one page at a time across calls', async () => {
+    await run({ sessionId: 'incr', entries: [], append: false })
+    const r1 = await run({ sessionId: 'incr', entries: [{ stepId: '0000', url: '/a' }], append: true })
+    assert.equal(r1.appended, true)
+    assert.equal(r1.entries, 1)
+    assert.equal(r1.total, 1)
+    const r2 = await run({ sessionId: 'incr', entries: [{ stepId: '0001', url: '/b' }], append: true })
+    assert.equal(r2.total, 2)
+    await run({ sessionId: 'incr', entries: [{ stepId: '0002', url: '/c' }], append: true })
+
+    const lines = readFile('incr').trim().split('\n').map(l => JSON.parse(l))
+    assert.deepEqual(lines.map(l => l.stepId), ['0000', '0001', '0002'])
+  })
+
+  test('append:true with no prior file creates it', async () => {
+    const r = await run({ sessionId: 'fresh-append', entries: [{ stepId: '0000' }], append: true })
+    assert.equal(r.total, 1)
+    assert.equal(readFile('fresh-append').trim().split('\n').length, 1)
+  })
+
+  test('append:true with empty entries on a fresh session creates an empty file without error', async () => {
+    const r = await run({ sessionId: 'empty-append', entries: [], append: true })
+    assert.equal(r.total, 0)
+    assert.equal(readFile('empty-append').trim(), '')
+  })
+
+  test('append:false truncates a log that was being appended', async () => {
+    await run({ sessionId: 'reset', entries: [{ stepId: '0000' }], append: true })
+    await run({ sessionId: 'reset', entries: [{ stepId: '0001' }], append: true })
+    const r = await run({ sessionId: 'reset', entries: [{ stepId: 'X' }], append: false })
+    assert.equal(r.total, 1)
+    const lines = readFile('reset').trim().split('\n').map(l => JSON.parse(l))
+    assert.deepEqual(lines.map(l => l.stepId), ['X'])
+  })
 })
