@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import type { Bundle, IndexEntry, TimelineEvent } from './types.js'
 import { SessionPicker } from './SessionPicker.js'
 import { StepView } from './StepView.js'
+import { SkippedView } from './SkippedView.js'
 import { DocsView } from './DocsView.js'
 import { DetailPane } from './DetailPane.js'
 import { AriaDiff } from './renderers/AriaDiff.js'
@@ -11,7 +12,7 @@ interface SelectedEventRef {
   eventIdx: number
 }
 
-type ViewMode = 'steps' | 'docs'
+type ViewMode = 'steps' | 'skipped' | 'docs'
 
 export default function App() {
   const [index, setIndex] = useState<IndexEntry[] | null>(null)
@@ -85,6 +86,17 @@ export default function App() {
     ? `${selectedEventRef.sessionId}::${selectedEventRef.eventIdx}`
     : null
 
+  const eventIdxMap = useMemo(() => {
+    const m = new Map<TimelineEvent, number>()
+    bundles[0]?.events.forEach((e, i) => m.set(e, i))
+    return m
+  }, [bundles])
+
+  const skippedCount = useMemo(
+    () => bundles[0]?.events.filter(e => e.kind === 'skipped-page').length ?? 0,
+    [bundles],
+  )
+
   // "Compare with previous" logic — scoped to the selected event's own session.
   const handleCompareWithPrevious = useCallback((current: TimelineEvent) => {
     const bundle = bundles.find(b => b.sessionId === current.sessionId)
@@ -138,12 +150,20 @@ export default function App() {
               mode={viewMode}
               onChange={setViewMode}
               hasDocs={!!bundles[0].docs}
+              skippedCount={skippedCount}
             />
             {viewMode === 'steps' ? (
               <StepView
                 bundle={bundles[0]}
                 onSelectEvent={handleEventSelect}
                 selectedKey={selectedKey}
+              />
+            ) : viewMode === 'skipped' ? (
+              <SkippedView
+                bundle={bundles[0]}
+                onSelectEvent={handleEventSelect}
+                selectedKey={selectedKey}
+                eventIdxMap={eventIdxMap}
               />
             ) : bundles[0].docs ? (
               <DocsView docs={bundles[0].docs} sessionId={bundles[0].sessionId} />
@@ -165,7 +185,7 @@ export default function App() {
           </div>
         )}
       </main>
-      {bundles.length > 0 && viewMode === 'steps' && (
+      {bundles.length > 0 && (viewMode === 'steps' || viewMode === 'skipped') && (
         <DetailPane
           event={selectedEvent}
           eventIdx={selectedEventRef?.eventIdx ?? null}
@@ -198,10 +218,12 @@ function ViewSwitcher({
   mode,
   onChange,
   hasDocs,
+  skippedCount,
 }: {
   mode: ViewMode
   onChange: (m: ViewMode) => void
   hasDocs: boolean
+  skippedCount: number
 }) {
   return (
     <div style={{
@@ -219,6 +241,13 @@ function ViewSwitcher({
         overflow: 'hidden',
       }}>
         <ViewSwitchButton active={mode === 'steps'} onClick={() => onChange('steps')} divider>Steps</ViewSwitchButton>
+        <ViewSwitchButton
+          active={mode === 'skipped'}
+          onClick={() => onChange('skipped')}
+          disabled={skippedCount === 0}
+          title={skippedCount === 0 ? 'No pages were skipped as duplicates in this run.' : ''}
+          divider
+        >Skipped{skippedCount > 0 ? ` (${skippedCount})` : ''}</ViewSwitchButton>
         <ViewSwitchButton
           active={mode === 'docs'}
           onClick={() => onChange('docs')}

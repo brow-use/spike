@@ -26,11 +26,12 @@ import { writePageObject } from '../tool/write-page-object.js'
 import { writeWorkflow } from '../tool/write-workflow.js'
 import { writeTest } from '../tool/write-test.js'
 import { clearSession } from '../tool/clear-session.js'
-import { pageFingerprint, ariaHash as computeAriaHash } from '../tool/page-fingerprint.js'
+import { pageFingerprint, ariaHash as computeAriaHash, structuralHash as computeStructuralHash } from '../tool/page-fingerprint.js'
 import { compareFingerprint } from '../tool/compare-fingerprint.js'
 import { writeFeatureDoc } from '../tool/write-feature-doc.js'
 import { saveScreenshot } from '../tool/save-screenshot.js'
 import { writeExplorationLog } from '../tool/write-exploration-log.js'
+import { writeSkippedLog } from '../tool/write-skipped-log.js'
 import { writeDocsIndex } from '../tool/write-docs-index.js'
 import { enumerateInteractiveElements, parseInteractive, applyEnumerationFilters } from '../tool/enumerate-interactive-elements.js'
 import { writeResult } from '../tool/write-result.js'
@@ -52,7 +53,7 @@ const browserTools: Tool[] = [
   navigate, click, typeTool, snapshot, getAccessibilityTree,
   startTrace, stopTrace, writePageObject, writeWorkflow, writeTest, clearSession,
   pageFingerprint, compareFingerprint, writeFeatureDoc, saveScreenshot,
-  writeExplorationLog, writeDocsIndex, enumerateInteractiveElements,
+  writeExplorationLog, writeSkippedLog, writeDocsIndex, enumerateInteractiveElements,
   writeResult, readPomSummary, readObservedEdges, recordRun, logReasoning,
 ]
 
@@ -242,7 +243,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>) {
     return { content: [{ type: 'text' as const, text: `Unknown tool: ${name}` }], isError: true }
   }
 
-  const fileOnlyTools = new Set(['write_page_object', 'write_workflow', 'write_test', 'write_feature_doc', 'write_exploration_log', 'write_docs_index', 'write_result', 'read_pom_summary', 'read_observed_edges', 'record_run', 'log_reasoning'])
+  const fileOnlyTools = new Set(['write_page_object', 'write_workflow', 'write_test', 'write_feature_doc', 'write_exploration_log', 'write_skipped_log', 'write_docs_index', 'write_result', 'read_pom_summary', 'read_observed_edges', 'record_run', 'log_reasoning'])
   const pureComputeTools = new Set(['compare_fingerprint'])
 
   try {
@@ -254,7 +255,11 @@ async function handleToolCall(name: string, args: Record<string, unknown>) {
         crxClient.fetchSnapshotBuffer(),
         crxClient.fetchAriaTree(),
       ])
-      result = JSON.stringify({ phash: dhash(snapBuffer), ariaHash: computeAriaHash(ariaText) })
+      result = JSON.stringify({
+        phash: dhash(snapBuffer),
+        ariaHash: computeAriaHash(ariaText),
+        structuralHash: computeStructuralHash(ariaText),
+      })
     } else if (executionMode === 'crx' && name === 'save_screenshot') {
       const sessionId = args.sessionId as string
       const shotName = args.name as string

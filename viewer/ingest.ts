@@ -15,6 +15,7 @@ type EventKind =
   | 'agent-reasoning'
   | 'run-start' | 'run-end'
   | 'visited-page'
+  | 'skipped-page'
   | 'screenshot-saved'
   | 'doc-write' | 'result-write'
   | 'trace-action' | 'trace-network' | 'trace-console'
@@ -433,6 +434,38 @@ function resolveWallClock(line: AriaLogLine, runStartMs: number, offset: number)
   return isoToMs(line.timestamp) || runStartMs
 }
 
+interface SkippedLogLine {
+  url: string
+  urlTemplate?: string
+  structuralHash?: string
+  representativeStepId?: string
+  representativeUrl?: string
+  title?: string
+  reason?: string
+  timestamp?: string
+}
+
+function buildSkippedPageEvents(run: Run, runStartMs: number): TimelineEvent[] {
+  const filePath = path.join(OUTPUT, 'exploration', `${run.sessionId}-skipped.jsonl`)
+  const lines = readJsonl<SkippedLogLine>(filePath)
+  return lines.map(l => ({
+    sessionId: run.sessionId,
+    t: isoToMs(l.timestamp) || runStartMs,
+    kind: 'skipped-page',
+    lane: 'browser',
+    label: `skipped: ${l.title || l.url}`,
+    detail: {
+      url: l.url,
+      urlTemplate: l.urlTemplate,
+      structuralHash: l.structuralHash,
+      representativeStepId: l.representativeStepId,
+      representativeUrl: l.representativeUrl,
+      title: l.title,
+      reason: l.reason ?? 'same-template',
+    },
+  }))
+}
+
 function buildVisitedPageEvents(
   run: Run,
   screenshots: TimelineEvent[],
@@ -621,20 +654,28 @@ function buildResultWriteEvents(run: Run, sessionDataDir: string): TimelineEvent
   return out
 }
 
-function resolveTracePath(run: Run): string | null {
+function resolveTracePaths(run: Run): string[] {
   const stored = run.artifacts?.tracePath
   if (stored) {
     const abs = resolveArtifact(stored)
-    if (fs.existsSync(abs)) return abs
+    if (fs.existsSync(abs)) {
+      const stat = fs.statSync(abs)
+      if (stat.isFile()) return [abs]
+      if (stat.isDirectory()) {
+        const chunks = fs.readdirSync(abs)
+          .filter(f => f.endsWith('.zip'))
+          .sort()
+          .map(f => path.join(abs, f))
+        if (chunks.length > 0) return chunks
+      }
+    }
   }
-  // fallback: glob output/trace/<sessionId>-*.zip
   const traceDir = path.join(OUTPUT, 'trace')
-  if (!fs.existsSync(traceDir)) return null
-  const match = fs.readdirSync(traceDir)
+  if (!fs.existsSync(traceDir)) return []
+  const matches = fs.readdirSync(traceDir)
     .filter(f => f.startsWith(`${run.sessionId}-`) && f.endsWith('.zip'))
     .sort()
-    .pop()
-  return match ? path.join(traceDir, match) : null
+  return matches.map(f => path.join(traceDir, f))
 }
 
 function computeTraceOffset(parsed: TraceParsed, runStartMs: number): number {
@@ -864,10 +905,14 @@ async function buildBundle(run: Run): Promise<Bundle> {
 
   // Parse the trace once; every builder that needs trace-relative wall-clock
   // timing shares the same offset.
-  const tracePath = resolveTracePath(run)
-  const parsed: TraceParsed = tracePath
-    ? await parseTraceZip(tracePath, path.join(sessionDataDir, 'trace-resources'))
-    : { actions: [], consoles: [], screencastFrames: [] }
+  const tracePaths = resolveTracePaths(run)
+  const resourcesDir = path.join(sessionDataDir, 'trace-resources')
+  const parsedParts = await Promise.all(tracePaths.map(p => parseTraceZip(p, resourcesDir)))
+  const parsed: TraceParsed = {
+    actions: parsedParts.flatMap(p => p.actions),
+    consoles: parsedParts.flatMap(p => p.consoles),
+    screencastFrames: parsedParts.flatMap(p => p.screencastFrames).sort((a, b) => a.timestamp - b.timestamp),
+  }
   const offset = computeTraceOffset(parsed, runStartMs)
 
   const ariaLog = readAriaLog(run)
@@ -877,6 +922,7 @@ async function buildBundle(run: Run): Promise<Bundle> {
     ...buildRunStartEnd(run),
     ...buildReasoningEvents(run),
     ...buildVisitedPageEvents(run, screenshots, runStartMs, offset, ariaLog),
+    ...buildSkippedPageEvents(run, runStartMs),
     ...screenshots,
     ...buildDocWriteEvents(run, sessionDataDir),
     ...buildResultWriteEvents(run, sessionDataDir),

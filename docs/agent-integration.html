@@ -139,11 +139,11 @@
       </div>
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__page_fingerprint</div>
-        <div class="cmd-desc">Compute a combined fingerprint for loop detection — SHA-1 of the normalized ARIA tree plus a 64-bit perceptual image hash. Pair with <code>compare_fingerprint</code>.</div>
+        <div class="cmd-desc">Compute a combined fingerprint for loop and template detection — SHA-1 of the normalized ARIA tree (<code>ariaHash</code>), SHA-1 of the same tree with text/values stripped (<code>structuralHash</code>, the page skeleton), plus a 64-bit perceptual image hash. Pair with <code>compare_fingerprint</code>.</div>
       </div>
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__compare_fingerprint</div>
-        <div class="cmd-desc">Check whether a candidate fingerprint matches any in a known set. Primary signal: exact ARIA hash match; secondary: Hamming distance on the perceptual hash. <strong>Inputs:</strong> <code>candidate</code>, <code>known</code>, <code>phashThreshold</code>.</div>
+        <div class="cmd-desc">Check whether a candidate fingerprint matches any in a known set, in priority order: exact <code>ariaHash</code> (a true loop, <code>aria-identical</code>); same <code>structuralHash</code> AND same URL template, id-like path segments collapsed to <code>:id</code> (a repeat of one page archetype, <code>same-template</code> — used to sample one list/detail page and skip the rest); then Hamming distance on the perceptual hash (<code>phash-close</code>). <strong>Inputs:</strong> <code>candidate</code>, <code>known</code> (each may carry <code>structuralHash</code> and <code>url</code>), <code>phashThreshold</code>.</div>
       </div>
     </div>
 
@@ -151,7 +151,7 @@
     <div class="cmd-list">
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__start_trace</div>
-        <div class="cmd-desc">Begin a Playwright trace (screenshots, DOM snapshots, network, sources). Call this before any actions you want auditable. The trace is flushed to disk incrementally as chunk zips under <code>output/trace/&lt;name&gt;/</code>, so a mid-run crash loses at most the last few actions. <strong>Input:</strong> <code>name</code> (the session id).</div>
+        <div class="cmd-desc">Begin a Playwright trace (screenshots, DOM snapshots, network, sources). Call this before any actions you want auditable. The trace is flushed to disk after every action as chunk zips under <code>output/trace/&lt;name&gt;/</code>, so a mid-run crash loses at most the last in-flight action. <strong>Input:</strong> <code>name</code> (the session id).</div>
       </div>
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__stop_trace</div>
@@ -184,6 +184,10 @@
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__write_exploration_log</div>
         <div class="cmd-desc">Append a JSONL audit log of visited pages (one record per page with fingerprints, URL, title, ARIA summary) to <code>output/exploration/&lt;sessionId&gt;.jsonl</code>.</div>
+      </div>
+      <div class="cmd-row">
+        <div class="cmd-name">mcp__bu__write_skipped_log</div>
+        <div class="cmd-desc">Append a JSONL log of pages deliberately skipped as repeats of an already-sampled archetype (<code>compare_fingerprint</code> reason <code>same-template</code>) to <code>output/exploration/&lt;sessionId&gt;-skipped.jsonl</code>. Keeps the run auditable and lets the viewer show a sampled page's skipped siblings. <strong>Inputs:</strong> <code>sessionId</code>, <code>entries</code>, <code>append</code>.</div>
       </div>
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__save_screenshot</div>

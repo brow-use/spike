@@ -2,7 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import type { BrowserContext } from 'playwright'
 
-export const FLUSH_EVERY = 5
+export const FLUSH_EVERY = 1
 
 interface ActiveSession {
   name: string

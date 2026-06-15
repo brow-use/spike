@@ -43,6 +43,10 @@ export function StepView({ bundle, onSelectEvent, selectedKey }: Props) {
   )
   const incomingEdges = bundle.edges.filter(e => e.toStepId === stepId)
   const outgoingEdges = bundle.edges.filter(e => e.fromStepId === stepId)
+  const skippedFromHere = bundle.events.filter(
+    e => e.kind === 'skipped-page'
+      && (e.detail as { representativeStepId?: string } | undefined)?.representativeStepId === stepId,
+  )
 
   const emitSelect = (event: TimelineEvent) => {
     onSelectEvent(event)
@@ -71,6 +75,7 @@ export function StepView({ bundle, onSelectEvent, selectedKey }: Props) {
           actionsOnPage={actionsOnPage}
           incomingEdges={incomingEdges}
           outgoingEdges={outgoingEdges}
+          skippedFromHere={skippedFromHere}
           selectedKey={selectedKey}
           eventIdxMap={eventIdxMap}
           onSelectEvent={emitSelect}
@@ -213,6 +218,7 @@ function StepDetail({
   actionsOnPage,
   incomingEdges,
   outgoingEdges,
+  skippedFromHere,
   selectedKey,
   eventIdxMap,
   onSelectEvent,
@@ -223,6 +229,7 @@ function StepDetail({
   actionsOnPage: TimelineEvent[]
   incomingEdges: Edge[]
   outgoingEdges: Edge[]
+  skippedFromHere: TimelineEvent[]
   selectedKey: string | null
   eventIdxMap: Map<TimelineEvent, number>
   onSelectEvent: (event: TimelineEvent) => void
@@ -325,8 +332,48 @@ function StepDetail({
             <EdgeItem key={i} edge={e} side="to" onJumpToStep={onJumpToStep} />
           ))}
         </Section>
+
+        <Section title="Skipped as duplicates of this page" empty="No pages were skipped as repeats of this one.">
+          {skippedFromHere.map(s => (
+            <SkippedItem
+              key={eventIdxMap.get(s)}
+              event={s}
+              selected={selectedKey === `${s.sessionId}::${eventIdxMap.get(s)}`}
+              onClick={() => onSelectEvent(s)}
+            />
+          ))}
+        </Section>
       </div>
     </div>
+  )
+}
+
+function SkippedItem({ event, selected, onClick }: {
+  event: TimelineEvent
+  selected: boolean
+  onClick: () => void
+}) {
+  const d = event.detail as { url?: string; title?: string; urlTemplate?: string } | undefined
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '8px 10px',
+        border: '1px solid #ddd',
+        borderLeft: '3px solid #ef6c00',
+        borderRadius: 4,
+        background: selected ? '#eef5fc' : 'white',
+        textAlign: 'left',
+        cursor: 'pointer',
+        fontSize: 13,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontSize: 10, color: '#ef6c00', textTransform: 'uppercase', fontWeight: 600 }}>same template</span>
+        <span style={{ fontWeight: 500 }}>{d?.title || d?.url || '(unknown)'}</span>
+      </div>
+      {d?.url && <div style={{ color: '#777', fontSize: 12, marginTop: 2, wordBreak: 'break-all' }}>{d.url}</div>}
+    </button>
   )
 }
 

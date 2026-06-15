@@ -117,3 +117,61 @@ describe('compare_fingerprint', () => {
     assert.equal(r.minPhashDistance, 1)
   })
 })
+
+describe('compare_fingerprint same-template', () => {
+  const HOST = 'https://app.example.com'
+
+  test('same structuralHash + same URL template (different id) is same-template', async () => {
+    const r = await call({
+      candidate: { phash: 'ffffffffffffffff', ariaHash: 'detail-456', structuralHash: 'skel-detail', url: `${HOST}/devices/456` },
+      known: [{ phash: '0000000000000000', ariaHash: 'detail-123', structuralHash: 'skel-detail', url: `${HOST}/devices/123` }],
+    })
+    assert.equal(r.matched, true)
+    assert.equal(r.reason, 'same-template')
+    assert.equal(r.matchedIndex, 0)
+    assert.equal(r.urlTemplate, `${HOST}/devices/:id`)
+  })
+
+  test('aria-identical takes priority over same-template', async () => {
+    const r = await call({
+      candidate: { phash: 'ffffffffffffffff', ariaHash: 'same', structuralHash: 'skel', url: `${HOST}/devices/456` },
+      known: [{ phash: '0000000000000000', ariaHash: 'same', structuralHash: 'skel', url: `${HOST}/devices/123` }],
+    })
+    assert.equal(r.reason, 'aria-identical')
+  })
+
+  test('same structuralHash but DIFFERENT URL path is NOT same-template (Devices vs Users)', async () => {
+    const r = await call({
+      candidate: { phash: 'ffffffffffffffff', ariaHash: 'users', structuralHash: 'skel-table', url: `${HOST}/users` },
+      known: [{ phash: '0000000000000000', ariaHash: 'devices', structuralHash: 'skel-table', url: `${HOST}/devices` }],
+    })
+    assert.equal(r.matched, false)
+    assert.equal(r.reason, 'no-match')
+  })
+
+  test('same URL template but DIFFERENT structuralHash is NOT same-template', async () => {
+    const r = await call({
+      candidate: { phash: 'ffffffffffffffff', ariaHash: 'a', structuralHash: 'skel-A', url: `${HOST}/devices/456` },
+      known: [{ phash: '0000000000000000', ariaHash: 'b', structuralHash: 'skel-B', url: `${HOST}/devices/123` }],
+    })
+    assert.equal(r.matched, false)
+    assert.equal(r.reason, 'no-match')
+  })
+
+  test('semantic sibling segments do not collapse (settings/general vs settings/billing)', async () => {
+    const r = await call({
+      candidate: { phash: 'ffffffffffffffff', ariaHash: 'billing', structuralHash: 'skel-form', url: `${HOST}/settings/billing` },
+      known: [{ phash: '0000000000000000', ariaHash: 'general', structuralHash: 'skel-form', url: `${HOST}/settings/general` }],
+    })
+    assert.equal(r.matched, false)
+    assert.equal(r.reason, 'no-match')
+  })
+
+  test('missing structuralHash/url falls back to phash-close (back-compat)', async () => {
+    const r = await call({
+      candidate: { phash: '0000000000000001', ariaHash: 'x' },
+      known: [{ phash: '0000000000000000', ariaHash: 'y' }],
+    })
+    assert.equal(r.reason, 'phash-close')
+  })
+})

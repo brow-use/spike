@@ -544,8 +544,7 @@ describe('CrxClient trace session', () => {
     }
 
     await client.execute('start_trace', { name: 'run-1' })
-    let lastResult = ''
-    for (let i = 0; i < 5; i++) lastResult = await client.execute('navigate', { url: `https://x/${i}` }) as string
+    const lastResult = await client.execute('navigate', { url: 'https://x/0' }) as string
 
     assert.ok(!lastResult.includes('[trace]'))
     assert.ok(fs.existsSync(path.join(dir, 'trace', 'run-1', 'chunk-0000.zip')))
@@ -566,10 +565,9 @@ describe('CrxClient trace session', () => {
     }
 
     await client.execute('start_trace', { name: 'run-1' })
-    let lastResult = ''
-    for (let i = 0; i < 5; i++) lastResult = await client.execute('navigate', { url: `https://x/${i}` }) as string
+    const lastResult = await client.execute('navigate', { url: 'https://x/0' }) as string
 
-    assert.equal(flushes, 1)
+    assert.equal(flushes, 1) // flushes every action
     assert.equal(startTraces, 2) // initial start plus the revive
     assert.match(lastResult, /trace recording was lost/i)
     assert.match(lastResult, /restarted/i)
@@ -586,8 +584,7 @@ describe('CrxClient trace session', () => {
     }
 
     await client.execute('start_trace', { name: 'run-1' })
-    let lastResult = ''
-    for (let i = 0; i < 5; i++) lastResult = await client.execute('navigate', { url: `https://x/${i}` }) as string
+    const lastResult = await client.execute('navigate', { url: 'https://x/0' }) as string
 
     assert.equal(startTraces, 1) // no revive
     assert.match(lastResult, /flush failed/i)

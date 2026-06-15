@@ -1,6 +1,7 @@
 import type { Edge, TimelineEvent } from './types.js'
 import { AgentReasoning } from './renderers/AgentReasoning.js'
 import { VisitedPage } from './renderers/VisitedPage.js'
+import { SkippedPage } from './renderers/SkippedPage.js'
 import { ScreenshotSaved } from './renderers/ScreenshotSaved.js'
 import { DocWrite } from './renderers/DocWrite.js'
 import { ResultWrite } from './renderers/ResultWrite.js'
@@ -104,6 +105,8 @@ function render(
           onJumpToEvent={onJumpToEvent}
         />
       )
+    case 'skipped-page':
+      return <SkippedPage event={event} />
     case 'screenshot-saved':
       return <ScreenshotSaved event={event} />
     case 'doc-write':

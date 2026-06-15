@@ -206,7 +206,8 @@ test('extract_trace preserves an aria log already written incrementally by the r
 
   assert.equal(res.ariaLogPreserved, true, 'flags the existing log as preserved')
   assert.equal(res.entries, 2, 'reports the count from the preserved file, not the trace')
-  assert.ok(res.screenshotsWritten > 0, 'still extracts screenshots from the trace')
+  assert.equal(res.screenshotsWritten, 0, 'does not extract misaligned screenshots when the log is preserved — live capture owns them')
+  assert.equal(fs.existsSync(res.screenshotsDir), false, 'no screenshot dir created when log is preserved')
   const kept = fs.readFileSync(ariaLogPath, 'utf-8').split('\n').filter(Boolean).map(l => JSON.parse(l))
   assert.deepEqual(kept, incremental, 'incremental aria log left untouched')
 })

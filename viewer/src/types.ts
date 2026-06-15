@@ -2,6 +2,7 @@ export type EventKind =
   | 'agent-reasoning'
   | 'run-start' | 'run-end'
   | 'visited-page'
+  | 'skipped-page'
   | 'screenshot-saved'
   | 'doc-write' | 'result-write'
   | 'trace-action' | 'trace-network' | 'trace-console'

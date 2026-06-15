@@ -211,7 +211,7 @@ function pickClosestFrame(frames: ScreencastFrame[], endTime: number): Screencas
 
 export const extractTrace: Tool = {
   name: 'extract_trace',
-  description: 'Post-process a Playwright trace zip to produce the downstream artifacts /bu:document, /bu:generate-page-objects, /bu:run-instruction, and the viewer consume: output/exploration/<sessionId>.jsonl (aria log), output/exploration/<sessionId>/page-<stepId>.{jpg|png} (per-step screenshots), and output/trace/<sessionId>-actions.jsonl (action sidecar, only written if not already present — CRX mode writes its own). Call this once at the end of /bu:explore and /bu:explore-guided, after stop_trace. No browser needed.',
+  description: 'Post-process a Playwright trace zip to produce the downstream artifacts /bu:document, /bu:generate-page-objects, /bu:run-instruction, and the viewer consume: output/exploration/<sessionId>.jsonl (aria log) and output/exploration/<sessionId>/page-<stepId>.{jpg|png} (per-step screenshots) — both only written when the aria log is absent, since trace-derived stepIds align only with a log this tool also authored; when /bu:explore already wrote the log and step-aligned screenshots live, they are left untouched. Always (re)writes output/trace/<sessionId>-actions.jsonl (action sidecar, only if not already present — CRX mode writes its own). Call this once at the end of /bu:explore and /bu:explore-guided, after stop_trace. No browser needed.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -268,37 +268,37 @@ export const extractTrace: Tool = {
 
     const exploreDir = path.join(ctx.outputDir, 'exploration')
     const shotDir = path.join(exploreDir, sessionId)
-    fs.mkdirSync(shotDir, { recursive: true })
-
-    const jsonlLines: string[] = []
-    let stepCounter = 0
-    const writtenShots: string[] = []
-    for (const c of dedupedCalls) {
-      const stepId = String(stepCounter++).padStart(4, '0')
-      const title = extractTitle(c.ariaTree)
-      const ariaSummary = summariseAriaTree(c.ariaTree)
-      const timestamp = new Date().toISOString()
-      jsonlLines.push(JSON.stringify({
-        stepId, url: c.frameUrl, title, ariaSummary, ariaTree: c.ariaTree,
-        timestamp, traceEndMs: c.endTime,
-      }))
-
-      const frame = pickClosestFrame(screencastFrames, c.endTime)
-      if (frame) {
-        const buf = resourceBuffers.get(frame.sha1)
-        if (buf) {
-          const ext = frame.sha1.endsWith('.jpeg') || frame.sha1.endsWith('.jpg') ? 'jpg' : 'png'
-          const shotPath = path.join(shotDir, `page-${stepId}.${ext}`)
-          fs.writeFileSync(shotPath, buf)
-          writtenShots.push(shotPath)
-        }
-      }
-    }
 
     const ariaLogPath = path.join(exploreDir, `${sessionId}.jsonl`)
     const ariaLogExisted = fs.existsSync(ariaLogPath)
       && fs.readFileSync(ariaLogPath, 'utf-8').trim().length > 0
+
+    const jsonlLines: string[] = []
+    const writtenShots: string[] = []
     if (!ariaLogExisted) {
+      fs.mkdirSync(shotDir, { recursive: true })
+      let stepCounter = 0
+      for (const c of dedupedCalls) {
+        const stepId = String(stepCounter++).padStart(4, '0')
+        const title = extractTitle(c.ariaTree)
+        const ariaSummary = summariseAriaTree(c.ariaTree)
+        const timestamp = new Date().toISOString()
+        jsonlLines.push(JSON.stringify({
+          stepId, url: c.frameUrl, title, ariaSummary, ariaTree: c.ariaTree,
+          timestamp, traceEndMs: c.endTime,
+        }))
+
+        const frame = pickClosestFrame(screencastFrames, c.endTime)
+        if (frame) {
+          const buf = resourceBuffers.get(frame.sha1)
+          if (buf) {
+            const ext = frame.sha1.endsWith('.jpeg') || frame.sha1.endsWith('.jpg') ? 'jpg' : 'png'
+            const shotPath = path.join(shotDir, `page-${stepId}.${ext}`)
+            fs.writeFileSync(shotPath, buf)
+            writtenShots.push(shotPath)
+          }
+        }
+      }
       fs.writeFileSync(ariaLogPath, jsonlLines.join('\n') + (jsonlLines.length ? '\n' : ''), 'utf-8')
     }
     const entries = ariaLogExisted
