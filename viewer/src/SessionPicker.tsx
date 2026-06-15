@@ -1,4 +1,5 @@
 import type { IndexEntry } from './types.js'
+import { formatLocalTime } from './format-time.js'
 
 interface Props {
   index: IndexEntry[]
@@ -67,7 +68,7 @@ export function SessionPicker({ index, selectedSessionIds, onSelect }: Props) {
                 {entry.command} · {entry.appName ?? '(no app)'}
               </div>
               <div style={{ color: '#888', marginTop: 2, fontSize: 11 }}>
-                {entry.startedAt?.slice(0, 19).replace('T', ' ')}
+                {formatLocalTime(entry.startedAt)}
                 {entry.eventCount != null && ` · ${entry.eventCount} events`}
               </div>
               {entry.command === 'do' && entry.intent && (

@@ -1,4 +1,5 @@
 import type { TimelineEvent } from '../types.js'
+import { formatLocalTime } from '../format-time.js'
 
 export function RunStart({ event }: { event: TimelineEvent }) {
   const d = event.detail as { mode?: string; intent?: string; scenario?: string; workflowName?: string } | undefined
@@ -6,7 +7,7 @@ export function RunStart({ event }: { event: TimelineEvent }) {
     <div>
       <div style={{ fontSize: 18, fontWeight: 600, color: '#2e7d32', marginBottom: 12 }}>▶ Run started</div>
       <Grid>
-        <Cell label="Start time">{new Date(event.t).toISOString()}</Cell>
+        <Cell label="Start time">{formatLocalTime(event.t)}</Cell>
         {d?.mode && <Cell label="Mode">{d.mode}</Cell>}
         {d?.intent && <Cell label="Intent">"{d.intent}"</Cell>}
         {d?.scenario && <Cell label="Scenario">{d.scenario}</Cell>}
@@ -26,7 +27,7 @@ export function RunEnd({ event }: { event: TimelineEvent }) {
     <div>
       <div style={{ fontSize: 18, fontWeight: 600, color: '#c62828', marginBottom: 12 }}>■ Run ended</div>
       <Grid>
-        <Cell label="End time">{new Date(event.t).toISOString()}</Cell>
+        <Cell label="End time">{formatLocalTime(event.t)}</Cell>
         {d?.pagesVisited != null && <Cell label="Pages visited">{d.pagesVisited}</Cell>}
         {d?.terminationReason && <Cell label="Reason">{d.terminationReason}</Cell>}
         {d?.recordsExtracted != null && <Cell label="Records">{d.recordsExtracted}</Cell>}

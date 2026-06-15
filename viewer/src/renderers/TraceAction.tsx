@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Highlight, themes } from 'prism-react-renderer'
 import type { TimelineEvent } from '../types.js'
+import { formatLocalTime } from '../format-time.js'
 
 export function TraceAction({ event, onJumpToPage }: { event: TimelineEvent; onJumpToPage?: () => void }) {
   const d = event.detail as { callId?: string; method?: string; params?: unknown } | undefined
@@ -16,7 +17,7 @@ export function TraceAction({ event, onJumpToPage }: { event: TimelineEvent; onJ
         <div style={{ color: '#777' }}>Call id</div>
         <div><code>{d?.callId}</code></div>
         <div style={{ color: '#777' }}>Start</div>
-        <div>{new Date(event.t).toISOString()}</div>
+        <div>{formatLocalTime(event.t)}</div>
         <div style={{ color: '#777' }}>Duration</div>
         <div>{event.duration?.toFixed(1)} ms</div>
       </div>

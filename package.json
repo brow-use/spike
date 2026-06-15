@@ -10,7 +10,9 @@
     "chrome": "open -a 'Google Chrome' --args --remote-debugging-port=9222",
     "test": "node --import tsx --test tool/*.test.ts mcp/*.test.ts domain/*.test.ts",
     "viewer:ingest": "tsx viewer/ingest.ts",
-    "viewer:dev": "vite --config viewer.vite.config.ts"
+    "viewer:dev": "vite --config viewer.vite.config.ts",
+    "run:list": "tsx scripts/delete-run.ts list",
+    "run:delete": "tsx scripts/delete-run.ts delete"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
