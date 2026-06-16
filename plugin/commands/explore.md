@@ -70,7 +70,7 @@ Repeat until a termination condition below is met:
 
 a. Call `enumerate_interactive_elements` (all interactive roles, all depths; pass `urlPrefix: scope` if scope is set). The tool returns a filtered list of `{role, name, url?, depth, selector}`. Destructive names are already stripped, and out-of-scope links are already stripped when scope is set.
 
-b. If `frontier` is empty, pick up to 5 promising items from the enumerated list (bias by description keyword overlap against each item's `name`). Use the `selector` field verbatim in your frontier entry: `{ kind: 'click'|'type'|'navigate', selector, humanLabel: name }`. For links you may prefer `kind: 'navigate'` with the `url` field instead. For `type`, include a reasonable `text` value (e.g. a sample search term from the description).
+b. If `frontier` is empty, pick up to 5 promising items from the enumerated list (bias by description keyword overlap against each item's `name`). Use the `selector` field verbatim in your frontier entry: `{ kind: 'click'|'type'|'navigate', selector, humanLabel: name }`. For links you may prefer `kind: 'navigate'` with the `url` field instead. For `type`, include a reasonable `text` value (e.g. a sample search term from the description). Do NOT enqueue `role=tab` elements as frontier items — tab clicks keep the same URL and the fingerprint rule would discard them as loops; tabbed pages are captured by the Tab sweep in step g instead.
 
 For the full aria-tree audit trail (needed when you record into `visited` in step g), call `get_accessibility_tree` separately — once per novel page is enough.
 
@@ -91,9 +91,32 @@ g. For a novel page (`reason === 'no-match'`, or `phash-close` with a URL not in
    - Append `{ phash, ariaHash, structuralHash, url }` to `visited` for loop and template detection.
    - Persist the page immediately: call `write_exploration_log` with `append: true` and `entries` set to a single-element array holding `{ stepId, phash, ariaHash, structuralHash, url, title, ariaSummary, ariaTree, timestamp }`, where `stepId` is the zero-padded index of this page in `visited` (e.g. `"0003"`), `ariaTree` is the tree from the `get_accessibility_tree` call for this page, `ariaSummary` is a one-line summary of it, and `timestamp` is the current ISO time. This writes to `output/exploration/<sessionId>.jsonl` on disk, so the page survives even if the extension service worker restarts and the trace chunk is lost. Use the real `url` from `page_fingerprint`/`navigate` — do not rely on the trace to recover it.
    - Capture the screenshot immediately, in the same step: call `save_screenshot` with this run's `sessionId` and `name: "page-<stepId>"`, using the exact same zero-padded `stepId` you just wrote to the aria log (e.g. `"page-0003"`). This writes `output/exploration/<sessionId>/page-<stepId>.png` live, keyed to the agent's real step index, so every captured page gets a screenshot that stays aligned with its aria-log entry and survives a trace-chunk loss. Do NOT defer screenshots to `make extract` — the trace is lossy in crx mode and its frame numbering does not match the aria log.
+   - If this page contains one or more `role=tab` elements, run the **Tab sweep** (below) now, before returning to step a, so every panel of a tabbed page is captured.
    - Return to step a.
 
 h. Back-navigation: after exploring what appears to be a leaf (no new actions surface), call `navigate` to the nearest parent URL from `visited` rather than relying on browser history. When scope is set, never back-navigate above the scope root — clamp to `scope` and pass `urlPrefix: scope`.
+
+## Tab sweep (same-URL panels)
+
+Some pages expose their content through an in-page tablist (`role=tab`) where selecting a tab swaps a panel without changing the URL. The main loop's fingerprint rule sees each tab click as `phash-close` against the already-visited URL and discards it as a loop, so tab panels must be captured explicitly here rather than through the frontier. Each panel has a distinct `ariaHash` even though the URL is unchanged, so dedupe panels by `ariaHash`.
+
+Run this immediately after recording a novel page in step g, when that page contains one or more `role=tab` elements:
+
+1. Enumerate the tabs: call `enumerate_interactive_elements` with `rolesFilter: ["tab"]`. The page you just recorded in step g is the currently-selected tab's panel; seed a `seenPanelAriaHashes` set with that page's `ariaHash`. Keep the base page's `stepId` as `baseStepId` and its real `url` as `baseUrl`, and initialise a panel counter `n = 0`.
+2. For each tab that is not the already-selected one, in document order:
+   a. Stop the sweep if `visited.length >= maxSteps` — the budget caps total captured pages, panels included.
+   b. Click the tab using its `selector`. Let `tabName` be the tab's accessible name.
+   c. Call `page_fingerprint`; parse `{ phash, ariaHash, structuralHash }`.
+   d. If `ariaHash` is already in `seenPanelAriaHashes`, the panel is identical to one already captured (an empty or duplicate panel) — skip it. Do NOT record it and do NOT touch `contiguousLoopHits`.
+   e. Otherwise it is a distinct panel. Add `ariaHash` to `seenPanelAriaHashes`, increment `n`, and record it:
+      - Call `get_accessibility_tree`.
+      - `stepId = "<baseStepId>-<n>"` (e.g. `0004-1`, `0004-2`).
+      - The recorded `url` is the base url with a tab fragment: `<baseUrl>#tab=<kebab-case tabName>`. This synthetic url keeps each panel distinct in the log and downstream artifacts.
+      - Call `write_exploration_log` with `append: true` and a single entry `{ stepId, phash, ariaHash, structuralHash, url, title, ariaSummary, ariaTree, tab: tabName, timestamp }`. The `tab` field lets `/bu:document` and `/bu:generate-page-objects` represent the panel.
+      - Call `save_screenshot` with `name: "page-<stepId>"` (e.g. `page-0004-1`).
+      - Append `{ phash, ariaHash, structuralHash, url }` to `visited` so the budget and later comparisons account for it.
+3. Tab panels never increment `contiguousLoopHits` — sweeping a tabbed page is intentional sampling, not a stuck loop. Do not enqueue panel children into the frontier from inside the sweep; the normal step-a enumeration on the base page covers any deeper actions once the sweep returns.
+4. After the sweep, return to step a of the main loop.
 
 ## Termination
 

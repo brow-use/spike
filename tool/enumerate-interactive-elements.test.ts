@@ -69,6 +69,60 @@ describe('parseInteractive', () => {
     assert.equal(items[0].role, 'button')
     assert.equal(items[0].url, undefined)
   })
+
+  test('icon-only button adopts a nested img alt as its name', () => {
+    const aria = `- button:
+  - img "menu-toggle"`
+    const items = parseInteractive(aria)
+    assert.equal(items.length, 1)
+    assert.deepEqual(items[0], {
+      role: 'button',
+      name: 'menu-toggle',
+      depth: 0,
+      selector: 'role=button[name="menu-toggle"]',
+    })
+  })
+
+  test('icon link adopts a nested img alt and keeps its url', () => {
+    const aria = `- link:
+  - /url: /cloud/dashboard/airthink
+  - img "airthink-ai-icon"`
+    const items = parseInteractive(aria)
+    assert.equal(items.length, 1)
+    assert.deepEqual(items[0], {
+      role: 'link',
+      name: 'airthink-ai-icon',
+      depth: 0,
+      selector: 'role=link[name="airthink-ai-icon"]',
+      url: '/cloud/dashboard/airthink',
+    })
+  })
+
+  test('nameless interactive element with no img alt is dropped', () => {
+    const aria = `- button:
+  - img
+- link:
+  - /url: /cloud/dashboard/apps/mlp
+  - img`
+    assert.deepEqual(parseInteractive(aria), [])
+  })
+
+  test('named element with an img child keeps its own name', () => {
+    const aria = `- link "airthink-ai-icon":
+  - /url: /cloud/dashboard/airthink
+  - img "airthink-ai-icon"`
+    const items = parseInteractive(aria)
+    assert.equal(items.length, 1)
+    assert.equal(items[0].name, 'airthink-ai-icon')
+  })
+
+  test('an img alt does not leak to a sibling nameless element', () => {
+    const aria = `- button:
+- list:
+  - listitem:
+    - img "unrelated-icon"`
+    assert.deepEqual(parseInteractive(aria), [])
+  })
 })
 
 describe('DESTRUCTIVE_REGEX', () => {
