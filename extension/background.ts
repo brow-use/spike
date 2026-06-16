@@ -99,18 +99,16 @@ let tracingContext: BrowserContext | null = null
 let selectedTabId: number | null = null
 let lastKnownUrl: string | null = null
 let activeTraceName: string | null = null
-let panelTabId: number | null = null
 
 async function restoreState(): Promise<void> {
-  const stored = await chrome.storage.session.get(['selectedTabId', 'lastKnownUrl', 'activeTraceName', 'panelTabId'])
+  const stored = await chrome.storage.session.get(['selectedTabId', 'lastKnownUrl', 'activeTraceName'])
   selectedTabId = (stored.selectedTabId as number | undefined) ?? null
   lastKnownUrl = (stored.lastKnownUrl as string | undefined) ?? null
   activeTraceName = (stored.activeTraceName as string | undefined) ?? null
-  panelTabId = (stored.panelTabId as number | undefined) ?? null
 }
 
 function persistState(): void {
-  void chrome.storage.session.set({ selectedTabId, lastKnownUrl, activeTraceName, panelTabId })
+  void chrome.storage.session.set({ selectedTabId, lastKnownUrl, activeTraceName })
 }
 
 installConsoleCapture()
@@ -158,29 +156,15 @@ chrome.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
   return false
 })
 
-async function showPanelExclusivelyOn(tabId: number): Promise<void> {
-  if (panelTabId !== null && panelTabId !== tabId) {
-    await chrome.sidePanel.setOptions({ tabId: panelTabId, enabled: false }).catch(() => {})
-  }
-  await chrome.sidePanel.setOptions({ tabId, enabled: true, path: 'sidepanel.html' }).catch(() => {})
-  panelTabId = tabId
-  persistState()
-}
-
 chrome.action.onClicked.addListener((tab) => {
   if (tab.id === undefined) return
-  const tabId = tab.id
-  void (async () => {
-    await showPanelExclusivelyOn(tabId)
-    await chrome.sidePanel.open({ tabId }).catch(() => {})
-  })()
-})
-
-chrome.tabs.onRemoved.addListener((tabId) => {
-  if (tabId === panelTabId) {
-    panelTabId = null
-    persistState()
-  }
+  // chrome.sidePanel.open() must be called synchronously within the user-gesture
+  // task that the action click created. Awaiting anything before it ends that
+  // task and makes the call fail ("may only be called in response to a user
+  // gesture") — which previously required a second click.
+  chrome.sidePanel.open({ tabId: tab.id }).catch((err) =>
+    console.warn('[brow-use] sidePanel.open failed:', stringifyArg(err)),
+  )
 })
 
 chrome.alarms.create(RECONNECT_ALARM, { periodInMinutes: 0.5 })
@@ -251,14 +235,20 @@ async function hardResetCrx(): Promise<void> {
   }
 }
 
-async function traceOp<T>(op: Promise<T>): Promise<T> {
+async function traceOp<T>(op: Promise<T>, label: string): Promise<T> {
+  const startedAt = Date.now()
   try {
-    return await withTimeout(op, TRACE_OP_TIMEOUT_MS, `trace operation timed out after ${TRACE_OP_TIMEOUT_MS}ms`)
+    return await withTimeout(op, TRACE_OP_TIMEOUT_MS, `trace operation '${label}' timed out after ${TRACE_OP_TIMEOUT_MS}ms`)
   } catch (err) {
     if (err instanceof TimeoutError) {
-      console.error('[brow-use] Trace operation hung; force-resetting crx')
+      const elapsed = Date.now() - startedAt
+      console.error(
+        `[brow-use] Trace operation '${label}' hung (${elapsed}ms, timeout ${TRACE_OP_TIMEOUT_MS}ms); force-resetting crx. ` +
+        `state: traceName='${activeTraceName}', tracingContextSet=${tracingContext !== null}, ` +
+        `selectedTabId=${selectedTabId}, lastKnownUrl='${lastKnownUrl}'`,
+      )
       await hardResetCrx()
-      throw new CommandError('trace-lost', 'Trace operation hung and tracing was force-reset; chunks flushed earlier are preserved on disk. Start a new trace.')
+      throw new CommandError('trace-lost', `Trace operation '${label}' hung and tracing was force-reset; chunks flushed earlier are preserved on disk. Start a new trace.`)
     }
     throw err
   }
@@ -348,16 +338,16 @@ async function handleCommand(cmd: BrowserCommand): Promise<unknown> {
     }
     case 'flush_trace_chunk': {
       const ctx = tracingContext ?? context
-      await traceOp(ctx.tracing.stopChunk({ path: 'chunk.zip' }))
+      await traceOp(ctx.tracing.stopChunk({ path: 'chunk.zip' }), 'flush:stopChunk')
       const buffer = crx.fs.readFileSync('chunk.zip') as Uint8Array
       try { crx.fs.unlinkSync('chunk.zip') } catch {}
-      await traceOp(ctx.tracing.startChunk())
+      await traceOp(ctx.tracing.startChunk(), 'flush:startChunk')
       return buffer
     }
     case 'stop_trace': {
       const ctx = tracingContext ?? context
-      await traceOp(ctx.tracing.stopChunk({ path: 'chunk.zip' }))
-      await traceOp(ctx.tracing.stop())
+      await traceOp(ctx.tracing.stopChunk({ path: 'chunk.zip' }), 'stop:stopChunk')
+      await traceOp(ctx.tracing.stop(), 'stop:stop')
       tracingContext = null
       activeTraceName = null
       persistState()
@@ -464,9 +454,9 @@ function connect(): void {
 }
 
 void restoreState().then(async () => {
-  await chrome.sidePanel.setOptions({ enabled: false }).catch(() => {})
-  if (panelTabId !== null) {
-    await chrome.sidePanel.setOptions({ tabId: panelTabId, enabled: true, path: 'sidepanel.html' }).catch(() => {})
-  }
+  // Keep one globally-enabled side panel so the action-click open() in the
+  // gesture handler always has a target. Chrome shows panel content per the
+  // active tab; sidepanel.ts re-renders on tab activation.
+  await chrome.sidePanel.setOptions({ enabled: true, path: 'sidepanel.html' }).catch(() => {})
   connect()
 })

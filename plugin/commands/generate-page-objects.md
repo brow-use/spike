@@ -59,9 +59,10 @@ For each page in the name map:
    - **Likely match**: a file with a different name has a `className` or `urlHints` entry that matches — ask the user to confirm before treating it as a match.
    - **No match**: no existing file is related.
 
-2. On confirmed match (exact or user-confirmed): merge — add only locators and methods whose name is not already present in the summary, then overwrite using `write_page_object`.
+2. On confirmed match (exact or user-confirmed): merge — add only locators and methods whose name is not already present in the summary, then overwrite using `write_page_object`. Ensure the recorded-URL comment (see below) is present at the top; add it if the existing file lacks one.
 
 3. On no match: create a new file using `write_page_object`. Follow these conventions:
+   - The first line of the file is a comment recording the URL the page was captured from: `// Recorded from: <url>` (the deduplicated page's `url`). This ties the generated class back to the exact page in the explore run.
    - Constructor accepts `Page` from `@playwright/test`.
    - One `readonly` locator property per element using accessible selectors (`getByRole`, `getByLabel`, `getByPlaceholder`). Avoid CSS selectors.
    - One `async` method per distinct user action (submit a form, trigger a primary action, navigate away).
