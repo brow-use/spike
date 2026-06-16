@@ -5,6 +5,7 @@ import { SkippedPage } from './renderers/SkippedPage.js'
 import { ScreenshotSaved } from './renderers/ScreenshotSaved.js'
 import { DocWrite } from './renderers/DocWrite.js'
 import { ResultWrite } from './renderers/ResultWrite.js'
+import { PageObject } from './renderers/PageObject.js'
 import { TraceAction } from './renderers/TraceAction.js'
 import { TraceConsole } from './renderers/TraceConsole.js'
 import { RunStart, RunEnd } from './renderers/RunStartEnd.js'
@@ -113,6 +114,8 @@ function render(
       return <DocWrite event={event} sessionId={sessionId} />
     case 'result-write':
       return <ResultWrite event={event} />
+    case 'page-object':
+      return <PageObject event={event} onJumpToEvent={onJumpToEvent} />
     case 'trace-action':
       return (
         <TraceAction

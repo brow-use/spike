@@ -48,6 +48,14 @@ export function VisitedPage({ event, eventIdx, edges, screenshots, onCompareWith
             ↳ Jump to trace action
           </button>
         )}
+        {onJumpToEvent && event.links?.pageObject && (
+          <button
+            onClick={() => onJumpToEvent(event.links!.pageObject!.eventIdx)}
+            style={{ ...buttonStyle, borderColor: '#2e7d32', color: '#2e7d32' }}
+          >
+            ↳ {event.links.pageObject.name}
+          </button>
+        )}
         {onCompareWithPrevious && (
           <button onClick={onCompareWithPrevious} style={buttonStyle}>
             Compare with previous

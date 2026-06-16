@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Bundle, Edge, TimelineEvent } from './types.js'
+import { groupVisitedByBase } from '../../domain/tab-panel.js'
 
 interface Props {
   bundle: Bundle
@@ -7,11 +8,22 @@ interface Props {
   selectedKey: string | null
 }
 
+interface StepWrap {
+  stepId: string
+  tab?: string
+  event: TimelineEvent
+}
+
 export function StepView({ bundle, onSelectEvent, selectedKey }: Props) {
-  const steps = useMemo(
-    () => bundle.events.filter(e => e.kind === 'visited-page'),
-    [bundle.events],
-  )
+  const groups = useMemo(() => {
+    const wraps: StepWrap[] = bundle.events
+      .filter(e => e.kind === 'visited-page')
+      .map(e => {
+        const d = e.detail as { stepId?: string; tab?: string } | undefined
+        return { stepId: d?.stepId ?? '', tab: d?.tab, event: e }
+      })
+    return groupVisitedByBase(wraps)
+  }, [bundle.events])
 
   const [stepIdx, setStepIdx] = useState(0)
   useEffect(() => { setStepIdx(0) }, [bundle.sessionId])
@@ -22,7 +34,7 @@ export function StepView({ bundle, onSelectEvent, selectedKey }: Props) {
     return map
   }, [bundle.events])
 
-  if (steps.length === 0) {
+  if (groups.length === 0) {
     return (
       <div style={{ padding: 24, color: '#666' }}>
         This run has no captured pages. Did you run <code>make extract SESSION={bundle.sessionId}</code>?
@@ -30,10 +42,12 @@ export function StepView({ bundle, onSelectEvent, selectedKey }: Props) {
     )
   }
 
-  const step = steps[stepIdx]
-  const stepId = (step.detail as { stepId?: string } | undefined)?.stepId ?? ''
-  const prevT = stepIdx > 0 ? steps[stepIdx - 1].t : bundle.runStartMs
-  const nextT = stepIdx + 1 < steps.length ? steps[stepIdx + 1].t : bundle.runEndMs
+  const group = groups[stepIdx]
+  const step = group.base.event
+  const panels = group.panels.map(p => p.event)
+  const stepId = group.baseStepId
+  const prevT = stepIdx > 0 ? groups[stepIdx - 1].base.event.t : bundle.runStartMs
+  const nextT = stepIdx + 1 < groups.length ? groups[stepIdx + 1].base.event.t : bundle.runEndMs
 
   const reasoningInWindow = bundle.events.filter(
     e => e.kind === 'agent-reasoning' && e.t >= prevT && e.t <= nextT,
@@ -54,23 +68,30 @@ export function StepView({ bundle, onSelectEvent, selectedKey }: Props) {
 
   const jumpToStep = (targetStepId: string | null) => {
     if (!targetStepId) return
-    const idx = steps.findIndex(
-      s => (s.detail as { stepId?: string } | undefined)?.stepId === targetStepId,
-    )
+    const base = targetStepId.replace(/-\d+$/, '')
+    const idx = groups.findIndex(g => g.baseStepId === base)
     if (idx >= 0) setStepIdx(idx)
+  }
+
+  const openEventByIdx = (idx: number) => {
+    const ev = bundle.events[idx]
+    if (ev) onSelectEvent(ev)
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <Header bundle={bundle} stepIdx={stepIdx} totalSteps={steps.length} step={step} />
+      <Header bundle={bundle} stepIdx={stepIdx} totalSteps={groups.length} step={step} />
       <Filmstrip
-        steps={steps}
+        steps={groups.map(g => g.base.event)}
+        panelCounts={groups.map(g => g.panels.length)}
         selectedIdx={stepIdx}
         onSelect={setStepIdx}
       />
       <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
         <StepDetail
+          key={stepId}
           step={step}
+          panels={panels}
           reasoning={reasoningInWindow}
           actionsOnPage={actionsOnPage}
           incomingEdges={incomingEdges}
@@ -80,6 +101,7 @@ export function StepView({ bundle, onSelectEvent, selectedKey }: Props) {
           eventIdxMap={eventIdxMap}
           onSelectEvent={emitSelect}
           onJumpToStep={jumpToStep}
+          onOpenEvent={openEventByIdx}
         />
       </div>
     </div>
@@ -113,10 +135,12 @@ function Header({
 
 function Filmstrip({
   steps,
+  panelCounts,
   selectedIdx,
   onSelect,
 }: {
   steps: TimelineEvent[]
+  panelCounts: number[]
   selectedIdx: number
   onSelect: (idx: number) => void
 }) {
@@ -145,6 +169,7 @@ function Filmstrip({
         const d = s.detail as { stepId?: string; title?: string } | undefined
         const screenshot = s.links?.screenshot
         const selected = i === selectedIdx
+        const panelCount = panelCounts[i] ?? 0
         return (
           <button
             key={i}
@@ -163,9 +188,24 @@ function Filmstrip({
               flexDirection: 'column',
               alignItems: 'stretch',
               overflow: 'hidden',
+              position: 'relative',
               boxShadow: selected ? '0 0 0 3px rgba(21, 101, 192, 0.15)' : 'none',
             }}
           >
+            {panelCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: 4,
+                right: 4,
+                background: 'rgba(21,101,192,0.92)',
+                color: 'white',
+                fontSize: 9,
+                fontWeight: 600,
+                padding: '1px 5px',
+                borderRadius: 8,
+                zIndex: 1,
+              }}>+{panelCount} tab{panelCount > 1 ? 's' : ''}</span>
+            )}
             {screenshot ? (
               <img
                 src={screenshot}
@@ -214,6 +254,7 @@ function Filmstrip({
 
 function StepDetail({
   step,
+  panels,
   reasoning,
   actionsOnPage,
   incomingEdges,
@@ -223,8 +264,10 @@ function StepDetail({
   eventIdxMap,
   onSelectEvent,
   onJumpToStep,
+  onOpenEvent,
 }: {
   step: TimelineEvent
+  panels: TimelineEvent[]
   reasoning: TimelineEvent[]
   actionsOnPage: TimelineEvent[]
   incomingEdges: Edge[]
@@ -234,19 +277,52 @@ function StepDetail({
   eventIdxMap: Map<TimelineEvent, number>
   onSelectEvent: (event: TimelineEvent) => void
   onJumpToStep: (stepId: string | null) => void
+  onOpenEvent: (eventIdx: number) => void
 }) {
-  const d = step.detail as {
+  const [showAria, setShowAria] = useState(false)
+  const [activeTabIdx, setActiveTabIdx] = useState(0)
+
+  const members = [step, ...panels]
+  const active = members[activeTabIdx] ?? step
+  const d = active.detail as {
     url?: string
     title?: string
     ariaSummary?: string
     ariaTree?: string
+    tab?: string
   } | undefined
-  const [showAria, setShowAria] = useState(false)
-  const screenshot = step.links?.screenshot
+  const screenshot = active.links?.screenshot
+  const pageObject = active.links?.pageObject ?? step.links?.pageObject
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(360px, 480px) 1fr', gap: 32, alignItems: 'start' }}>
       <div>
+        {panels.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+            {members.map((m, i) => {
+              const md = m.detail as { tab?: string } | undefined
+              const label = i === 0 ? (md?.tab ?? 'Main') : (md?.tab ?? `Tab ${i}`)
+              const selected = i === activeTabIdx
+              return (
+                <button
+                  key={i}
+                  onClick={() => setActiveTabIdx(i)}
+                  style={{
+                    padding: '4px 12px',
+                    border: `1px solid ${selected ? '#1565c0' : '#ccc'}`,
+                    borderBottom: selected ? '2px solid #1565c0' : '1px solid #ccc',
+                    background: selected ? '#eef5fc' : 'white',
+                    color: selected ? '#1565c0' : '#444',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: selected ? 600 : 400,
+                  }}
+                >{label}</button>
+              )
+            })}
+          </div>
+        )}
         {screenshot ? (
           <a href={screenshot} target="_blank" rel="noreferrer">
             <img
@@ -296,6 +372,31 @@ function StepDetail({
             }}>{d?.ariaTree}</pre>
           )}
         </div>
+        {pageObject && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ color: '#777', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+              Generated page object
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => onOpenEvent(pageObject.eventIdx)}
+                style={{
+                  padding: '6px 12px',
+                  border: '1px solid #2e7d32',
+                  background: '#f1f8f1',
+                  color: '#2e7d32',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 600,
+                }}
+              >{pageObject.name}</button>
+              <a href={pageObject.file} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#1565c0' }}>
+                open source
+              </a>
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

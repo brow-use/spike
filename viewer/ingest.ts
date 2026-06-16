@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import yauzl from 'yauzl'
+import { deriveBaseStepId } from '../domain/tab-panel.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
@@ -17,7 +18,7 @@ type EventKind =
   | 'visited-page'
   | 'skipped-page'
   | 'screenshot-saved'
-  | 'doc-write' | 'result-write'
+  | 'doc-write' | 'result-write' | 'page-object'
   | 'trace-action' | 'trace-network' | 'trace-console'
 
 type Lane = 'agent' | 'browser' | 'trace' | 'files'
@@ -35,7 +36,12 @@ interface TimelineEvent {
     screenshot?: string
     doc?: string
     resultFile?: string
+    pageObjectFile?: string
     ariaFingerprint?: { phash: string; ariaHash: string }
+    linkedTraceEventIdx?: number
+    linkedVisitedPageEventIdx?: number
+    pageObject?: { name: string; file: string; eventIdx: number }
+    linkedVisitedPageEventIdxs?: number[]
   }
 }
 
@@ -422,6 +428,7 @@ interface AriaLogLine {
   title: string
   ariaSummary: string
   ariaTree: string
+  tab?: string
   timestamp?: string
   traceEndMs?: number
 }
@@ -480,11 +487,12 @@ function buildVisitedPageEvents(
   ariaLog: AriaLogLine[],
 ): TimelineEvent[] {
   if (run.command !== 'explore' && run.command !== 'explore-guided') return []
-  // Index screenshots by stepId for direct match (page-0003.jpg → "0003").
+  // Index screenshots by stepId for direct match (page-0003.jpg → "0003",
+  // page-0004-1.jpg → "0004-1" for tab panels).
   const screenshotByStep = new Map<string, string>()
   for (const s of screenshots) {
     const name = (s.detail as { name?: string } | undefined)?.name ?? ''
-    const m = name.match(/^page-(\d+)\.[a-z]+$/)
+    const m = name.match(/^page-(\d+(?:-\d+)*)\.[a-z]+$/)
     const url = s.links?.screenshot
     if (m && url) screenshotByStep.set(m[1], url)
   }
@@ -498,10 +506,12 @@ function buildVisitedPageEvents(
       label: `${l.stepId} · ${l.title || l.url}`,
       detail: {
         stepId: l.stepId,
+        baseStepId: deriveBaseStepId(l.stepId),
         url: l.url,
         title: l.title,
         ariaSummary: l.ariaSummary,
         ariaTree: l.ariaTree,
+        ...(l.tab ? { tab: l.tab } : {}),
       },
       links: {
         ariaFingerprint: { phash: l.phash, ariaHash: l.ariaHash },
@@ -536,7 +546,7 @@ function buildScreenshotEvents(
     const src = path.join(srcDir, name)
     const dest = path.join(destDir, name)
     copyFileSafe(src, dest)
-    const stepId = name.match(/^page-(\d+)\./)?.[1]
+    const stepId = name.match(/^page-(\d+(?:-\d+)*)\./)?.[1]
     const matched = stepId ? ariaByStep.get(stepId) : undefined
     const t = matched
       ? resolveWallClock(matched, runStartMs, offset)
@@ -655,6 +665,55 @@ function buildResultWriteEvents(run: Run, sessionDataDir: string): TimelineEvent
       label: `result: ${name}`,
       detail: { name, content },
       links: { resultFile: `/data/${run.sessionId}/results/${name}` },
+    })
+  }
+  return out
+}
+
+interface PageObjectSource {
+  stepId?: string
+  url?: string
+  tab?: string
+}
+
+interface PageObjectMeta {
+  name?: string
+  sessionId?: string
+  sources?: PageObjectSource[]
+  generatedAt?: string
+}
+
+// Page objects are generated from an explore run's aria log and tagged with that
+// run's sessionId in a sibling <name>.meta.json. Surface each run's own page
+// objects as files-lane events so the viewer can link them back to the steps
+// (and tab panels) they were built from.
+function buildPageObjectEvents(run: Run, sessionDataDir: string): TimelineEvent[] {
+  if (run.command !== 'explore' && run.command !== 'explore-guided') return []
+  const pageDir = path.join(OUTPUT, 'page')
+  if (!fs.existsSync(pageDir)) return []
+
+  const destDir = path.join(sessionDataDir, 'page')
+  const out: TimelineEvent[] = []
+
+  for (const name of fs.readdirSync(pageDir)) {
+    if (!name.endsWith('.ts')) continue
+    const base = name.replace(/\.ts$/, '')
+    const meta = readJson<PageObjectMeta>(path.join(pageDir, `${base}.meta.json`))
+    if (!meta || meta.sessionId !== run.sessionId) continue
+
+    const src = path.join(pageDir, name)
+    fs.mkdirSync(destDir, { recursive: true })
+    copyFileSafe(src, path.join(destDir, name))
+    const content = fs.readFileSync(src, 'utf-8')
+    const t = meta.generatedAt ? isoToMs(meta.generatedAt) : fs.statSync(src).mtimeMs
+    out.push({
+      sessionId: run.sessionId,
+      t,
+      kind: 'page-object',
+      lane: 'files',
+      label: `page object: ${name}`,
+      detail: { name, content, sources: meta.sources ?? [] },
+      links: { pageObjectFile: `/data/${run.sessionId}/page/${name}` },
     })
   }
   return out
@@ -932,6 +991,7 @@ async function buildBundle(run: Run): Promise<Bundle> {
     ...screenshots,
     ...buildDocWriteEvents(run, sessionDataDir),
     ...buildResultWriteEvents(run, sessionDataDir),
+    ...buildPageObjectEvents(run, sessionDataDir),
     ...buildTraceEvents(run, parsed, offset),
   ]
 
@@ -964,6 +1024,38 @@ async function buildBundle(run: Run): Promise<Bundle> {
         const traceEvent = events[traceIdx]
         traceEvent.links = { ...(traceEvent.links ?? {}), linkedVisitedPageEventIdx: i }
       }
+    }
+  }
+
+  // Cross-link page-object events to the visited-page steps they were generated
+  // from, matching by stepId first (most precise, distinguishes tab panels) then
+  // by URL. A tabbed page object lists its base step plus one source per panel.
+  const visitedByStep = new Map<string, number>()
+  const visitedByUrl = new Map<string, number>()
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i]
+    if (e.kind !== 'visited-page') continue
+    const d = e.detail as { stepId?: string; url?: string } | undefined
+    if (d?.stepId && !visitedByStep.has(d.stepId)) visitedByStep.set(d.stepId, i)
+    if (d?.url && !visitedByUrl.has(d.url)) visitedByUrl.set(d.url, i)
+  }
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i]
+    if (e.kind !== 'page-object') continue
+    const sources = (e.detail as { name?: string; sources?: PageObjectSource[] } | undefined)?.sources ?? []
+    const name = (e.detail as { name?: string } | undefined)?.name ?? ''
+    const file = e.links?.pageObjectFile ?? ''
+    const linkedIdxs: number[] = []
+    for (const s of sources) {
+      const idx = (s.stepId != null ? visitedByStep.get(s.stepId) : undefined)
+        ?? (s.url != null ? visitedByUrl.get(s.url) : undefined)
+      if (idx == null || linkedIdxs.includes(idx)) continue
+      linkedIdxs.push(idx)
+      const vp = events[idx]
+      vp.links = { ...vp.links, pageObject: { name, file, eventIdx: i } }
+    }
+    if (linkedIdxs.length > 0) {
+      e.links = { ...e.links, linkedVisitedPageEventIdxs: linkedIdxs }
     }
   }
 

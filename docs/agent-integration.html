@@ -163,7 +163,7 @@
     <div class="cmd-list">
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__write_page_object</div>
-        <div class="cmd-desc">Write a Playwright Page Object Model TypeScript class to <code>output/page/&lt;name&gt;.ts</code>. <strong>Inputs:</strong> <code>name</code>, <code>content</code>.</div>
+        <div class="cmd-desc">Write a Playwright Page Object Model TypeScript class to <code>output/page/&lt;name&gt;.ts</code>. <strong>Inputs:</strong> <code>name</code>, <code>content</code>, and optional provenance <code>sessionId</code> + <code>sources</code> (<code>[{ stepId, url, tab? }]</code>) written to a sibling <code>&lt;name&gt;.meta.json</code> so the viewer can link the class back to its screenshots, aria trees, and tab panels.</div>
       </div>
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__write_workflow</div>

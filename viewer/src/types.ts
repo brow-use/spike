@@ -4,10 +4,16 @@ export type EventKind =
   | 'visited-page'
   | 'skipped-page'
   | 'screenshot-saved'
-  | 'doc-write' | 'result-write'
+  | 'doc-write' | 'result-write' | 'page-object'
   | 'trace-action' | 'trace-network' | 'trace-console'
 
 export type Lane = 'agent' | 'browser' | 'trace' | 'files'
+
+export interface PageObjectLink {
+  name: string
+  file: string
+  eventIdx: number
+}
 
 export interface TimelineEvent {
   sessionId: string
@@ -22,9 +28,12 @@ export interface TimelineEvent {
     screenshot?: string
     doc?: string
     resultFile?: string
+    pageObjectFile?: string
     ariaFingerprint?: { phash: string; ariaHash: string }
     linkedTraceEventIdx?: number      // visited-page → index of matching goto trace-action
     linkedVisitedPageEventIdx?: number // trace-action (goto) → index of matching visited-page
+    pageObject?: PageObjectLink        // visited-page → page-object event generated from it
+    linkedVisitedPageEventIdxs?: number[] // page-object → visited-page steps it was built from
   }
 }
 

@@ -18,11 +18,16 @@ From the chosen run entry read:
 - `artifacts.ariaLog` — required. If the key is missing or the file does not exist on disk, tell the user to run `make extract SESSION=<sessionId>` first, then re-run this command. Stop.
 - `mode` — carry forward for `record_run`.
 
-Read the aria log file. Each line is a JSON object: `{ stepId, url, title, ariaSummary, ariaTree, timestamp }`. Parse all lines into a working array `pages`.
+Read the aria log file. Each line is a JSON object: `{ stepId, url, title, ariaSummary, ariaTree, tab?, timestamp }`. Parse all lines into a working array `pages`. The optional `tab` field is present on tab-panel entries: pages whose `stepId` has the form `<baseStepId>-<n>` (e.g. `0004-1`) and whose `url` is the base url with a `#tab=<...>` fragment. These are the panels captured by the explore Tab sweep — one entry per in-page tab of a tabbed page.
 
 ## Deduplication
 
-Group `pages` by URL. When the same URL appears more than once keep the entry with the longest `ariaTree`. Result: a deduplicated map of `url → page`.
+Compute a **base URL** for every page by stripping any `#tab=...` fragment from its `url`. Group `pages` by base URL. Each group becomes one page object (a tabbed page is a single class, never one class per panel). Within a group:
+
+- The **base page** is the entry whose `stepId` has no `-<n>` panel suffix (the entry whose `url` has no `#tab=` fragment). If several share the base URL with no fragment, keep the one with the longest `ariaTree`.
+- The **panels** are the remaining entries (those with a `tab` field / `#tab=` fragment), one per tab, keyed by `tab` name.
+
+Result: a deduplicated map of `baseUrl → { base, panels: [{ tab, stepId, url, ariaTree, ... }] }`. A page with no tabs simply has `panels: []`.
 
 ## Pass 1 — Name map (in memory only, no files written)
 
@@ -36,6 +41,12 @@ For each unique page derive:
 **File name** — kebab-case of the class name: `SearchResultsPage` → `search-results-page`.
 
 **Elements** — parse the `ariaTree` text. Collect every item whose role is one of: `button`, `link`, `textbox`, `combobox`, `checkbox`, `radio`, `menuitem`, `tab`, `searchbox`. For each record `{ role, name }`. Discard items with an empty name or a name that is a single character.
+
+For a **tabbed page** (one with panels), attribute elements so each panel's controls stay scoped and names don't collide:
+
+- **Parent elements**: every `role: tab` element (the tablist), plus any element present in the base page *and* in every panel (shared chrome). These go on the parent class.
+- **Panel elements**: for each panel, the elements in that panel's `ariaTree` that are not parent elements. These go on that panel's own class.
+- Derive a **panel key** from the `tab` name: camelCase the tab name and append `Panel` (e.g. "Apple Apps" → `appleAppsPanel`; class `AppleAppsPanel`). Derive a **tab locator** name the same way with a `Tab` suffix (e.g. `appleAppsTab`).
 
 **Navigation edges** — call `read_observed_edges` once with the chosen `sessionId`. It returns ground-truth transitions recorded in the trace sidecar (every click and navigate the agent actually performed), with a trigger element `{ role, name, selector, text, url }` and a `confidence` field. Use this list as the primary source for typing navigation methods:
 
@@ -62,12 +73,56 @@ For each page in the name map:
 2. On confirmed match (exact or user-confirmed): merge — add only locators and methods whose name is not already present in the summary, then overwrite using `write_page_object`. Ensure the recorded-URL comment (see below) is present at the top; add it if the existing file lacks one.
 
 3. On no match: create a new file using `write_page_object`. Follow these conventions:
-   - The first line of the file is a comment recording the URL the page was captured from: `// Recorded from: <url>` (the deduplicated page's `url`). This ties the generated class back to the exact page in the explore run.
+   - The first line of the file is a comment recording the URL the page was captured from: `// Recorded from: <baseUrl>`. This ties the generated class back to the exact page in the explore run.
    - Constructor accepts `Page` from `@playwright/test`.
    - One `readonly` locator property per element using accessible selectors (`getByRole`, `getByLabel`, `getByPlaceholder`). Avoid CSS selectors.
    - One `async` method per distinct user action (submit a form, trigger a primary action, navigate away).
    - Methods that navigate to another known page return the correct next page object type from the name map.
    - Import all referenced page classes from their file names in the same `output/page/` directory.
    - Include a `goto()` method if the page has a stable, non-parameterised URL.
+
+### Tabbed pages — composed panel classes
+
+When the page has panels, generate one parent class plus one panel class per tab, all in the **same file** (panels are not independently navigable, so they don't get their own files):
+
+- The **parent class** owns: the `goto()`, one `readonly` tab locator per tab (`getByRole('tab', { name })`), the parent (shared) element locators, and one `readonly` panel property per tab instantiated as `new <TabName>Panel(this.page)`. Add one `async open<TabName>()` method per tab that clicks the tab locator and returns the corresponding panel property (typed as that panel class).
+- Each **panel class** is a plain class in the same file taking `Page` in its constructor, holding only that panel's scoped element locators. It is not exported as the page's default; only the parent class is the page object.
+- Do not flatten panel elements onto the parent, and do not emit a `selectTab` string-enum method — the typed `open<TabName>()` methods replace it.
+
+Shape:
+
+```ts
+// Recorded from: https://app/apps/mlp
+import { Page } from '@playwright/test';
+
+export class AppsMlpPage {
+  constructor(private page: Page) {}
+  readonly appleAppsTab = this.page.getByRole('tab', { name: 'Apple Apps' });
+  readonly enterpriseStoreTab = this.page.getByRole('tab', { name: 'Enterprise Store' });
+  readonly applePanel = new AppleAppsPanel(this.page);
+  readonly enterprisePanel = new EnterpriseStorePanel(this.page);
+
+  async goto() { await this.page.goto('https://app/apps/mlp'); }
+  async openApple() { await this.appleAppsTab.click(); return this.applePanel; }
+  async openEnterprise() { await this.enterpriseStoreTab.click(); return this.enterprisePanel; }
+}
+
+class AppleAppsPanel {
+  constructor(private page: Page) {}
+  readonly search = this.page.getByRole('textbox', { name: 'Search apps' });
+}
+
+class EnterpriseStorePanel {
+  constructor(private page: Page) {}
+  readonly addAppButton = this.page.getByRole('button', { name: 'Add App' });
+}
+```
+
+### Provenance (every `write_page_object` call)
+
+Pass these so the viewer can link the class back to its screenshots, aria trees, and tab panels:
+
+- `sessionId` — the chosen explore run's sessionId.
+- `sources` — one entry per captured step this class was built from: `{ stepId, url, tab? }`. Include the base page (`{ stepId: <baseStepId>, url: <baseUrl> }`) and, for a tabbed page, one entry per panel (`{ stepId: <baseStepId>-<n>, url: <panel url>, tab: <tab name> }`). Use the exact `stepId` and `url` values from the aria-log entries — the ingest matches on `stepId` first, then `url`.
 
 After all files are written, tell the user: how many files were created, how many were updated, and list their paths.
