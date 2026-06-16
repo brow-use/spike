@@ -107,7 +107,7 @@
     <div class="cmd-list">
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__navigate</div>
-        <div class="cmd-desc">Navigate the active browser to a URL. Waits for <code>domcontentloaded</code> by default and returns the resulting title and final URL. <strong>Inputs:</strong> <code>url</code>, optional <code>waitUntil</code> (<code>domcontentloaded</code> / <code>load</code> / <code>networkidle</code> — use <code>networkidle</code> for SPAs that keep rendering after load).</div>
+        <div class="cmd-desc">Navigate the active browser to a URL. Waits for <code>domcontentloaded</code> by default and returns the resulting title and final URL. <strong>Inputs:</strong> <code>url</code>, optional <code>waitUntil</code> (<code>domcontentloaded</code> / <code>load</code> / <code>networkidle</code> — use <code>networkidle</code> for SPAs that keep rendering after load), optional <code>urlPrefix</code> (scope backstop — an out-of-scope target is rejected without loading, returning <code>rejected: true</code>).</div>
       </div>
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__click</div>
@@ -135,7 +135,7 @@
       </div>
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__enumerate_interactive_elements</div>
-        <div class="cmd-desc">List clickable elements (links, buttons, inputs) with selectors and metadata. Destructive actions are filtered by default. <strong>Inputs:</strong> <code>topLevelOnly</code>, <code>rolesFilter</code>, <code>includeDestructive</code>.</div>
+        <div class="cmd-desc">List clickable elements (links, buttons, inputs) with selectors and metadata. Destructive actions are filtered by default. <strong>Inputs:</strong> <code>topLevelOnly</code>, <code>rolesFilter</code>, <code>includeDestructive</code>, <code>urlPrefix</code> (scope filter — links whose target path is outside the prefix are stripped server-side; urlless buttons are kept).</div>
       </div>
       <div class="cmd-row">
         <div class="cmd-name">mcp__bu__page_fingerprint</div>

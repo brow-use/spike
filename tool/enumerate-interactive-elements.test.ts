@@ -169,4 +169,17 @@ describe('applyEnumerationFilters', () => {
     assert.equal(out[0].name, 'Admin')
     assert.equal(out[0].depth, 0)
   })
+
+  test('urlPrefix strips out-of-scope links but keeps urlless buttons', () => {
+    const scoped = `- link "Devices":
+  - /url: /cloud/dashboard/devices
+- link "Device detail":
+  - /url: /cloud/dashboard/devices/42
+- link "Users":
+  - /url: /cloud/dashboard/users
+- button "Open filter"`
+    const out = applyEnumerationFilters(parseInteractive(scoped), { urlPrefix: '/cloud/dashboard/devices' })
+    const names = out.map(e => e.name).sort()
+    assert.deepEqual(names, ['Device detail', 'Devices', 'Open filter'])
+  })
 })

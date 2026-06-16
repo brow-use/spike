@@ -250,39 +250,45 @@ async function parseTraceZip(
   const result: TraceParsed = { actions: [], consoles: [], screencastFrames: [] }
   if (!fs.existsSync(zipPath)) return result
 
-  const zip = await openZip(zipPath)
   const traceTextParts: string[] = []
 
-  await new Promise<void>((resolve, reject) => {
-    zip.on('entry', (entry: yauzl.Entry) => {
-      const name = entry.fileName
+  try {
+    const zip = await openZip(zipPath)
 
-      if (name === 'trace.trace' || name === 'trace.network') {
-        readZipEntryText(zip, entry).then(text => {
-          traceTextParts.push(text)
+    await new Promise<void>((resolve, reject) => {
+      zip.on('entry', (entry: yauzl.Entry) => {
+        const name = entry.fileName
+
+        if (name === 'trace.trace' || name === 'trace.network') {
+          readZipEntryText(zip, entry).then(text => {
+            traceTextParts.push(text)
+            zip.readEntry()
+          }).catch(reject)
+        } else if (
+          resourcesDestDir &&
+          name.startsWith('resources/') &&
+          (name.endsWith('.jpeg') || name.endsWith('.jpg') || name.endsWith('.png'))
+        ) {
+          // Extract screenshot resources for in-browser display.
+          const sha1 = name.split('/').pop()!
+          const dest = path.join(resourcesDestDir, sha1)
+          readZipEntryBuffer(zip, entry).then(buf => {
+            fs.mkdirSync(resourcesDestDir, { recursive: true })
+            fs.writeFileSync(dest, buf)
+            zip.readEntry()
+          }).catch(reject)
+        } else {
           zip.readEntry()
-        }).catch(reject)
-      } else if (
-        resourcesDestDir &&
-        name.startsWith('resources/') &&
-        (name.endsWith('.jpeg') || name.endsWith('.jpg') || name.endsWith('.png'))
-      ) {
-        // Extract screenshot resources for in-browser display.
-        const sha1 = name.split('/').pop()!
-        const dest = path.join(resourcesDestDir, sha1)
-        readZipEntryBuffer(zip, entry).then(buf => {
-          fs.mkdirSync(resourcesDestDir, { recursive: true })
-          fs.writeFileSync(dest, buf)
-          zip.readEntry()
-        }).catch(reject)
-      } else {
-        zip.readEntry()
-      }
+        }
+      })
+      zip.on('end', resolve)
+      zip.on('error', reject)
+      zip.readEntry()
     })
-    zip.on('end', resolve)
-    zip.on('error', reject)
-    zip.readEntry()
-  })
+  } catch (err) {
+    process.stderr.write(`warning: skipping truncated chunk ${path.basename(zipPath)}: ${err}\n`)
+    return result
+  }
 
   // Parse events from trace.trace.
   const pending = new Map<string, { method: string; startMs: number; params?: unknown; pageId?: string }>()

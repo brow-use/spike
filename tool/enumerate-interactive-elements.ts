@@ -1,4 +1,5 @@
 import type { Tool, ToolContext } from './tool.js'
+import { isWithinScope } from '../domain/scope.js'
 
 export const DESTRUCTIVE_REGEX = /\b(delete|remove|cancel account|drop|destroy|deactivate|close account|erase)\b/i
 
@@ -17,13 +18,14 @@ export interface InteractiveElement {
 
 export function applyEnumerationFilters(
   items: InteractiveElement[],
-  opts: { includeDestructive?: boolean; topLevelOnly?: boolean; rolesFilter?: string[] },
+  opts: { includeDestructive?: boolean; topLevelOnly?: boolean; rolesFilter?: string[]; urlPrefix?: string },
 ): InteractiveElement[] {
   let out = opts.includeDestructive
     ? items.map(e => ({ ...e, destructive: DESTRUCTIVE_REGEX.test(e.name) }))
     : filterDestructive(items)
   if (opts.topLevelOnly) out = out.filter(e => e.depth <= 1)
   if (opts.rolesFilter?.length) out = out.filter(e => opts.rolesFilter!.includes(e.role))
+  if (opts.urlPrefix) out = out.filter(e => !e.url || isWithinScope(e.url, opts.urlPrefix!))
   return out
 }
 
@@ -91,6 +93,10 @@ export const enumerateInteractiveElements: Tool = {
         type: 'boolean',
         description: 'If true, destructive-action elements are included in the result with destructive:true. If false (default), they are stripped.',
       },
+      urlPrefix: {
+        type: 'string',
+        description: 'Optional scope restriction. When set, link elements whose target path is not within this prefix (e.g. "/cloud/dashboard/devices") are stripped server-side, so out-of-scope navigation never enters the frontier. Buttons and other elements without a resolvable url are kept (judge them after clicking).',
+      },
     },
   },
   async execute(input, ctx: ToolContext): Promise<string> {
@@ -99,6 +105,7 @@ export const enumerateInteractiveElements: Tool = {
       topLevelOnly: (input.topLevelOnly as boolean | undefined) ?? false,
       rolesFilter: input.rolesFilter as string[] | undefined,
       includeDestructive: (input.includeDestructive as boolean | undefined) ?? false,
+      urlPrefix: input.urlPrefix as string | undefined,
     })
     return JSON.stringify(items)
   },

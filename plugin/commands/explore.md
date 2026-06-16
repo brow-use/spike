@@ -8,10 +8,11 @@ allowed-tools: Read, MCP(bu/health_check), MCP(bu/navigate), MCP(bu/click), MCP(
 
 1. Read `.brow-use/config.json` with the Read tool. Look at `currentMode`. If it is null, tell the user: "No mode is set. Run `/bu:use-managed-browser` (fresh Chromium) or `/bu:use-session` (your logged-in Chrome)." Stop.
 2. Get the target URL: if the user has already stated one, use it. Otherwise ask: "What URL should I start from?"
-3. Get an app description (optional): if the user has already provided one, use it. Otherwise ask: "Briefly describe the app for exploration bias — or press Enter to skip."
-4. Confirm with the user, verbatim: "I'll run against **{url}** in **{currentMode}** mode. Continue or change mode?"
-5. If the user says continue, proceed. If they say change mode, run `/bu:use-managed-browser` or `/bu:use-session`. After the mode change, re-confirm before proceeding.
-6. Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy` and stop.
+3. Get an optional path scope: if the user has already named one, use it. Otherwise ask: "Restrict exploration to a path prefix (e.g. `/cloud/dashboard/devices`) so I stay inside that area — or press Enter to explore the whole app." Call the chosen value `scope`. If the user gives a full URL, keep only its path. If they skip, `scope` is empty (no restriction). When `scope` is set, the start URL must be inside it; if it is not, tell the user and stop.
+4. Get an app description (optional): if the user has already provided one, use it. Otherwise ask: "Briefly describe the app for exploration bias — or press Enter to skip."
+5. Confirm with the user, verbatim: "I'll run against **{url}** in **{currentMode}** mode{, scoped to **{scope}**, if scope is set}. Continue or change mode?"
+6. If the user says continue, proceed. If they say change mode, run `/bu:use-managed-browser` or `/bu:use-session`. After the mode change, re-confirm before proceeding.
+7. Call `health_check`. If the returned `ok` is `false`, print each issue's `message` and `remedy` and stop.
 
 Use the description as exploration bias: prefer actions whose accessible names overlap with words in the description. If no description is provided, proceed without bias and tell the user.
 
@@ -43,9 +44,19 @@ Required call sites:
 
 Do NOT call on routine pops from the frontier, on every successful novel page, or to narrate the plan step by step.
 
+## Scope (when set)
+
+If `scope` is set, every exploration stays inside that path prefix, enforced eagerly so the run never wastes time wandering out and back:
+
+- Pass `urlPrefix: scope` on **every** `enumerate_interactive_elements` call. The server strips links whose target is outside `scope` before they reach you, so out-of-scope targets never enter the frontier. Buttons and other elements with no resolvable url are kept — judge those after clicking (see step f).
+- Pass `urlPrefix: scope` on **every** `navigate` call. This is the hard backstop: if a target is outside `scope`, the tool returns `{rejected: true, reason: "out-of-scope"}` and does not load the page. If you get `rejected`, drop that frontier item and continue — do not retry.
+- The scope root for back-navigation (step h) is `scope` itself, not the site root.
+
+If `scope` is empty, omit `urlPrefix` everywhere and explore the whole app as before.
+
 ## Coverage rule
 
-Before descending into any single module, call `enumerate_interactive_elements` with `topLevelOnly: true, rolesFilter: ["link"]` on the initial page. This returns every top-level link (typically a hub of 5–15 modules). Add one `{kind: 'navigate', url, humanLabel}` frontier item per link in that list. Exploration proceeds breadth-first across these modules before depth-first within any one of them: visit every top-level module at least once before deepening any branch. Only after every top-level module has at least one visited step may you deepen the branches that best match the app description's keyword bias.
+Before descending into any single module, call `enumerate_interactive_elements` with `topLevelOnly: true, rolesFilter: ["link"]` (and `urlPrefix: scope` if scope is set) on the initial page. This returns every top-level link (typically a hub of 5–15 modules; when scoped, only those inside `scope`). Add one `{kind: 'navigate', url, humanLabel}` frontier item per link in that list. Exploration proceeds breadth-first across these modules before depth-first within any one of them: visit every top-level module at least once before deepening any branch. Only after every top-level module has at least one visited step may you deepen the branches that best match the app description's keyword bias.
 
 ## Exploration
 
@@ -57,15 +68,15 @@ Before descending into any single module, call `enumerate_interactive_elements` 
 
 Repeat until a termination condition below is met:
 
-a. Call `enumerate_interactive_elements` (no args — all interactive roles, all depths). The tool returns a filtered list of `{role, name, url?, depth, selector}`. Destructive names are already stripped.
+a. Call `enumerate_interactive_elements` (all interactive roles, all depths; pass `urlPrefix: scope` if scope is set). The tool returns a filtered list of `{role, name, url?, depth, selector}`. Destructive names are already stripped, and out-of-scope links are already stripped when scope is set.
 
 b. If `frontier` is empty, pick up to 5 promising items from the enumerated list (bias by description keyword overlap against each item's `name`). Use the `selector` field verbatim in your frontier entry: `{ kind: 'click'|'type'|'navigate', selector, humanLabel: name }`. For links you may prefer `kind: 'navigate'` with the `url` field instead. For `type`, include a reasonable `text` value (e.g. a sample search term from the description).
 
 For the full aria-tree audit trail (needed when you record into `visited` in step g), call `get_accessibility_tree` separately — once per novel page is enough.
 
-c. Pop the next unexplored action from `frontier` and execute it via `click`, `type`, or `navigate`.
+c. Pop the next unexplored action from `frontier` and execute it via `click`, `type`, or `navigate`. For `navigate`, pass `urlPrefix: scope` when scope is set; if the result is `{rejected: true}`, drop the item and continue to the next frontier item.
 
-d. Call `page_fingerprint` again.
+d. Call `page_fingerprint` again. If scope is set and the page's `url` is now outside `scope` (a button or in-page link drove a client-side navigation out of the scoped area), treat this as a dead end: do NOT record it and do NOT enqueue its children, `navigate` back to the scope root, and continue to the next frontier item. Otherwise proceed.
 
 e. Call `compare_fingerprint` with `candidate` = the new `{phash, ariaHash, structuralHash, url}` and `known` = `visited.map(v => ({phash: v.phash, ariaHash: v.ariaHash, structuralHash: v.structuralHash, url: v.url}))`, with optional `phashThreshold`. Parse the returned JSON.
 
@@ -82,7 +93,7 @@ g. For a novel page (`reason === 'no-match'`, or `phash-close` with a URL not in
    - Capture the screenshot immediately, in the same step: call `save_screenshot` with this run's `sessionId` and `name: "page-<stepId>"`, using the exact same zero-padded `stepId` you just wrote to the aria log (e.g. `"page-0003"`). This writes `output/exploration/<sessionId>/page-<stepId>.png` live, keyed to the agent's real step index, so every captured page gets a screenshot that stays aligned with its aria-log entry and survives a trace-chunk loss. Do NOT defer screenshots to `make extract` — the trace is lossy in crx mode and its frame numbering does not match the aria log.
    - Return to step a.
 
-h. Back-navigation: after exploring what appears to be a leaf (no new actions surface), call `navigate` to the nearest parent URL from `visited` rather than relying on browser history.
+h. Back-navigation: after exploring what appears to be a leaf (no new actions surface), call `navigate` to the nearest parent URL from `visited` rather than relying on browser history. When scope is set, never back-navigate above the scope root — clamp to `scope` and pass `urlPrefix: scope`.
 
 ## Termination
 

@@ -233,23 +233,27 @@ export const extractTrace: Tool = {
     const resourceBuffers = new Map<string, Buffer>()
 
     for (const zipPath of traceZips) {
-      const zip = await openZip(zipPath)
-      await new Promise<void>((resolve, reject) => {
-        zip.on('entry', (entry: yauzl.Entry) => {
-          const name = entry.fileName
-          if (name === 'trace.trace') {
-            readEntryText(zip, entry).then(t => { traceTextParts.push(t); zip.readEntry() }).catch(reject)
-          } else if (name.startsWith('resources/')) {
-            const sha1 = name.split('/').pop()!
-            readEntryBuffer(zip, entry).then(b => { resourceBuffers.set(sha1, b); zip.readEntry() }).catch(reject)
-          } else {
-            zip.readEntry()
-          }
+      try {
+        const zip = await openZip(zipPath)
+        await new Promise<void>((resolve, reject) => {
+          zip.on('entry', (entry: yauzl.Entry) => {
+            const name = entry.fileName
+            if (name === 'trace.trace') {
+              readEntryText(zip, entry).then(t => { traceTextParts.push(t); zip.readEntry() }).catch(reject)
+            } else if (name.startsWith('resources/')) {
+              const sha1 = name.split('/').pop()!
+              readEntryBuffer(zip, entry).then(b => { resourceBuffers.set(sha1, b); zip.readEntry() }).catch(reject)
+            } else {
+              zip.readEntry()
+            }
+          })
+          zip.on('end', resolve)
+          zip.on('error', reject)
+          zip.readEntry()
         })
-        zip.on('end', resolve)
-        zip.on('error', reject)
-        zip.readEntry()
-      })
+      } catch (err) {
+        process.stderr.write(`warning: skipping truncated chunk ${path.basename(zipPath)}: ${err}\n`)
+      }
     }
 
     const events: TraceEvent[] = traceTextParts.join('\n').split('\n')
