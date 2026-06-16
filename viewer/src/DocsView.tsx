@@ -3,6 +3,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
 import type { DocsBundle } from './types.js'
+import { useSourceViewer } from './SourceViewer.js'
+import { isSourceFile } from './source-lang.js'
 
 interface Props {
   docs: DocsBundle
@@ -13,6 +15,7 @@ const README_SLUG = '__readme__'
 
 export function DocsView({ docs, sessionId }: Props) {
   const [selectedSlug, setSelectedSlug] = useState<string>(README_SLUG)
+  const { openSource } = useSourceViewer()
 
   useEffect(() => { setSelectedSlug(README_SLUG) }, [sessionId])
 
@@ -33,6 +36,17 @@ export function DocsView({ docs, sessionId }: Props) {
               href="#"
               onClick={(e) => { e.preventDefault(); setSelectedSlug(targetSlug) }}
               style={{ color: '#1565c0', textDecoration: 'none' }}
+              {...rest}
+            >{children}</a>
+          )
+        }
+        if (isSourceFile(href)) {
+          const url = resolveDocHref(href, sessionId)
+          return (
+            <a
+              href={url}
+              onClick={(e) => { e.preventDefault(); openSource({ url }) }}
+              style={{ color: '#1565c0' }}
               {...rest}
             >{children}</a>
           )
@@ -118,6 +132,12 @@ export function DocsView({ docs, sessionId }: Props) {
       `}</style>
     </div>
   )
+}
+
+function resolveDocHref(href: string, sessionId: string): string {
+  if (/^(https?:)?\/\//.test(href) || href.startsWith('/')) return href
+  const base = `/data/${sessionId}/docs/`
+  return new URL(href, `${window.location.origin}${base}`).pathname
 }
 
 function TocItem({ title, active, onClick }: { title: string; active: boolean; onClick: () => void }) {

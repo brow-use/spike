@@ -1,8 +1,8 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Highlight, themes } from 'prism-react-renderer'
 import { useMemo } from 'react'
 import type { TimelineEvent } from '../types.js'
+import { HighlightedCode } from '../HighlightedCode.js'
 
 export function ResultWrite({ event }: { event: TimelineEvent }) {
   const d = event.detail as { name?: string; content?: string } | undefined
@@ -36,21 +36,7 @@ function Md({ content }: { content: string }) {
 }
 
 function Code({ content, language }: { content: string; language: string }) {
-  return (
-    <Highlight theme={themes.github} code={content} language={language}>
-      {({ tokens, getLineProps, getTokenProps }) => (
-        <pre style={{ ...preStyle, background: '#f6f8fa' }}>
-          {tokens.map((line, i) => (
-            <div key={i} {...getLineProps({ line })}>
-              {line.map((token, j) => (
-                <span key={j} {...getTokenProps({ token })} />
-              ))}
-            </div>
-          ))}
-        </pre>
-      )}
-    </Highlight>
-  )
+  return <HighlightedCode content={content} language={language} style={{ ...preStyle, background: '#f6f8fa' }} />
 }
 
 function CsvTable({ content }: { content: string }) {

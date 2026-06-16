@@ -22,6 +22,7 @@ export default function App() {
   const [selectedEventRef, setSelectedEventRef] = useState<SelectedEventRef | null>(null)
   const [diffPair, setDiffPair] = useState<{ prev: TimelineEvent; curr: TimelineEvent } | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('steps')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
     fetch('/data/_index.json')
@@ -126,17 +127,32 @@ export default function App() {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', height: '100%' }}>
-      <aside style={{ borderRight: '1px solid #ddd', overflow: 'auto' }}>
-        <h2 style={{ padding: '12px 16px', margin: 0, borderBottom: '1px solid #eee', fontSize: 16 }}>
-          brow-use runs
-        </h2>
-        <SessionPicker
-          index={index}
-          selectedSessionIds={selectedSessionIds}
-          onSelect={setSelectedSessionIds}
-        />
-      </aside>
+    <div style={{ display: 'grid', gridTemplateColumns: sidebarCollapsed ? '36px 1fr' : '320px 1fr', height: '100%' }}>
+      {sidebarCollapsed ? (
+        <aside style={{ borderRight: '1px solid #ddd', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 10 }}>
+          <button
+            onClick={() => setSidebarCollapsed(false)}
+            title="Expand sidebar"
+            style={collapseButtonStyle}
+          >»</button>
+        </aside>
+      ) : (
+        <aside style={{ borderRight: '1px solid #ddd', overflow: 'auto' }}>
+          <h2 style={{ padding: '12px 16px', margin: 0, borderBottom: '1px solid #eee', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>brow-use runs</span>
+            <button
+              onClick={() => setSidebarCollapsed(true)}
+              title="Collapse sidebar"
+              style={collapseButtonStyle}
+            >«</button>
+          </h2>
+          <SessionPicker
+            index={index}
+            selectedSessionIds={selectedSessionIds}
+            onSelect={setSelectedSessionIds}
+          />
+        </aside>
+      )}
       <main style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {loadingBundles && <div style={{ padding: 12 }}>Loading run…</div>}
         {!loadingBundles && bundles.length > 1 && (
@@ -212,6 +228,17 @@ export default function App() {
       )}
     </div>
   )
+}
+
+const collapseButtonStyle: React.CSSProperties = {
+  border: '1px solid #ccc',
+  background: 'white',
+  borderRadius: 4,
+  cursor: 'pointer',
+  fontSize: 14,
+  lineHeight: 1,
+  padding: '4px 8px',
+  color: '#555',
 }
 
 function ViewSwitcher({

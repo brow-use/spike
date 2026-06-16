@@ -1,5 +1,5 @@
-import { Highlight, themes } from 'prism-react-renderer'
 import type { TimelineEvent } from '../types.js'
+import { SourcePreview } from '../SourcePreview.js'
 
 interface PageObjectSource {
   stepId?: string
@@ -22,15 +22,6 @@ export function PageObject({ event, onJumpToEvent }: Props) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <code style={{ fontSize: 13, color: '#555' }}>{name}</code>
-        {file && (
-          <a href={file} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#1565c0' }}>
-            open source
-          </a>
-        )}
-      </div>
-
       {sources.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ color: '#555', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
@@ -77,30 +68,7 @@ export function PageObject({ event, onJumpToEvent }: Props) {
         </div>
       )}
 
-      <Highlight theme={themes.github} code={content} language="tsx">
-        {({ tokens, getLineProps, getTokenProps }) => (
-          <pre style={preStyle}>
-            {tokens.map((line, i) => (
-              <div key={i} {...getLineProps({ line })}>
-                {line.map((token, j) => (
-                  <span key={j} {...getTokenProps({ token })} />
-                ))}
-              </div>
-            ))}
-          </pre>
-        )}
-      </Highlight>
+      <SourcePreview name={name} url={file} content={content} defaultOpen />
     </div>
   )
-}
-
-const preStyle: React.CSSProperties = {
-  padding: 12,
-  background: '#f6f8fa',
-  border: '1px solid #ddd',
-  borderRadius: 4,
-  fontSize: 12,
-  overflow: 'auto',
-  maxHeight: 520,
-  whiteSpace: 'pre-wrap',
 }
