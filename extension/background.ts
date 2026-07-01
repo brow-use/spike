@@ -268,6 +268,16 @@ async function handleCommand(cmd: BrowserCommand): Promise<unknown> {
     persistState()
     return { tabId: selectedTabId }
   }
+  if (type === 'create_tab') {
+    const tab = await chrome.tabs.create({
+      url: (payload.url as string | undefined) ?? 'about:blank',
+      active: (payload.active as boolean | undefined) ?? true,
+    })
+    selectedTabId = tab.id!
+    lastKnownUrl = tab.url ?? null
+    persistState()
+    return { tabId: tab.id, url: tab.url }
+  }
   if (type === 'ping') {
     const tab = selectedTabId !== null
       ? await chrome.tabs.get(selectedTabId).catch(() => null)

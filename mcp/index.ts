@@ -97,6 +97,18 @@ const appTools = [
     },
   },
   {
+    name: 'create_tab',
+    description: 'Open a new Chrome tab (session mode only). Automatically pins automation to the new tab. Returns the new tab id and url.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        url: { type: 'string', description: 'URL to open. Defaults to about:blank.' },
+        active: { type: 'boolean', description: 'Whether to make the new tab active. Defaults to true.' },
+      },
+      required: [],
+    },
+  },
+  {
     name: 'health_check',
     description: 'Verify the MCP server, Chrome extension, and their connection are healthy. Call this before long-running commands that depend on the browser. Returns structured JSON with mode, extension status, browser status, per-tool timing stats, and a list of issues each with a remedy. Pass heal:true to also attempt automatic recovery (drops a dead extension socket so the extension reconnects, then re-checks).',
     inputSchema: {
