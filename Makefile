@@ -1,4 +1,4 @@
-PLUGIN_DIR := /Users/viveksingh/projects/brow-use/spike
+PLUGIN_DIR := $(CURDIR)
 EXT_VERSION := $(shell node -p "require('./extension/manifest.json').version")
 EXT_ZIP := dist/brow-use-extension-$(EXT_VERSION).zip
 
