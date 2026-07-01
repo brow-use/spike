@@ -42,6 +42,9 @@ endif
 dev-mcp: ## Run the MCP server directly from source (bypasses installed plugin)
 	npx tsx mcp/index.ts
 
+serve-mcp: ## Run the MCP server standalone over HTTP (connect clients to http://127.0.0.1:3457/mcp)
+	npx tsx mcp/index.ts --http
+
 list: ## List installed plugins and configured marketplaces
 	claude plugin list
 	claude plugin marketplace list

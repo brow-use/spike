@@ -1,13 +1,17 @@
 import fs from 'fs'
+import http from 'http'
 import path from 'path'
+import { randomUUID } from 'crypto'
 import { chromium } from 'playwright'
 import type { Browser, BrowserContext, Page } from 'playwright'
 import { WebSocketServer } from 'ws'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
+  isInitializeRequest,
 } from '@modelcontextprotocol/sdk/types.js'
 import type { Tool } from '../tool/tool.js'
 import type { ToolContext, ToolResultContent } from '../tool/tool.js'
@@ -48,6 +52,8 @@ const WS_PORT = 3456
 const WS_BIND_RETRIES = 5
 const WS_BIND_RETRY_DELAY_MS = 1000
 const PID_FILE = path.resolve(process.cwd(), '.brow-use/mcp.pid')
+const MCP_HTTP_PATH = '/mcp'
+const DEFAULT_MCP_HTTP_PORT = 3457
 
 const browserTools: Tool[] = [
   navigate, click, typeTool, snapshot, getAccessibilityTree,
@@ -125,6 +131,8 @@ const crxClient = new CrxClient(OUTPUT_DIR, { onLog: log })
 const timing = new TimingStats()
 
 let activeWss: WebSocketServer | null = null
+let activeHttpServer: http.Server | null = null
+let httpTransport: StreamableHTTPServerTransport | null = null
 
 function readPortHolderPid(): string {
   try {
@@ -326,19 +334,83 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 process.on('SIGTERM', async () => {
   cleanupPidFile()
   activeWss?.close()
+  activeHttpServer?.close()
   await browserContext?.close()
   await browser?.close()
   process.exit(0)
 })
 
-process.stdin.on('close', () => {
-  log('stdin closed — exiting')
-  cleanupPidFile()
-  activeWss?.close()
-  browserContext?.close().catch(() => {})
-  browser?.close().catch(() => {})
-  process.exit(0)
-})
+async function startStdioTransport(): Promise<void> {
+  process.stdin.on('close', () => {
+    log('stdin closed — exiting')
+    cleanupPidFile()
+    activeWss?.close()
+    browserContext?.close().catch(() => {})
+    browser?.close().catch(() => {})
+    process.exit(0)
+  })
+  const transport = new StdioServerTransport()
+  await server.connect(transport)
+}
 
-const transport = new StdioServerTransport()
-await server.connect(transport)
+async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = []
+  for await (const chunk of req) chunks.push(chunk as Buffer)
+  if (chunks.length === 0) return undefined
+  const raw = Buffer.concat(chunks).toString('utf8')
+  return raw ? JSON.parse(raw) : undefined
+}
+
+async function startHttpTransport(port: number): Promise<void> {
+  const httpServer = http.createServer(async (req, res) => {
+    const pathname = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`).pathname
+    if (pathname !== MCP_HTTP_PATH) {
+      res.writeHead(404).end()
+      return
+    }
+    try {
+      const body = req.method === 'POST' ? await readJsonBody(req) : undefined
+
+      if (req.method === 'POST' && isInitializeRequest(body)) {
+        if (httpTransport) {
+          log('mcp http: replacing existing session with a new initialize')
+          await httpTransport.close()
+        }
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          onsessioninitialized: (sid) => log('mcp http session initialized', sid),
+        })
+        transport.onclose = () => { if (httpTransport === transport) httpTransport = null }
+        await server.connect(transport)
+        httpTransport = transport
+        await transport.handleRequest(req, res, body)
+        return
+      }
+
+      if (!httpTransport) {
+        res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: -32000, message: 'No active MCP session; send initialize first' },
+          id: null,
+        }))
+        return
+      }
+      await httpTransport.handleRequest(req, res, body)
+    } catch (err) {
+      log('http transport error', err)
+      if (!res.headersSent) res.writeHead(500).end()
+    }
+  })
+  activeHttpServer = httpServer
+  httpServer.listen(port, '127.0.0.1', () => {
+    log(`mcp http transport listening on http://127.0.0.1:${port}${MCP_HTTP_PATH} (pid ${process.pid})`)
+  })
+}
+
+const httpPortEnv = process.env.BROW_USE_MCP_HTTP_PORT
+const useHttp = process.argv.includes('--http') || httpPortEnv !== undefined
+if (useHttp) {
+  await startHttpTransport(httpPortEnv ? Number(httpPortEnv) : DEFAULT_MCP_HTTP_PORT)
+} else {
+  await startStdioTransport()
+}

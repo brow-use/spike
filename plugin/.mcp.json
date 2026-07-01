@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "bu": {
-      "command": "node",
-      "args": ["/Users/viveksingh/projects/brow-use/spike/dist/mcp/index.js"]
+      "type": "http",
+      "url": "http://127.0.0.1:3457/mcp"
     }
   }
 }
