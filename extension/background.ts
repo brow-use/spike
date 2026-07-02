@@ -80,7 +80,7 @@ function installConsoleCapture(): void {
   for (const [method, level] of levels) {
     const original = console[method].bind(console)
     console[method] = (...args: unknown[]) => {
-      original(...args)
+      original(`[${new Date().toISOString()}]`, ...args)
       recordLog({
         kind: 'brow_use_log',
         level,

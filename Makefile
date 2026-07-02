@@ -4,7 +4,7 @@ EXT_ZIP := dist/brow-use-extension-$(EXT_VERSION).zip
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build package-extension install reinstall install-local list dev-mcp extract
+.PHONY: help build package-extension install reinstall install-local list dev-mcp serve-mcp serve-mcp-dev extract
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} \
@@ -44,6 +44,9 @@ dev-mcp: ## Run the MCP server directly from source (bypasses installed plugin)
 
 serve-mcp: ## Run the MCP server standalone over HTTP (connect clients to http://127.0.0.1:3457/mcp)
 	npx tsx mcp/index.ts --http
+
+serve-mcp-dev: ## Like serve-mcp but restarts on source changes (watch mode)
+	npx tsx watch mcp/index.ts --http
 
 list: ## List installed plugins and configured marketplaces
 	claude plugin list
